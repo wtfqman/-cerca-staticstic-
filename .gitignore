@@ -1,0 +1,22 @@
+node_modules/
+dist/
+
+# Secrets and local env files. Keep only the documented example in git.
+.env
+.env.*
+!.env.example
+
+# Runtime/user data. Never commit generated documents, signed PDFs, receipts, backups or logs.
+storage/
+logs/
+*.log
+
+# Local Google credentials and template import sources.
+*.credentials.json
+*service-account*.json
+src/templates/documents-docx/sources.local.json
+
+# Local OS/editor noise.
+.DS_Store
+Thumbs.db
+tmp-*

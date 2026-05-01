@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Normalized local DOCX templates. Runtime never downloads external Google Docs; imports update this manifest explicitly.",
+  "templates": {
+    "contract/self-employed/template.docx": {
+      "sourceKind": "google-docs-exported-docx",
+      "sourceLabel": "Google Docs export (package.self-employed)",
+      "sha256": "d091023ca7a8f3aa5119e6d143734292af921c67bdd281a89870878f25f363fe",
+      "sizeBytes": 253312,
+      "updatedAt": "2026-04-30T06:43:35.270Z"
+    },
+    "contract/ip/template.docx": {
+      "sourceKind": "google-docs-exported-docx",
+      "sourceLabel": "Google Docs export (package.ip)",
+      "sha256": "47b239588be27ea9f34e87d75df35da98880deb05bf078f49d7e93b9dc349f8c",
+      "sizeBytes": 269892,
+      "updatedAt": "2026-04-30T06:43:35.275Z"
+    },
+    "nda/self-employed/template.docx": {
+      "sourceKind": "approved-docx-example",
+      "sourceLabel": "Approved DOCX example (nda.self-employed)",
+      "sha256": "49620a81433223e9eeca8bb937a9c22b04eecdd763f0fca0e05ef3f59e846712",
+      "sizeBytes": 38000,
+      "updatedAt": "2026-04-30T06:43:35.278Z"
+    },
+    "nda/ip/template.docx": {
+      "sourceKind": "approved-docx-example",
+      "sourceLabel": "Approved DOCX example (nda.ip)",
+      "sha256": "49620a81433223e9eeca8bb937a9c22b04eecdd763f0fca0e05ef3f59e846712",
+      "sizeBytes": 38000,
+      "updatedAt": "2026-04-30T06:43:35.281Z"
+    }
+  }
+}

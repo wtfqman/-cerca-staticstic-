@@ -1,0 +1,402 @@
+import { LegalType } from '@prisma/client';
+import { Scenes } from 'telegraf';
+
+import { container } from '../container';
+import { cancelSceneKeyboard } from '../keyboards/menu.keyboards';
+import { confirmInlineKeyboard, legalTypeInlineKeyboard } from '../keyboards/inline.keyboards';
+import { SCENE_IDS } from './scene-ids';
+import type { BotContext } from '../types/bot-context';
+import {
+  bankAccountSchema,
+  bankBikSchema,
+  bankCorrAccountSchema,
+  bankNameSchema,
+  emailSchema,
+  fullNameSchema,
+  innSchema,
+  legalTypeSchema,
+  ogrnipSchema,
+  parseRuDateToDate,
+  passportDepartmentCodeSchema,
+  passportIssuedByInstrumentalSchema,
+  passportNumberSchema,
+  passportSeriesSchema,
+  phoneSchema,
+  registrationAddressSchema
+} from '../validators/profile.schemas';
+import { getMessageText } from '../utils/telegram';
+import { formatRussianDate } from '../utils/formatters';
+import type { CreatorProfileUpsertInput } from '../repositories/creator-profile.repository';
+import { formatUserError, formatValidationError, logUserError } from '../utils/user-errors';
+import { startCreatorDocumentsAfterRegistration } from '../creators/creator-documents.flow';
+import { CONTRACT_DEADLINE_REGISTRATION_PROMPT } from '../texts/messages';
+import { NO_CONTRACT_REGISTRATION_VALUE, isNoContractLegalType } from '../utils/creator-registration-mode';
+
+type RegistrationField =
+  | 'fullName'
+  | 'contractDeadlineDate'
+  | 'passportSeries'
+  | 'passportNumber'
+  | 'passportIssuedAt'
+  | 'passportIssuedByInstrumental'
+  | 'passportDepartmentCode'
+  | 'registrationAddress'
+  | 'inn'
+  | 'ogrnip'
+  | 'bankAccount'
+  | 'bankName'
+  | 'bankBik'
+  | 'bankCorrAccount'
+  | 'phone'
+  | 'email';
+
+type RegistrationDraft = CreatorProfileUpsertInput;
+
+type RegistrationState = {
+  draft: RegistrationDraft;
+  fieldIndex: number;
+};
+
+type FieldConfig = {
+  key: RegistrationField;
+  prompt: string;
+  parse: (value: string) => string | Date;
+};
+
+const fieldConfigs: Record<RegistrationField, FieldConfig> = {
+  fullName: {
+    key: 'fullName',
+    prompt: 'Укажи ФИО полностью.',
+    parse: (value) => fullNameSchema.parse(value)
+  },
+  contractDeadlineDate: {
+    key: 'contractDeadlineDate',
+    prompt: CONTRACT_DEADLINE_REGISTRATION_PROMPT,
+    parse: parseRuDateToDate
+  },
+  passportSeries: {
+    key: 'passportSeries',
+    prompt: 'Введи серию паспорта: 4 цифры.',
+    parse: (value) => passportSeriesSchema.parse(value)
+  },
+  passportNumber: {
+    key: 'passportNumber',
+    prompt: 'Введи номер паспорта: 6 цифр.',
+    parse: (value) => passportNumberSchema.parse(value)
+  },
+  passportIssuedAt: {
+    key: 'passportIssuedAt',
+    prompt: 'Укажи дату выдачи паспорта в формате ДД.ММ.ГГГГ.',
+    parse: parseRuDateToDate
+  },
+  passportIssuedByInstrumental: {
+    key: 'passportIssuedByInstrumental',
+    prompt: 'Укажи, кем выдан паспорт, в творительном падеже. Например: ОМВД России по району ...',
+    parse: (value) => passportIssuedByInstrumentalSchema.parse(value)
+  },
+  passportDepartmentCode: {
+    key: 'passportDepartmentCode',
+    prompt: 'Укажи код подразделения паспорта. Можно ввести 770001 или 770-001.',
+    parse: (value) => passportDepartmentCodeSchema.parse(value)
+  },
+  registrationAddress: {
+    key: 'registrationAddress',
+    prompt: 'Укажи адрес регистрации.',
+    parse: (value) => registrationAddressSchema.parse(value)
+  },
+  inn: {
+    key: 'inn',
+    prompt: 'Укажи ИНН.',
+    parse: (value) => innSchema.parse(value)
+  },
+  ogrnip: {
+    key: 'ogrnip',
+    prompt: 'Введи ОГРНИП.',
+    parse: (value) => ogrnipSchema.parse(value)
+  },
+  bankAccount: {
+    key: 'bankAccount',
+    prompt: 'Введи расчетный счет.',
+    parse: (value) => bankAccountSchema.parse(value)
+  },
+  bankName: {
+    key: 'bankName',
+    prompt: 'Укажи название банка.',
+    parse: (value) => bankNameSchema.parse(value)
+  },
+  bankBik: {
+    key: 'bankBik',
+    prompt: 'Введи БИК банка.',
+    parse: (value) => bankBikSchema.parse(value)
+  },
+  bankCorrAccount: {
+    key: 'bankCorrAccount',
+    prompt: 'Введи корреспондентский счет.',
+    parse: (value) => bankCorrAccountSchema.parse(value)
+  },
+  phone: {
+    key: 'phone',
+    prompt: 'Укажи телефон для связи.',
+    parse: (value) => phoneSchema.parse(value)
+  },
+  email: {
+    key: 'email',
+    prompt: 'Укажи email.',
+    parse: (value) => emailSchema.parse(value)
+  }
+};
+
+const selfEmployedFields: RegistrationField[] = [
+  'fullName',
+  'contractDeadlineDate',
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedAt',
+  'passportIssuedByInstrumental',
+  'passportDepartmentCode',
+  'registrationAddress',
+  'inn',
+  'bankAccount',
+  'bankName',
+  'bankBik',
+  'bankCorrAccount',
+  'phone',
+  'email'
+];
+
+const ipFields: RegistrationField[] = [
+  'fullName',
+  'contractDeadlineDate',
+  'registrationAddress',
+  'inn',
+  'ogrnip',
+  'bankAccount',
+  'bankName',
+  'bankBik',
+  'bankCorrAccount',
+  'phone',
+  'email'
+];
+
+const noContractFields: RegistrationField[] = [
+  'fullName',
+  'phone',
+  'email'
+];
+
+const getState = (ctx: BotContext): RegistrationState => {
+  const state = ctx.wizard.state as RegistrationState;
+  state.draft ??= {};
+  state.fieldIndex ??= 0;
+  return state;
+};
+
+const getFieldsForDraft = (draft: RegistrationDraft) =>
+  isNoContractLegalType(draft.legalType)
+    ? noContractFields
+    : draft.legalType === LegalType.IP
+      ? ipFields
+      : selfEmployedFields;
+
+const getText = (ctx: BotContext) => getMessageText(ctx.message);
+
+const formatDraftDate = (value: unknown) =>
+  value instanceof Date || typeof value === 'string' ? formatRussianDate(value) : '—';
+
+const askCurrentField = async (ctx: BotContext) => {
+  const state = getState(ctx);
+  const fields = getFieldsForDraft(state.draft);
+  const field = fields[state.fieldIndex];
+
+  if (!field) {
+    await showReview(ctx);
+    return ctx.wizard.selectStep(3);
+  }
+
+  await ctx.reply(fieldConfigs[field].prompt, cancelSceneKeyboard());
+  return undefined;
+};
+
+const buildDraftFromProfile = (
+  profile: NonNullable<BotContext['state']['currentUser']>['creatorProfile'] | null | undefined
+) => {
+  if (!profile) {
+    return {};
+  }
+
+  return {
+    legalType: profile.legalType,
+    fullName: profile.fullName ?? undefined,
+    contractDeadlineDate: profile.contractDeadlineDate ?? undefined,
+    passportSeries: profile.passportSeries ?? undefined,
+    passportNumber: profile.passportNumber ?? undefined,
+    passportIssuedAt: profile.passportIssuedAt ?? undefined,
+    passportIssuedByInstrumental: profile.passportIssuedByInstrumental ?? undefined,
+    passportDepartmentCode: profile.passportDepartmentCode ?? undefined,
+    registrationAddress: profile.registrationAddress ?? undefined,
+    inn: profile.inn ?? undefined,
+    ogrnip: profile.ogrnip ?? undefined,
+    bankAccount: profile.bankAccount ?? undefined,
+    bankName: profile.bankName ?? undefined,
+    bankBik: profile.bankBik ?? undefined,
+    bankCorrAccount: profile.bankCorrAccount ?? undefined,
+    phone: profile.phone ?? undefined,
+    email: profile.email ?? undefined
+  } satisfies RegistrationDraft;
+};
+
+const showReview = async (ctx: BotContext) => {
+  const draft = getState(ctx).draft;
+  const legalType = isNoContractLegalType(draft.legalType)
+    ? 'Без договора'
+    : draft.legalType === LegalType.IP
+      ? 'ИП'
+      : 'Самозанятый / СЗ';
+
+  await ctx.reply(
+    [
+      'Проверь, пожалуйста, анкету перед подтверждением.',
+      '',
+      `Тип: ${legalType}`,
+      `ФИО: ${draft.fullName ?? '—'}`,
+      isNoContractLegalType(draft.legalType)
+        ? null
+        : `Срок выполнения договора: ${formatDraftDate(draft.contractDeadlineDate)}`,
+      '',
+      draft.legalType === LegalType.SELF_EMPLOYED ? 'Паспортные данные:' : null,
+      draft.legalType === LegalType.SELF_EMPLOYED
+        ? `Паспорт: ${draft.passportSeries ?? '—'} ${draft.passportNumber ?? ''}`.trim()
+        : null,
+      draft.legalType === LegalType.SELF_EMPLOYED
+        ? `Дата выдачи: ${formatDraftDate(draft.passportIssuedAt)}`
+        : null,
+      draft.legalType === LegalType.SELF_EMPLOYED
+        ? `Кем выдан: ${draft.passportIssuedByInstrumental ?? '—'}`
+        : null,
+      draft.legalType === LegalType.SELF_EMPLOYED
+        ? `Код подразделения: ${draft.passportDepartmentCode ?? '—'}`
+        : null,
+      draft.legalType === LegalType.SELF_EMPLOYED ? '' : null,
+      isNoContractLegalType(draft.legalType) ? null : 'Реквизиты:',
+      isNoContractLegalType(draft.legalType) ? null : `Адрес регистрации: ${draft.registrationAddress ?? '—'}`,
+      isNoContractLegalType(draft.legalType) ? null : `ИНН: ${draft.inn ?? '—'}`,
+      draft.legalType === LegalType.IP ? `ОГРНИП: ${draft.ogrnip ?? '—'}` : null,
+      isNoContractLegalType(draft.legalType) ? null : `Расчетный счет: ${draft.bankAccount ?? '—'}`,
+      isNoContractLegalType(draft.legalType) ? null : `Банк: ${draft.bankName ?? '—'}`,
+      isNoContractLegalType(draft.legalType) ? null : `БИК: ${draft.bankBik ?? '—'}`,
+      isNoContractLegalType(draft.legalType) ? null : `Корр. счет: ${draft.bankCorrAccount ?? '—'}`,
+      `Телефон: ${draft.phone ?? '—'}`,
+      `Email: ${draft.email ?? '—'}`
+    ]
+      .filter((line) => line !== null)
+      .join('\n'),
+    confirmInlineKeyboard('register_confirm', 'register_edit')
+  );
+};
+
+export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
+  SCENE_IDS.creatorRegistration,
+  async (ctx) => {
+    const state = getState(ctx);
+    state.draft = buildDraftFromProfile(ctx.state.currentUser?.creatorProfile);
+
+    await ctx.reply(
+      'Давай завершим анкету. Сначала выбери юридический тип.',
+      legalTypeInlineKeyboard()
+    );
+    return ctx.wizard.next();
+  },
+  async (ctx) => {
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data.startsWith('register_legal:')) {
+      const state = getState(ctx);
+      const selectedLegalType = ctx.callbackQuery.data.split(':')[1];
+      state.draft.legalType =
+        selectedLegalType === NO_CONTRACT_REGISTRATION_VALUE ? null : legalTypeSchema.parse(selectedLegalType);
+      state.fieldIndex = 0;
+      await ctx.answerCbQuery();
+      await askCurrentField(ctx);
+      return ctx.wizard.next();
+    }
+
+    await ctx.reply('Выбери тип кнопкой ниже.', legalTypeInlineKeyboard());
+  },
+  async (ctx) => {
+    const state = getState(ctx);
+    const fields = getFieldsForDraft(state.draft);
+    const field = fields[state.fieldIndex];
+
+    if (!field) {
+      await showReview(ctx);
+      return ctx.wizard.selectStep(3);
+    }
+
+    let value: string | Date;
+
+    try {
+      value = fieldConfigs[field].parse(getText(ctx));
+    } catch (error) {
+      await ctx.reply(formatValidationError(error, 'Поле заполнено неверно.'));
+      return;
+    }
+
+    state.draft = {
+      ...state.draft,
+      [field]: value
+    };
+
+    try {
+      await container.services.creatorProfileService.saveDraft(ctx.state.currentUser!.id, state.draft);
+      state.fieldIndex += 1;
+
+      if (state.fieldIndex >= fields.length) {
+        await showReview(ctx);
+        return ctx.wizard.selectStep(3);
+      }
+
+      await askCurrentField(ctx);
+    } catch (error) {
+      logUserError(error, 'Creator registration draft save failed', {
+        userId: ctx.state.currentUser?.id,
+        field
+      });
+      await ctx.reply('Сейчас не удалось сохранить анкету. Попробуй еще раз немного позже.');
+    }
+  },
+  async (ctx) => {
+    if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+      await showReview(ctx);
+      return;
+    }
+
+    if (ctx.callbackQuery.data === 'register_edit') {
+      const state = getState(ctx);
+      state.fieldIndex = 0;
+      await ctx.answerCbQuery();
+      await ctx.reply(
+        'Хорошо, пройдем анкету еще раз. Сначала выбери юридический тип.',
+        legalTypeInlineKeyboard()
+      );
+      return ctx.wizard.selectStep(1);
+    }
+
+    if (ctx.callbackQuery.data === 'register_confirm') {
+      await ctx.answerCbQuery();
+
+      try {
+        await container.services.creatorProfileService.completeProfile(
+          ctx.state.currentUser!.id,
+          getState(ctx).draft as never
+        );
+      } catch (error) {
+        logUserError(error, 'Creator registration completion failed', {
+          userId: ctx.state.currentUser?.id
+        });
+        await ctx.reply(formatUserError(error, 'Сейчас не удалось завершить регистрацию. Проверь анкету и попробуй еще раз.'));
+        return;
+      }
+
+      await ctx.scene.leave();
+      await startCreatorDocumentsAfterRegistration(ctx);
+    }
+  }
+);

@@ -1,0 +1,6 @@
+{
+  "package.self-employed": "https://docs.google.com/document/d/GOOGLE_DOC_ID_FOR_SELF_EMPLOYED_PACKAGE/edit",
+  "package.ip": "https://docs.google.com/document/d/GOOGLE_DOC_ID_FOR_IP_PACKAGE/edit",
+  "nda.self-employed": "C:/path/to/approved/nda.docx",
+  "nda.ip": "C:/path/to/approved/nda.docx"
+}

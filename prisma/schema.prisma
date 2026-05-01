@@ -1,0 +1,542 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  TEAMLEAD
+  CREATOR
+}
+
+enum LegalType {
+  SELF_EMPLOYED
+  IP
+}
+
+enum SocialPlatform {
+  INSTAGRAM
+  TIKTOK
+  VK
+  YOUTUBE
+}
+
+enum DailyPublicationStatus {
+  PENDING
+  CONFIRMED
+  MISSED
+}
+
+enum WeeklyReportStatus {
+  DRAFT
+  SUBMITTED
+  CONFIRMED
+}
+
+enum NotificationType {
+  DAILY_PUBLICATION_REMINDER
+  DAILY_MISSED_TEAMLEAD
+  WEEKLY_STATS_REMINDER
+  DOCUMENT_SENT
+  DOCUMENT_SIGNED_FORWARDED
+  DOCUMENT_RECEIPT_REMINDER
+  SYSTEM
+}
+
+enum DocumentType {
+  CONTRACT
+  NDA
+  ACT
+  ASSIGNMENT
+  RIGHTS_TRANSFER
+}
+
+enum DocumentStatus {
+  GENERATED
+  SENT_TO_CREATOR
+  VIEWED_BY_CREATOR
+  SIGNED_UPLOADED
+  FORWARDED_TO_CHAT
+  FAILED
+}
+
+enum DocumentRequestType {
+  MONTHLY_PACKAGE
+  REGENERATE_ONE_OFF
+  REGENERATE_MONTHLY
+}
+
+enum DocumentRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DocumentWorkflowCampaignType {
+  ACTIVE_ROSTER_RESIGNING
+  REGULAR
+}
+
+enum DocumentWorkflowCampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum CreatorDocumentWorkflowStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum CreatorProfileChangeRequestStatus {
+  CREATED
+  PENDING_TEAMLEAD
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum DocumentWorkflowQueue {
+  FIRST_QUEUE
+  SECOND_QUEUE
+  PAYMENT_QUEUE
+  RECEIPT_QUEUE
+}
+
+enum PaymentDocumentType {
+  INVOICE
+  RECEIPT
+}
+
+enum PaymentDocumentStatus {
+  UPLOADED
+  ACCEPTED
+  REJECTED
+}
+
+model User {
+  id                        String                         @id @default(cuid())
+  telegramId                String                         @unique
+  username                  String?
+  firstName                 String?
+  lastName                  String?
+  role                      UserRole?
+  isActive                  Boolean                        @default(true)
+  creatorProfile            CreatorProfile?
+  teamLeadProfile           TeamLeadProfile?
+  creatorAssignments        CreatorTeamLeadLink[]          @relation("CreatorAssignments")
+  teamLeadAssignments       CreatorTeamLeadLink[]          @relation("TeamLeadAssignments")
+  socialAccounts            CreatorSocialAccount[]
+  dailyPublicationChecks    DailyPublicationCheck[]
+  weeklyStatReports         WeeklyStatReport[]
+  weeklyStatAttachments     WeeklyStatAttachment[]
+  reviewedWeeklyStatReports WeeklyStatReport[]             @relation("WeeklyStatReportTeamLeadReview")
+  monthlyVideoCounts        MonthlyVideoCount[]
+  notificationLogs          NotificationLog[]
+  documentRequests          DocumentRequest[]
+  monthlyPaymentSnapshots   MonthlyPaymentSnapshot[]
+  documents                 Document[]
+  documentSignatureUploads  DocumentSignatureUpload[]
+  documentWorkflowStates    CreatorDocumentWorkflowState[]
+  profileChangeRequests     CreatorProfileChangeRequest[]  @relation("CreatorProfileChangeRequestCreator")
+  profileChangeApprovals    CreatorProfileChangeRequest[]  @relation("CreatorProfileChangeRequestTeamLead")
+  paymentDocumentUploads    PaymentDocumentUpload[]
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+
+  @@index([role, isActive])
+}
+
+model CreatorProfile {
+  id                           String     @id @default(cuid())
+  userId                       String     @unique
+  legalType                    LegalType?
+  fullName                     String?
+  contractDeadlineDate         DateTime?  @db.Date
+  phone                        String?
+  email                        String?
+  inn                          String?
+  passportSeries               String?
+  passportNumber               String?
+  passportIssuedAt             DateTime?  @db.Date
+  passportIssuedByInstrumental String?
+  passportDepartmentCode       String?
+  registrationAddress          String?
+  ogrnip                       String?
+  bankAccount                  String?
+  bankBik                      String?
+  bankCorrAccount              String?
+  bankName                     String?
+  profileCompleted             Boolean    @default(false)
+  createdAt                    DateTime   @default(now())
+  updatedAt                    DateTime   @updatedAt
+  user                         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([legalType, profileCompleted])
+}
+
+model CreatorProfileChangeLog {
+  id            String   @id @default(cuid())
+  creatorUserId String
+  actorUserId   String
+  field         String
+  oldValue      String?
+  newValue      String?
+  createdAt     DateTime @default(now())
+
+  @@index([creatorUserId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([field, createdAt])
+}
+
+model CreatorProfileChangeRequest {
+  id             String                            @id @default(cuid())
+  creatorUserId  String
+  teamLeadUserId String
+  status         CreatorProfileChangeRequestStatus @default(PENDING_TEAMLEAD)
+  fields         Json
+  decidedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                          @default(now())
+  updatedAt      DateTime                          @updatedAt
+  creator        User                              @relation("CreatorProfileChangeRequestCreator", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  teamLead       User                              @relation("CreatorProfileChangeRequestTeamLead", fields: [teamLeadUserId], references: [id], onDelete: Cascade)
+
+  @@index([creatorUserId, status])
+  @@index([teamLeadUserId, status, createdAt])
+}
+
+model TeamLeadProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  displayName String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CreatorTeamLeadLink {
+  id             String   @id @default(cuid())
+  creatorUserId  String
+  teamLeadUserId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  creator        User     @relation("CreatorAssignments", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  teamLead       User     @relation("TeamLeadAssignments", fields: [teamLeadUserId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorUserId, teamLeadUserId])
+  @@index([creatorUserId, isActive])
+  @@index([teamLeadUserId, isActive])
+}
+
+model CreatorSocialAccount {
+  id            String         @id @default(cuid())
+  creatorUserId String
+  platform      SocialPlatform
+  handleOrUrl   String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  creator       User           @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorUserId, platform])
+  @@index([creatorUserId, isActive])
+}
+
+model DailyPublicationCheck {
+  id                 String                 @id @default(cuid())
+  creatorUserId      String
+  checkDate          DateTime               @db.Date
+  reminderSentAt     DateTime?
+  confirmedAt        DateTime?
+  teamLeadNotifiedAt DateTime?
+  status             DailyPublicationStatus @default(PENDING)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  creator            User                   @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorUserId, checkDate])
+  @@index([checkDate, status])
+}
+
+model WeeklyStatReport {
+  id                   String                 @id @default(cuid())
+  creatorUserId        String
+  monthKey             String
+  weekStart            DateTime               @db.Date
+  weekEnd              DateTime               @db.Date
+  totalVideoCount      Int?
+  status               WeeklyReportStatus     @default(DRAFT)
+  submittedAt          DateTime?
+  reviewedByTeamLeadId String?
+  reviewedAt           DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  creator              User                   @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+  reviewedByTeamLead   User?                  @relation("WeeklyStatReportTeamLeadReview", fields: [reviewedByTeamLeadId], references: [id], onDelete: SetNull)
+  items                WeeklyStatItem[]
+  attachments          WeeklyStatAttachment[]
+
+  @@unique([creatorUserId, weekStart, weekEnd])
+  @@index([creatorUserId, monthKey])
+  @@index([monthKey, status])
+  @@index([reviewedByTeamLeadId, reviewedAt])
+  @@index([weekStart, weekEnd])
+}
+
+model WeeklyStatItem {
+  id             String           @id @default(cuid())
+  weeklyReportId String
+  platform       SocialPlatform
+  videoCount     Int              @default(0)
+  views          Int              @default(0)
+  likes          Int              @default(0)
+  comments       Int              @default(0)
+  reposts        Int              @default(0)
+  saves          Int              @default(0)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  report         WeeklyStatReport @relation(fields: [weeklyReportId], references: [id], onDelete: Cascade)
+
+  @@unique([weeklyReportId, platform])
+  @@index([platform])
+}
+
+model WeeklyStatAttachment {
+  id                   String           @id @default(cuid())
+  weeklyReportId       String
+  creatorUserId        String
+  telegramFileId       String
+  telegramFileUniqueId String?
+  filePath             String?
+  sortOrder            Int              @default(0)
+  uploadedAt           DateTime         @default(now())
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  report               WeeklyStatReport @relation(fields: [weeklyReportId], references: [id], onDelete: Cascade)
+  creator              User             @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@index([weeklyReportId, sortOrder])
+  @@index([creatorUserId, uploadedAt])
+}
+
+model MonthlyVideoCount {
+  id            String    @id @default(cuid())
+  creatorUserId String
+  monthKey      String
+  videoCount    Int
+  submittedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  creator       User      @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorUserId, monthKey])
+  @@index([monthKey])
+  @@index([monthKey, updatedAt])
+}
+
+model NotificationLog {
+  id          String           @id @default(cuid())
+  userId      String
+  type        NotificationType
+  payloadJson Json?
+  sentAt      DateTime?
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, createdAt])
+}
+
+model DocumentRequest {
+  id            String                @id @default(cuid())
+  creatorUserId String
+  type          DocumentRequestType
+  periodKey     String?
+  status        DocumentRequestStatus @default(PENDING)
+  payloadJson   Json?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  creator       User                  @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@index([creatorUserId, type, periodKey])
+}
+
+model MonthlyPaymentSnapshot {
+  id               String   @id @default(cuid())
+  creatorUserId    String
+  monthKey         String
+  rawViews         Int
+  roundedViews     Int
+  appliedRate      Int
+  viewSteps        Int
+  actualVideoCount Int
+  fixedSalaryPart  Int
+  variablePart     Int
+  totalPayment     Int
+  payloadJson      Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  creator          User     @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@unique([creatorUserId, monthKey])
+  @@index([monthKey])
+  @@index([monthKey, updatedAt])
+}
+
+model Document {
+  id                String                     @id @default(cuid())
+  creatorUserId     String
+  type              DocumentType
+  legalType         LegalType
+  scopeKey          String
+  monthKey          String?
+  periodStart       DateTime?                  @db.Date
+  periodEnd         DateTime?                  @db.Date
+  status            DocumentStatus             @default(GENERATED)
+  filePath          String
+  fileName          String
+  payloadJson       Json
+  telegramMessageId Int?
+  generatedAt       DateTime                   @default(now())
+  sentAt            DateTime?
+  viewedAt          DateTime?
+  signedUploadedAt  DateTime?
+  forwardedAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  creator           User                       @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+  signatureUploads  DocumentSignatureUpload[]
+  workflowLinks     DocumentWorkflowDocument[]
+
+  @@unique([creatorUserId, type, scopeKey])
+  @@index([creatorUserId, status])
+  @@index([monthKey, type])
+  @@index([creatorUserId, monthKey, type, status])
+}
+
+model DocumentSignatureUpload {
+  id                 String   @id @default(cuid())
+  documentId         String
+  creatorUserId      String
+  telegramFileId     String?
+  telegramDocumentId String?
+  originalFileName   String
+  mimeType           String?
+  filePath           String
+  uploadedAt         DateTime @default(now())
+  forwardedChatId    String?
+  forwardedMessageId Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  document           Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  creator            User     @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, uploadedAt])
+  @@index([creatorUserId, uploadedAt])
+}
+
+model DocumentWorkflowCampaign {
+  id              String                         @id @default(cuid())
+  key             String                         @unique
+  type            DocumentWorkflowCampaignType
+  status          DocumentWorkflowCampaignStatus @default(DRAFT)
+  title           String
+  description     String?
+  contractDate    DateTime?                      @db.Date
+  periodMonths    Json
+  createdByUserId String?
+  activatedAt     DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  states          CreatorDocumentWorkflowState[]
+
+  @@index([type, status])
+  @@index([status, updatedAt])
+}
+
+model CreatorDocumentWorkflowState {
+  id                    String                        @id @default(cuid())
+  campaignId            String
+  creatorUserId         String
+  status                CreatorDocumentWorkflowStatus @default(ACTIVE)
+  firstQueueCompletedAt DateTime?
+  actSignedAt           DateTime?
+  invoiceAvailableAt    DateTime?
+  invoiceUploadedAt     DateTime?
+  receiptExpectedAt     DateTime?
+  receiptReminderDueAt  DateTime?
+  receiptReminderSentAt DateTime?
+  receiptUploadedAt     DateTime?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  campaign              DocumentWorkflowCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creator               User                          @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+  documents             DocumentWorkflowDocument[]
+  paymentUploads        PaymentDocumentUpload[]
+
+  @@unique([campaignId, creatorUserId])
+  @@index([creatorUserId, status])
+  @@index([campaignId, status])
+  @@index([receiptReminderDueAt, receiptReminderSentAt, receiptUploadedAt])
+}
+
+model DocumentWorkflowDocument {
+  id              String                       @id @default(cuid())
+  workflowStateId String
+  documentId      String
+  queue           DocumentWorkflowQueue
+  required        Boolean                      @default(true)
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  workflowState   CreatorDocumentWorkflowState @relation(fields: [workflowStateId], references: [id], onDelete: Cascade)
+  document        Document                     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowStateId, documentId])
+  @@index([workflowStateId, queue])
+  @@index([documentId])
+}
+
+model PaymentDocumentUpload {
+  id                    String                       @id @default(cuid())
+  workflowStateId       String
+  creatorUserId         String
+  monthKey              String?
+  type                  PaymentDocumentType
+  status                PaymentDocumentStatus        @default(UPLOADED)
+  telegramFileId        String?
+  telegramDocumentId    String?
+  originalFileName      String
+  mimeType              String?
+  filePath              String?
+  uploadedAt            DateTime                     @default(now())
+  receiptExpectedAt     DateTime?
+  receiptReminderDueAt  DateTime?
+  receiptReminderSentAt DateTime?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  workflowState         CreatorDocumentWorkflowState @relation(fields: [workflowStateId], references: [id], onDelete: Cascade)
+  creator               User                         @relation(fields: [creatorUserId], references: [id], onDelete: Cascade)
+
+  @@index([workflowStateId, type, uploadedAt])
+  @@index([workflowStateId, monthKey, type, uploadedAt], map: "PaymentUpload_workflow_month_type_uploaded_idx")
+  @@index([creatorUserId, type, uploadedAt])
+  @@index([creatorUserId, monthKey, type, uploadedAt], map: "PaymentUpload_creator_month_type_uploaded_idx")
+  @@index([type, receiptReminderDueAt, receiptReminderSentAt], map: "PaymentUpload_receipt_reminder_due_idx")
+}
+
+model BotSession {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
