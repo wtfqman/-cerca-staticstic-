@@ -1,4 +1,5 @@
 import type { PaymentCalculationSummary } from '../types/report.types';
+import { capKpiViews } from '../utils/kpi-limits';
 import { roundViewsToStep } from '../utils/rounding';
 import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentSnapshotRepository } from '../repositories/payment-snapshot.repository';
@@ -54,7 +55,7 @@ export class PaymentCalculationService {
       : aggregation.totals.videoCount;
     const fixedSalaryPart = Math.min(actualVideoCount * FIXED_RATE_PER_VIDEO, FIXED_SALARY_CAP);
 
-    const rounding = roundViewsToStep(aggregation.totals.views);
+    const rounding = roundViewsToStep(capKpiViews(aggregation.totals.views));
     const viewSteps = rounding.roundedViews / rounding.step;
     const appliedRate = this.resolveRate(rounding.roundedViews);
     const variablePart = viewSteps * appliedRate;

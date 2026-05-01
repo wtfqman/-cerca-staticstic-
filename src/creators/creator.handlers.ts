@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { SocialPlatform, UserRole } from '@prisma/client';
 import type { Telegraf } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
@@ -69,6 +69,7 @@ const formatWeeklyReviewText = (summary: { status: string; isReviewedByTeamLead:
 };
 
 const REQUIRED_APRIL_MONTH_KEY = '2026-04';
+const REQUIRED_APRIL_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
 
 const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
   const creatorUserId = ctx.state.currentUser!.id;
@@ -79,8 +80,10 @@ const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
     })
   ]);
   const hasAprilReach = reports.some((report) => report.items.some((item) => item.views > 0));
+  const aprilScreenshotCount = reports.reduce((sum, report) => sum + report.attachments.length, 0);
+  const hasAprilScreenshots = aprilScreenshotCount >= REQUIRED_APRIL_SCREENSHOT_COUNT;
 
-  if (monthlyVideo && hasAprilReach) {
+  if (monthlyVideo && hasAprilReach && hasAprilScreenshots) {
     return true;
   }
 
@@ -89,6 +92,9 @@ const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
       'Перед второй очередью нужно закрыть обязательную статистику за апрель.',
       monthlyVideo ? null : '- укажи количество видео за апрель',
       hasAprilReach ? null : '- внеси охваты за апрель',
+      hasAprilScreenshots
+        ? null
+        : `- отправь 4 скрина статистики за апрель (${aprilScreenshotCount}/${REQUIRED_APRIL_SCREENSHOT_COUNT})`,
       '',
       'После этого снова нажми «Сформировать вторую очередь».'
     ]

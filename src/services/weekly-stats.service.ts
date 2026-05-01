@@ -3,7 +3,7 @@ import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 import type { WeeklyReportReviewSummary, WeeklyStatSummary } from '../types/report.types';
 import { getWeeklyReportPeriod, toDateOnly, toDateKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
-import { nonNegativeIntSchema } from '../validators/stats.schemas';
+import { kpiViewsSchema, nonNegativeIntSchema } from '../validators/stats.schemas';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import { FileStorageService } from './file-storage.service';
@@ -69,6 +69,7 @@ export class WeeklyStatsService {
         nonNegativeIntSchema.parse(value);
       }
     });
+    kpiViewsSchema.parse(input.views);
 
     return this.repository.upsertItem(reportId, input);
   }

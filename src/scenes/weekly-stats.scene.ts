@@ -10,7 +10,7 @@ import { formatIntegerRu } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError } from '../utils/user-errors';
-import { nonNegativeIntSchema } from '../validators/stats.schemas';
+import { kpiViewsSchema, nonNegativeIntSchema } from '../validators/stats.schemas';
 import { SCENE_IDS } from './scene-ids';
 
 type WeeklyMetric = 'views' | 'likes' | 'comments' | 'reposts' | 'saves';
@@ -68,6 +68,7 @@ const METRIC_ERROR_MESSAGES: Record<WeeklyMetric, string> = {
 const getState = (ctx: BotContext) => ctx.wizard.state as WeeklyWizardState;
 
 const parseMetricValue = (ctx: BotContext) => nonNegativeIntSchema.parse(getMessageText(ctx.message));
+const parseKpiViewsValue = (ctx: BotContext) => kpiViewsSchema.parse(getMessageText(ctx.message));
 
 const getCurrentPlatform = (state: WeeklyWizardState) =>
   PLATFORM_ORDER[state.platformIndex ?? 0] ?? PLATFORM_ORDER[PLATFORM_ORDER.length - 1];
@@ -219,7 +220,7 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
     }
 
     try {
-      ensureCurrentItem(state).views = parseMetricValue(ctx);
+      ensureCurrentItem(state).views = parseKpiViewsValue(ctx);
       await askCurrentPlatformMetric(ctx, 'likes');
       return ctx.wizard.next();
     } catch (error) {

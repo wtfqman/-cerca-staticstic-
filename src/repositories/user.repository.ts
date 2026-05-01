@@ -134,6 +134,8 @@ export class UserRepository {
   }
 
   async upsertTeamLead(input: TeamLeadUpsertInput) {
+    const existing = await this.findByTelegramId(input.telegramId);
+    const role = existing?.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.TEAMLEAD;
     const grantCreatorAccess =
       input.grantCreatorAccess ?? shouldGrantCreatorAccessToTeamLead(input.telegramId);
 
@@ -144,7 +146,7 @@ export class UserRepository {
         username: input.username ?? null,
         firstName: input.firstName ?? null,
         lastName: input.lastName ?? null,
-        role: UserRole.TEAMLEAD,
+        role,
         isActive: true,
         teamLeadProfile: {
           create: {
@@ -165,7 +167,7 @@ export class UserRepository {
         username: input.username ?? null,
         firstName: input.firstName ?? null,
         lastName: input.lastName ?? null,
-        role: UserRole.TEAMLEAD,
+        role,
         isActive: true,
         teamLeadProfile: {
           upsert: {

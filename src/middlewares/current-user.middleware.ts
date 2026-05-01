@@ -8,6 +8,6 @@ export const currentUserMiddleware: MiddlewareFn<BotContext> = async (ctx, next)
     return next();
   }
 
-  ctx.state.currentUser = await container.services.userService.getByTelegramId(String(ctx.from.id));
+  ctx.state.currentUser = await container.services.authService.ensureTelegramUser(ctx.from);
   return next();
 };

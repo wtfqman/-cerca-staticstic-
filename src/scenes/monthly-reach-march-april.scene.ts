@@ -7,24 +7,26 @@ import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statisti
 import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import { SCENE_IDS } from './scene-ids';
 import { formatIntegerRu } from '../utils/formatters';
-import { getMonthRange, getNow, toDateOnly } from '../utils/periods';
+import { getMonthRange, toDateOnly } from '../utils/periods';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError, logUserError } from '../utils/user-errors';
-import { nonNegativeIntSchema } from '../validators/stats.schemas';
+import { kpiViewsSchema } from '../validators/stats.schemas';
 
 const BACKFILL_MONTHS = ['2026-03', '2026-04'] as const;
 const BACKFILL_PLATFORM = SocialPlatform.INSTAGRAM;
+const REQUIRED_APRIL_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
 
 type BackfillMonthKey = (typeof BACKFILL_MONTHS)[number];
 
 type MonthlyReachBackfillState = {
   values?: Partial<Record<BackfillMonthKey, number>>;
   aprilReportId?: string;
+  aprilScreenshotCount?: number;
 };
 
 const getState = (ctx: BotContext) => ctx.wizard.state as MonthlyReachBackfillState;
 
-const parseReach = (ctx: BotContext) => nonNegativeIntSchema.parse(getMessageText(ctx.message));
+const parseReach = (ctx: BotContext) => kpiViewsSchema.parse(getMessageText(ctx.message));
 
 const saveMonthlyReachBackfill = async (creatorUserId: string, monthKey: BackfillMonthKey, views: number) => {
   const range = getMonthRange(monthKey);
@@ -61,8 +63,6 @@ const saveMonthlyReachBackfill = async (creatorUserId: string, monthKey: Backfil
 
 const skipMarchKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('Пропустить март', 'monthly_reach_backfill_skip_march')]]);
-
-const shouldRequestAprilMonthlyScreenshot = () => getNow().format('YYYY-MM-DD') === '2026-05-01';
 
 const getScreenshotFile = (ctx: BotContext) => {
   if (!ctx.message) {
@@ -142,6 +142,7 @@ export const monthlyReachMarchAprilScene = new Scenes.WizardScene<BotContext>(
 
       const aprilReport = await saveMonthlyReachBackfill(ctx.state.currentUser!.id, BACKFILL_MONTHS[1], aprilValue);
       getState(ctx).aprilReportId = aprilReport.id;
+      getState(ctx).aprilScreenshotCount = aprilReport.attachments.length;
 
       await ctx.reply(
         [
@@ -152,11 +153,17 @@ export const monthlyReachMarchAprilScene = new Scenes.WizardScene<BotContext>(
           `- 2026-04: ${formatIntegerRu(aprilValue)}`,
           'Эти значения будут использоваться в выплатах и отчетах.'
         ].join('\n'),
-        shouldRequestAprilMonthlyScreenshot() ? undefined : mainMenuKeyboardForUser(ctx.state.currentUser)
+        getState(ctx).aprilScreenshotCount! < REQUIRED_APRIL_SCREENSHOT_COUNT
+          ? undefined
+          : mainMenuKeyboardForUser(ctx.state.currentUser)
       );
 
-      if (shouldRequestAprilMonthlyScreenshot()) {
-        await ctx.reply('Теперь отправь скрин статистики за апрель за месяц одним фото или PDF/файлом.');
+      if (getState(ctx).aprilScreenshotCount! < REQUIRED_APRIL_SCREENSHOT_COUNT) {
+        await ctx.reply(
+          `Теперь отправь ${REQUIRED_APRIL_SCREENSHOT_COUNT} скрина статистики за апрель: по одному на каждую соцсеть. Уже сохранено: ${formatIntegerRu(
+            getState(ctx).aprilScreenshotCount!
+          )}/${formatIntegerRu(REQUIRED_APRIL_SCREENSHOT_COUNT)}.`
+        );
         return ctx.wizard.next();
       }
 
@@ -189,16 +196,26 @@ export const monthlyReachMarchAprilScene = new Scenes.WizardScene<BotContext>(
         return;
       }
 
-      await container.services.weeklyStatsService.saveAttachment({
+      const attachment = await container.services.weeklyStatsService.saveAttachment({
         telegram: ctx.telegram,
         reportId: state.aprilReportId,
         creatorUserId: ctx.state.currentUser!.id,
         telegramFileId: file.file_id,
         telegramFileUniqueId: file.file_unique_id
       });
+      state.aprilScreenshotCount = Math.max(state.aprilScreenshotCount ?? 0, attachment.sortOrder);
+
+      if (state.aprilScreenshotCount < REQUIRED_APRIL_SCREENSHOT_COUNT) {
+        await ctx.reply(
+          `Скрин сохранен: ${formatIntegerRu(state.aprilScreenshotCount)}/${formatIntegerRu(
+            REQUIRED_APRIL_SCREENSHOT_COUNT
+          )}. Отправь следующий скрин за апрель.`
+        );
+        return;
+      }
 
       await ctx.reply(
-        'Скрин за апрель сохранен. Спасибо, теперь проверка пройдет быстрее.',
+        'Все 4 скрина за апрель сохранены. Спасибо.',
         mainMenuKeyboardForUser(ctx.state.currentUser)
       );
       await replyCreatorPostStatisticsNextStep(ctx);
