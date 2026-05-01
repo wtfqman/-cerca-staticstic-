@@ -31,6 +31,7 @@ import { formatUserError, formatValidationError, logUserError } from '../utils/u
 import { startCreatorDocumentsAfterRegistration } from '../creators/creator-documents.flow';
 import { CONTRACT_DEADLINE_REGISTRATION_PROMPT } from '../texts/messages';
 import { NO_CONTRACT_REGISTRATION_VALUE, isNoContractLegalType } from '../utils/creator-registration-mode';
+import { safeAnswerCbQuery } from '../utils/telegram-callback';
 
 type RegistrationField =
   | 'fullName'
@@ -313,7 +314,7 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
       state.draft.legalType =
         selectedLegalType === NO_CONTRACT_REGISTRATION_VALUE ? null : legalTypeSchema.parse(selectedLegalType);
       state.fieldIndex = 0;
-      await ctx.answerCbQuery();
+      await safeAnswerCbQuery(ctx);
       await askCurrentField(ctx);
       return ctx.wizard.next();
     }
@@ -371,7 +372,7 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
     if (ctx.callbackQuery.data === 'register_edit') {
       const state = getState(ctx);
       state.fieldIndex = 0;
-      await ctx.answerCbQuery();
+      await safeAnswerCbQuery(ctx);
       await ctx.reply(
         'Хорошо, пройдем анкету еще раз. Сначала выбери юридический тип.',
         legalTypeInlineKeyboard()
@@ -380,7 +381,7 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
     }
 
     if (ctx.callbackQuery.data === 'register_confirm') {
-      await ctx.answerCbQuery();
+      await safeAnswerCbQuery(ctx, 'Сохраняю анкету...');
 
       try {
         await container.services.creatorProfileService.completeProfile(
