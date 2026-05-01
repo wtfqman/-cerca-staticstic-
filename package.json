@@ -14,6 +14,7 @@
     "seed": "prisma db seed",
     "reconcile:known-users": "tsx src/scripts/reconcile-known-users.ts",
     "seed:teamleads": "tsx src/scripts/seed-teamleads.ts",
+    "grant:teamlead-creators": "tsx src/scripts/grant-teamlead-creator-access.ts",
     "grant:admin": "tsx src/scripts/grant-admin.ts",
     "reset:test-creator": "tsx src/scripts/reset-test-creator.ts",
     "templates:import-google-docs": "tsx src/scripts/docx-template-maintenance.ts import-google-docs",

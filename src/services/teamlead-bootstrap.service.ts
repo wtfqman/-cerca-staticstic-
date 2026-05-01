@@ -1,5 +1,6 @@
 import type { AppUser } from '../types/domain';
 import { UserRepository } from '../repositories/user.repository';
+import { shouldGrantCreatorAccessToTeamLead } from '../utils/teamlead-creator-access';
 
 export interface TeamLeadBootstrapInput {
   telegramId: string;
@@ -15,6 +16,7 @@ export interface TeamLeadBootstrapResult {
   userId: string;
   username: string | null;
   displayName: string;
+  creatorProfile: 'created' | 'exists' | 'skipped';
   user: AppUser;
 }
 
@@ -56,12 +58,14 @@ export class TeamLeadBootstrapService {
       const telegramId = input.telegramId.trim();
       const existing = await this.userRepository.findByTelegramId(telegramId);
       const displayName = buildDisplayName(input);
+      const grantCreatorAccess = shouldGrantCreatorAccessToTeamLead(telegramId);
       const user = await this.userRepository.upsertTeamLead({
         telegramId,
         username: normalizeUsername(input.username),
         firstName: normalizeNullableText(input.firstName),
         lastName: normalizeNullableText(input.lastName),
-        displayName
+        displayName,
+        grantCreatorAccess
       });
 
       results.push({
@@ -70,6 +74,7 @@ export class TeamLeadBootstrapService {
         userId: user.id,
         username: user.username,
         displayName: user.teamLeadProfile?.displayName ?? displayName,
+        creatorProfile: grantCreatorAccess ? (existing?.creatorProfile ? 'exists' : 'created') : 'skipped',
         user
       });
     }

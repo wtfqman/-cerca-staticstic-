@@ -17,7 +17,7 @@ const run = async () => {
   for (const result of results) {
     const username = result.username ? `@${result.username}` : 'no username';
     console.log(
-      `- ${result.action}: ${result.displayName} (${username}, telegramId=${result.telegramId}, userId=${result.userId})`
+      `- ${result.action}: ${result.displayName} (${username}, telegramId=${result.telegramId}, userId=${result.userId}, creatorProfile=${result.creatorProfile})`
     );
   }
 };

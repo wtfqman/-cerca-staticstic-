@@ -8,6 +8,7 @@ import {
   type KnownTeamLeadInput,
   type KnownUserInput
 } from './known-users';
+import { shouldGrantCreatorAccessToTeamLead } from '../utils/teamlead-creator-access';
 
 const TELEGRAM_ID_PATTERN = /^-?\d+$/;
 const UNKNOWN_MARKERS = new Set(['unknown']);
@@ -204,7 +205,7 @@ const buildKnownUserPlans = () => {
     addOrMergePlan(plans, {
       ...normalized,
       baseRole: UserRole.TEAMLEAD,
-      requiresCreatorProfile: false,
+      requiresCreatorProfile: shouldGrantCreatorAccessToTeamLead(normalized.telegramId),
       requiresTeamLeadProfile: true,
       displayName: buildDisplayName(input)
     });

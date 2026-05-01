@@ -2,6 +2,7 @@ import { UserRole } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 import { userWithRelationsInclude } from '../types/domain';
+import { shouldGrantCreatorAccessToTeamLead } from '../utils/teamlead-creator-access';
 
 interface TelegramUserInput {
   telegramId: string;
@@ -12,6 +13,7 @@ interface TelegramUserInput {
 
 interface TeamLeadUpsertInput extends TelegramUserInput {
   displayName: string;
+  grantCreatorAccess?: boolean;
 }
 
 const activeCreatorWhere = {
@@ -132,6 +134,9 @@ export class UserRepository {
   }
 
   async upsertTeamLead(input: TeamLeadUpsertInput) {
+    const grantCreatorAccess =
+      input.grantCreatorAccess ?? shouldGrantCreatorAccessToTeamLead(input.telegramId);
+
     return prisma.user.upsert({
       where: { telegramId: input.telegramId },
       create: {
@@ -145,7 +150,16 @@ export class UserRepository {
           create: {
             displayName: input.displayName
           }
-        }
+        },
+        ...(grantCreatorAccess
+          ? {
+              creatorProfile: {
+                create: {
+                  profileCompleted: false
+                }
+              }
+            }
+          : {})
       },
       update: {
         username: input.username ?? null,
@@ -162,7 +176,19 @@ export class UserRepository {
               displayName: input.displayName
             }
           }
-        }
+        },
+        ...(grantCreatorAccess
+          ? {
+              creatorProfile: {
+                upsert: {
+                  create: {
+                    profileCompleted: false
+                  },
+                  update: {}
+                }
+              }
+            }
+          : {})
       },
       include: userWithRelationsInclude
     });
