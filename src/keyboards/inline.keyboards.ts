@@ -47,6 +47,14 @@ export const reportMonthKeyboard = (currentMonthKey: string, previousMonthKey: s
     [Markup.button.callback(`Прошлый месяц (${previousMonthKey})`, `${prefix}:${previousMonthKey}`)]
   ]);
 
+export const adminStatsMonthKeyboard = (currentMonthKey: string, previousMonthKey: string) =>
+  Markup.inlineKeyboard([
+    [Markup.button.callback(`Общая сводка (${currentMonthKey})`, `admin_dashboard:${currentMonthKey}`)],
+    [Markup.button.callback(`Команды (${currentMonthKey})`, `admin_stats_teams:${currentMonthKey}`)],
+    [Markup.button.callback(`Общая сводка (${previousMonthKey})`, `admin_dashboard:${previousMonthKey}`)],
+    [Markup.button.callback(`Команды (${previousMonthKey})`, `admin_stats_teams:${previousMonthKey}`)]
+  ]);
+
 const reviewableWeeklyReportStatuses = new Set(['SUBMITTED', 'CONFIRMED']);
 
 export const weeklyReportReviewKeyboard = (

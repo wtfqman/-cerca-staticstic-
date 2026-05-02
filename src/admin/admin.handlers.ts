@@ -6,6 +6,7 @@ import { container } from '../container';
 import {
   adminBulkActionsKeyboard,
   adminCreatorsActionsKeyboard,
+  adminStatsMonthKeyboard,
   adminGroupActionsKeyboard,
   approvalInlineKeyboard,
   creatorProfileActionsKeyboard,
@@ -147,6 +148,20 @@ const buildTeamLeadItems = async () =>
     label: formatTeamLeadDisplayName(lead)
   }));
 
+const replyAdminStatsTeamSelection = async (ctx: BotContext, monthKey: string, page = 0) => {
+  const teamLeads = await buildTeamLeadItems();
+
+  if (!teamLeads.length) {
+    await ctx.reply('Тимлидов пока нет, поэтому отчет по командам показать не из чего.');
+    return;
+  }
+
+  await ctx.reply(
+    `Выбери команду для отчета за ${monthKey}.`,
+    entitySelectionKeyboard(`admin_stats_team:${monthKey}`, teamLeads, page)
+  );
+};
+
 const formatActiveGroups = (
   groups: Awaited<ReturnType<typeof container.repositories.teamLeadRepository.listGroups>>
 ) =>
@@ -243,8 +258,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await ctx.reply(
-      'За какой месяц показать сводку администратора?',
-      reportMonthKeyboard(getCurrentMonthKey(), getPreviousMonthKey(), 'admin_dashboard')
+      'Выбери отчет: общая сводка или отдельная команда.',
+      adminStatsMonthKeyboard(getCurrentMonthKey(), getPreviousMonthKey())
     );
   });
 
@@ -485,6 +500,30 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       )
     );
     await ctx.reply(formatMissingDocuments(documentSummaries, monthKey));
+    await replyAdminStatsTeamSelection(ctx, monthKey);
+  });
+
+  bot.action(/^admin_stats_teams:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const monthKey = ctx.match[1];
+    await answerCallbackQuerySafely(ctx);
+    await replyAdminStatsTeamSelection(ctx, monthKey);
+  });
+
+  bot.action(/^admin_stats_team:(.+):page:(\d+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const monthKey = ctx.match[1];
+    const page = Number(ctx.match[2]);
+    await answerCallbackQuerySafely(ctx);
+    await ctx.editMessageReplyMarkup(
+      entitySelectionKeyboard(`admin_stats_team:${monthKey}`, await buildTeamLeadItems(), page).reply_markup
+    );
+  });
+
+  bot.action(/^admin_stats_team:(.+):pick:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const monthKey = ctx.match[1];
+    const teamLeadUserId = ctx.match[2];
+    const report = await container.services.teamLeadReportService.getGroupReport(teamLeadUserId, monthKey);
+    await answerCallbackQuerySafely(ctx);
+    await ctx.reply(formatTeamLeadGroupReport(report));
   });
 
   bot.action(/^admin_payments:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {

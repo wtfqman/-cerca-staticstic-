@@ -20,7 +20,7 @@ import {
   openCreatorFirstQueueEntryFlow,
   openCreatorDocumentsFlow
 } from './creator-documents.flow';
-import { canUseCreatorScenario } from '../utils/access';
+import { canUseAdminScenario, canUseCreatorScenario } from '../utils/access';
 import { isMarchAprilStatisticsScenario } from '../utils/creator-statistics-scenario';
 import { safeAnswerCbQuery } from '../utils/telegram-callback';
 import {
@@ -110,7 +110,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   bot.hears(CREATOR_MENU.profile, roleGuard(UserRole.CREATOR), handleProfile);
 
   bot.hears(CREATOR_MENU.stats, async (ctx, next) => {
-    if (!canUseCreatorScenario(ctx.state.currentUser)) {
+    if (canUseAdminScenario(ctx.state.currentUser) || !canUseCreatorScenario(ctx.state.currentUser)) {
       return next();
     }
 
