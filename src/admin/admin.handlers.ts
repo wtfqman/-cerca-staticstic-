@@ -90,6 +90,18 @@ const logGoogleSheetsAdminError = (
   logUserError(error, 'Admin Google Sheets action failed', context);
 };
 
+const answerCallbackQuerySafely = async (ctx: BotContext, text?: string) => {
+  try {
+    await ctx.answerCbQuery(text);
+  } catch (error) {
+    logUserError(error, 'Failed to answer callback query', {
+      updateId: ctx.update.update_id,
+      callbackQueryId: ctx.callbackQuery?.id,
+      action: 'answerCbQuery'
+    });
+  }
+};
+
 const formatServiceOverview = (overview: Awaited<ReturnType<typeof container.services.adminService.getOverview>>) =>
   [
     'Служебная сводка',
@@ -445,10 +457,11 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.action(/^admin_dashboard:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const monthKey = ctx.match[1];
+    await answerCallbackQuerySafely(ctx);
+
     const creators = await container.services.userService.listCreators();
 
     if (!creators.length) {
-      await ctx.answerCbQuery();
       await ctx.reply(
         'Креаторов пока нет, поэтому статистику за период показать не из чего. После регистрации тестового креатора раздел начнет заполняться.'
       );
@@ -462,7 +475,6 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       container.services.creatorDisciplineService.getMonthlyVideoStatuses(creators, monthKey),
       container.services.documentStatusService.listCreatorsWithMissingSignedDocuments(creators, monthKey)
     ]);
-    await ctx.answerCbQuery();
     await ctx.reply(formatAdminDashboardSummary(dashboard));
     await ctx.reply(formatAdminReport(report));
     await ctx.reply(formatMissingWeeklyStats(weeklyMissing));
@@ -477,8 +489,9 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.action(/^admin_payments:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const monthKey = ctx.match[1];
+    await answerCallbackQuerySafely(ctx);
+
     const report = await container.services.adminReportService.getGlobalPaymentsReport(monthKey);
-    await ctx.answerCbQuery();
     await ctx.reply(formatAdminPaymentsReport(report));
   });
 
