@@ -21,6 +21,9 @@ const SIGNED_STATUSES = new Set<DocumentStatus>([
 
 const SIGNED_DOCUMENT_FORWARD_READY_DELAY_MS = 45_000;
 const SIGNED_DOCUMENT_FORWARD_INCOMPLETE_DELAY_MS = 5 * 60_000;
+const TELEGRAM_SEND_RETRY_BUFFER_MS = 1_000;
+const TELEGRAM_SEND_MAX_ATTEMPTS = 4;
+const TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS = 1_200;
 
 const SIGNED_DOCUMENT_ORDER: Record<DocumentType, number> = {
   [DocumentType.CONTRACT]: 10,
@@ -248,6 +251,52 @@ const formatManualExportFileCaption = (upload: PendingSignatureUpload) =>
     upload.document.signatureUploads.length > 1 ? 'Обновленный подписанный PDF' : 'Подписанный PDF'
   ].join('\n');
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const getTelegramRetryAfterMs = (error: unknown) => {
+  const telegramError = error as {
+    parameters?: { retry_after?: number };
+    response?: { parameters?: { retry_after?: number } };
+  };
+  const retryAfterSeconds =
+    telegramError.response?.parameters?.retry_after ??
+    telegramError.parameters?.retry_after;
+
+  return typeof retryAfterSeconds === 'number'
+    ? retryAfterSeconds * 1_000 + TELEGRAM_SEND_RETRY_BUFFER_MS
+    : null;
+};
+
+const sendTelegramWithRetry = async <T>(
+  operation: () => Promise<T>,
+  logContext: Record<string, unknown>
+) => {
+  for (let attempt = 1; attempt <= TELEGRAM_SEND_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const retryAfterMs = getTelegramRetryAfterMs(error);
+
+      if (!retryAfterMs || attempt === TELEGRAM_SEND_MAX_ATTEMPTS) {
+        throw error;
+      }
+
+      logger.warn(
+        {
+          error,
+          ...logContext,
+          attempt,
+          retryAfterMs
+        },
+        'Telegram send rate limited; waiting before retry'
+      );
+      await sleep(retryAfterMs);
+    }
+  }
+
+  throw new Error('Telegram send retry attempts exhausted');
+};
+
 const hasDocumentsWaitingForSignedUpload = (documents: Array<{ status: DocumentStatus | 'NOT_GENERATED' | 'LOCKED' }>) =>
   documents.some((document) =>
     document.status !== 'NOT_GENERATED' &&
@@ -323,7 +372,15 @@ export class DocumentUploadService {
         const creator = groupUploads[0].creator;
 
         try {
-          await telegram.sendMessage(chatId, formatManualExportHeader(groupUploads));
+          await sendTelegramWithRetry(
+            () => telegram.sendMessage(chatId, formatManualExportHeader(groupUploads)),
+            {
+              creatorUserId: creator.id,
+              documentsChatId: chatId,
+              operation: 'manual_export_header'
+            }
+          );
+          await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
         } catch (error) {
           logger.error(
             {
@@ -371,9 +428,19 @@ export class DocumentUploadService {
           }
 
           try {
-            const message = await telegram.sendDocument(chatId, Input.fromLocalFile(upload.filePath), {
-              caption: formatManualExportFileCaption(upload)
-            });
+            const message = await sendTelegramWithRetry(
+              () => telegram.sendDocument(chatId, Input.fromLocalFile(upload.filePath), {
+                caption: formatManualExportFileCaption(upload)
+              }),
+              {
+                creatorUserId: upload.creatorUserId,
+                documentId: upload.documentId,
+                uploadId: upload.id,
+                documentsChatId: chatId,
+                operation: 'manual_export_document'
+              }
+            );
+            await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
 
             await this.documentRepository.updateSignatureForwardInfo(upload.id, chatId, message.message_id);
             await this.documentRepository.updateStatus(upload.documentId, DocumentStatus.FORWARDED_TO_CHAT, {
@@ -650,7 +717,15 @@ export class DocumentUploadService {
       }
 
       try {
-        await batch.telegram.sendMessage(batch.chatId, formatSignedDocumentBatchHeader(items));
+        await sendTelegramWithRetry(
+          () => batch.telegram.sendMessage(batch.chatId, formatSignedDocumentBatchHeader(items)),
+          {
+            creatorUserId: batch.creatorUserId,
+            documentsChatId: batch.chatId,
+            operation: 'automatic_forward_header'
+          }
+        );
+        await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
       } catch (error) {
         logger.error(
           {
@@ -666,13 +741,23 @@ export class DocumentUploadService {
 
       for (const item of items) {
         try {
-          const forwardedMessage = await batch.telegram.sendDocument(
-            batch.chatId,
-            Input.fromLocalFile(item.filePath),
+          const forwardedMessage = await sendTelegramWithRetry(
+            () => batch.telegram.sendDocument(
+              batch.chatId,
+              Input.fromLocalFile(item.filePath),
+              {
+                caption: formatSignedDocumentFileCaption(item)
+              }
+            ),
             {
-              caption: formatSignedDocumentFileCaption(item)
+              creatorUserId: batch.creatorUserId,
+              documentId: item.document.id,
+              uploadId: item.upload.id,
+              documentsChatId: batch.chatId,
+              operation: 'automatic_forward_document'
             }
           );
+          await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
 
           await this.documentRepository.updateSignatureForwardInfo(
             item.upload.id,
