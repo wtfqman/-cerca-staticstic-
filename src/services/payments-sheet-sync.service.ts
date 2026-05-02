@@ -5,7 +5,7 @@ import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { formatAssignedTeamLeadName, formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
 import { mapInBatches } from '../utils/batch';
 import { PaymentCalculationService } from './payment-calculation.service';
-import { GoogleSheetsService, type SheetUpsertResult } from './google-sheets.service';
+import { GoogleSheetsService, type SheetRow, type SheetUpsertResult } from './google-sheets.service';
 import { SpreadsheetFormatterService } from './spreadsheet-formatter.service';
 
 interface CreatorMonthPair {
@@ -24,6 +24,17 @@ const deduplicatePairs = (pairs: CreatorMonthPair[]) => {
     `${left.monthKey}:${left.creatorUserId}`.localeCompare(`${right.monthKey}:${right.creatorUserId}`)
   );
 };
+
+const sortPaymentRows = (rows: SheetRow[]) =>
+  [...rows].sort((left, right) => {
+    const creatorCompare = String(left.values[2] ?? '').localeCompare(String(right.values[2] ?? ''), 'ru');
+
+    if (creatorCompare !== 0) {
+      return creatorCompare;
+    }
+
+    return String(left.values[4] ?? '').localeCompare(String(right.values[4] ?? ''));
+  });
 
 export class PaymentsSheetSyncService {
   constructor(
@@ -101,7 +112,7 @@ export class PaymentsSheetSyncService {
       return creator ? this.buildRow(pair, creator) : null;
     });
 
-    return rows.filter((row): row is NonNullable<typeof row> => Boolean(row));
+    return sortPaymentRows(rows.filter((row): row is NonNullable<typeof row> => Boolean(row)));
   }
 
   private async buildRow(pair: CreatorMonthPair, creator: AppUser) {

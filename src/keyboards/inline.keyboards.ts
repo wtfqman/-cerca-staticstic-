@@ -135,9 +135,10 @@ export const creatorSecondQueueActionsKeyboard = (input: {
   }
 
   return Markup.inlineKeyboard([
-    ...(!input.hasGeneratedDocuments
-      ? [[Markup.button.callback('Сформировать вторую очередь', 'document_generate_second_queue')]]
-      : [[Markup.button.callback('Отправить подписанный PDF', 'document_upload_start')]]),
+    [Markup.button.callback('Сформировать/обновить акты и передачу прав', 'document_generate_second_queue')],
+    ...(input.hasGeneratedDocuments
+      ? [[Markup.button.callback('Отправить подписанный PDF', 'document_upload_start')]]
+      : []),
     ...(input.hasAvailableDocuments
       ? [[Markup.button.callback('Прислать все мои документы', 'document_resend_all')]]
       : [])

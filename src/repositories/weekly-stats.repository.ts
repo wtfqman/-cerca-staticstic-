@@ -343,6 +343,27 @@ export class WeeklyStatsRepository {
     });
   }
 
+  async listReportsForSheetSync(filters: {
+    reportId?: string;
+    creatorUserId?: string;
+    creatorIds?: string[];
+    monthKey?: string;
+  } = {}) {
+    return prisma.weeklyStatReport.findMany({
+      where: {
+        id: filters.reportId,
+        creatorUserId: filters.creatorUserId,
+        monthKey: filters.monthKey,
+        ...(filters.creatorIds?.length ? { creatorUserId: { in: filters.creatorIds } } : {})
+      },
+      include: reportWithRelationsInclude,
+      orderBy: [
+        { weekStart: 'asc' },
+        { creatorUserId: 'asc' }
+      ]
+    });
+  }
+
   async listCreatorMonthsWithData() {
     const reports = await prisma.weeklyStatReport.findMany({
       select: {

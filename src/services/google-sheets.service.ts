@@ -307,6 +307,7 @@ export class GoogleSheetsService {
 
     const sheetId = this.resolveSheetId(definition.sheetName, sheet?.properties);
     await this.ensureHeader(definition);
+    await this.removeDuplicateHeaderRows(definition, sheetId);
     await this.applyPresentation(definition, sheetId);
   }
 
@@ -428,6 +429,50 @@ export class GoogleSheetsService {
       spreadsheetId,
       requestBody: {
         requests
+      }
+    });
+  }
+
+  private async removeDuplicateHeaderRows(definition: SheetDefinition, sheetId: number) {
+    const api = await this.client.getSheetsApi();
+    const spreadsheetId = this.client.getSpreadsheetId();
+    const lastColumn = columnNumberToLetters(definition.headers.length);
+    const response = await api.spreadsheets.values.get({
+      spreadsheetId,
+      range: buildSheetRange(definition.sheetName, `A2:${lastColumn}`)
+    });
+    const rows = response.data.values ?? [];
+    const duplicateHeaderRowIndexes = rows
+      .map((row, index) => ({
+        row,
+        sheetRowIndex: index + 1
+      }))
+      .filter(({ row }) => String(row[0] ?? '').trim() === definition.headers[0])
+      .map(({ sheetRowIndex }) => sheetRowIndex)
+      .sort((left, right) => right - left);
+
+    if (duplicateHeaderRowIndexes.length === 0) {
+      return;
+    }
+
+    logger.warn(
+      { sheetName: definition.sheetName, rowsDeleted: duplicateHeaderRowIndexes.length },
+      'Removing duplicate Google Sheet header rows'
+    );
+
+    await api.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: duplicateHeaderRowIndexes.map((startIndex) => ({
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex,
+              endIndex: startIndex + 1
+            }
+          }
+        }))
       }
     });
   }

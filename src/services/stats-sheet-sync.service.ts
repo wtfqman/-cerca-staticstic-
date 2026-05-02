@@ -1,3 +1,5 @@
+import { SocialPlatform } from '@prisma/client';
+
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { toDateKey } from '../utils/periods';
 import {
@@ -15,6 +17,13 @@ export interface StatsSheetSyncFilters {
   creatorIds?: string[];
   monthKey?: string;
 }
+
+const PLATFORM_ORDER = [
+  SocialPlatform.INSTAGRAM,
+  SocialPlatform.TIKTOK,
+  SocialPlatform.VK,
+  SocialPlatform.YOUTUBE
+] as const;
 
 const formatReviewStatus = (status: string, reviewedAt?: Date | null) => {
   if (reviewedAt) {
@@ -40,78 +49,76 @@ export class StatsSheetSyncService {
   }
 
   async sync(filters: StatsSheetSyncFilters = {}): Promise<SheetUpsertResult> {
-    const items = await this.weeklyStatsRepository.listItemsForSheetSync(filters);
+    const reports = await this.weeklyStatsRepository.listReportsForSheetSync(filters);
     const definition = this.formatter.getStatsSheetDefinition();
 
-    return this.googleSheetsService.upsertRows(
-      definition,
-      items.map((item) =>
-        this.formatter.buildStatsRow({
-          weeklyStatItemId: item.id,
-          weeklyReportId: item.weeklyReportId,
-          creatorUserId: item.report.creatorUserId,
-          creatorName: formatCreatorDisplayName(item.report.creator),
-          teamLeadName: formatAssignedTeamLeadName(item.report.creator),
-          monthKey: item.report.monthKey,
-          weekStart: toDateKey(item.report.weekStart),
-          weekEnd: toDateKey(item.report.weekEnd),
-          platform: item.platform,
-          videoCount: item.report.totalVideoCount ?? item.videoCount,
-          views: item.views,
-          likes: item.likes,
-          comments: item.comments,
-          reposts: item.reposts,
-          saves: item.saves,
-          reportStatus: item.report.status,
-          reviewStatus: formatReviewStatus(item.report.status, item.report.reviewedAt),
-          reviewedByTeamLeadName: item.report.reviewedByTeamLead
-            ? formatTeamLeadDisplayName(item.report.reviewedByTeamLead)
-            : '',
-          reviewedAt: formatRussianDateTime(item.report.reviewedAt),
-          submittedAt: formatRussianDateTime(item.report.submittedAt),
-          updatedAt: formatRussianDateTime(
-            item.updatedAt > item.report.updatedAt ? item.updatedAt : item.report.updatedAt
-          )
-        })
-      )
-    );
+    return this.googleSheetsService.upsertRows(definition, this.buildRows(reports));
   }
 
   async rebuild(): Promise<SheetUpsertResult> {
-    const items = await this.weeklyStatsRepository.listItemsForSheetSync();
+    const reports = await this.weeklyStatsRepository.listReportsForSheetSync();
     const definition = this.formatter.getStatsSheetDefinition();
 
-    return this.googleSheetsService.rebuildSheet(
-      definition,
-      items.map((item) =>
-        this.formatter.buildStatsRow({
-          weeklyStatItemId: item.id,
-          weeklyReportId: item.weeklyReportId,
-          creatorUserId: item.report.creatorUserId,
-          creatorName: formatCreatorDisplayName(item.report.creator),
-          teamLeadName: formatAssignedTeamLeadName(item.report.creator),
-          monthKey: item.report.monthKey,
-          weekStart: toDateKey(item.report.weekStart),
-          weekEnd: toDateKey(item.report.weekEnd),
-          platform: item.platform,
-          videoCount: item.report.totalVideoCount ?? item.videoCount,
-          views: item.views,
-          likes: item.likes,
-          comments: item.comments,
-          reposts: item.reposts,
-          saves: item.saves,
-          reportStatus: item.report.status,
-          reviewStatus: formatReviewStatus(item.report.status, item.report.reviewedAt),
-          reviewedByTeamLeadName: item.report.reviewedByTeamLead
-            ? formatTeamLeadDisplayName(item.report.reviewedByTeamLead)
+    return this.googleSheetsService.rebuildSheet(definition, this.buildRows(reports));
+  }
+
+  private buildRows(reports: Awaited<ReturnType<WeeklyStatsRepository['listReportsForSheetSync']>>) {
+    return this.sortReports(reports).flatMap((report) => {
+      const itemsByPlatform = new Map(report.items.map((item) => [item.platform, item]));
+      const creatorName = formatCreatorDisplayName(report.creator);
+      const teamLeadName = formatAssignedTeamLeadName(report.creator);
+
+      return PLATFORM_ORDER.map((platform) => {
+        const item = itemsByPlatform.get(platform);
+        const updatedAt = item && item.updatedAt > report.updatedAt ? item.updatedAt : report.updatedAt;
+
+        return this.formatter.buildStatsRow({
+          weeklyStatItemId: `${report.id}:${platform}`,
+          weeklyReportId: report.id,
+          creatorUserId: report.creatorUserId,
+          creatorName,
+          teamLeadName,
+          monthKey: report.monthKey,
+          weekStart: toDateKey(report.weekStart),
+          weekEnd: toDateKey(report.weekEnd),
+          platform,
+          videoCount: report.totalVideoCount ?? item?.videoCount ?? 0,
+          views: item?.views ?? 0,
+          likes: item?.likes ?? 0,
+          comments: item?.comments ?? 0,
+          reposts: item?.reposts ?? 0,
+          saves: item?.saves ?? 0,
+          reportStatus: report.status,
+          reviewStatus: formatReviewStatus(report.status, report.reviewedAt),
+          reviewedByTeamLeadName: report.reviewedByTeamLead
+            ? formatTeamLeadDisplayName(report.reviewedByTeamLead)
             : '',
-          reviewedAt: formatRussianDateTime(item.report.reviewedAt),
-          submittedAt: formatRussianDateTime(item.report.submittedAt),
-          updatedAt: formatRussianDateTime(
-            item.updatedAt > item.report.updatedAt ? item.updatedAt : item.report.updatedAt
-          )
-        })
-      )
-    );
+          reviewedAt: formatRussianDateTime(report.reviewedAt),
+          submittedAt: formatRussianDateTime(report.submittedAt),
+          updatedAt: formatRussianDateTime(updatedAt)
+        });
+      });
+    });
+  }
+
+  private sortReports(reports: Awaited<ReturnType<WeeklyStatsRepository['listReportsForSheetSync']>>) {
+    return [...reports].sort((left, right) => {
+      const creatorCompare = formatCreatorDisplayName(left.creator).localeCompare(
+        formatCreatorDisplayName(right.creator),
+        'ru'
+      );
+
+      if (creatorCompare !== 0) {
+        return creatorCompare;
+      }
+
+      const monthCompare = left.monthKey.localeCompare(right.monthKey);
+
+      if (monthCompare !== 0) {
+        return monthCompare;
+      }
+
+      return left.weekStart.getTime() - right.weekStart.getTime();
+    });
   }
 }
