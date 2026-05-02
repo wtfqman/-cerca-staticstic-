@@ -30,6 +30,25 @@ export const createBot = () => {
   const bot = new Telegraf<BotContext>(config.bot.token);
   const stage = createStage();
 
+  bot.catch(async (error, ctx) => {
+    logUserError(error, 'Unhandled bot error', {
+      updateId: ctx.update?.update_id,
+      updateType: ctx.updateType,
+      userId: ctx.state.currentUser?.id,
+      telegramUserId: ctx.from?.id
+    });
+
+    if (ctx.callbackQuery) {
+      await ctx.answerCbQuery('Не удалось выполнить действие').catch(() => undefined);
+    }
+
+    if (ctx.chat) {
+      await ctx
+        .reply(formatUserError(error, 'Что-то пошло не так. Попробуй еще раз чуть позже.'))
+        .catch(() => undefined);
+    }
+  });
+
   bot.use(errorBoundaryMiddleware);
   bot.use(updateLoggingMiddleware);
   bot.use(
