@@ -6,6 +6,7 @@ import { container } from '../container';
 import {
   adminBulkActionsKeyboard,
   adminCreatorsActionsKeyboard,
+  adminMissingMonthlyVideosKeyboard,
   adminStatsMonthKeyboard,
   adminGroupActionsKeyboard,
   approvalInlineKeyboard,
@@ -490,14 +491,16 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       container.services.creatorDisciplineService.getMonthlyVideoStatuses(creators, monthKey),
       container.services.documentStatusService.listCreatorsWithMissingSignedDocuments(creators, monthKey)
     ]);
+    const missingMonthlyVideoStatuses = monthlyVideoStatuses.filter((item) => item.status === 'MISSING');
+
     await ctx.reply(formatAdminDashboardSummary(dashboard));
     await ctx.reply(formatAdminReport(report));
     await ctx.reply(formatMissingWeeklyStats(weeklyMissing));
     await ctx.reply(
-      formatMissingMonthlyVideos(
-        monthlyVideoStatuses.filter((item) => item.status === 'MISSING'),
-        monthKey
-      )
+      formatMissingMonthlyVideos(missingMonthlyVideoStatuses, monthKey),
+      missingMonthlyVideoStatuses.length
+        ? adminMissingMonthlyVideosKeyboard(monthKey)
+        : undefined
     );
     await ctx.reply(formatMissingDocuments(documentSummaries, monthKey));
     await replyAdminStatsTeamSelection(ctx, monthKey);

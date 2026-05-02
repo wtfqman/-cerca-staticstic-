@@ -95,6 +95,16 @@ export const weeklyReportReviewKeyboard = (
 export const monthlyVideoMonthKeyboard = (currentMonthKey: string, previousMonthKey: string) =>
   reportMonthKeyboard(currentMonthKey, previousMonthKey, 'monthly_video_month');
 
+export const monthlyVideoReminderKeyboard = (monthKey: string) =>
+  Markup.inlineKeyboard([
+    [Markup.button.callback(`Указать количество видео за ${monthKey}`, `creator_monthly_video_reminder:${monthKey}`)]
+  ]);
+
+export const adminMissingMonthlyVideosKeyboard = (monthKey: string) =>
+  Markup.inlineKeyboard([
+    [Markup.button.callback(`Напомнить указать видео за ${monthKey}`, `admin_bulk_month:remind_monthly_videos:${monthKey}`)]
+  ]);
+
 export const documentGenerationMonthKeyboard = (currentMonthKey: string, previousMonthKey: string) =>
   reportMonthKeyboard(currentMonthKey, previousMonthKey, 'document_generate_month');
 

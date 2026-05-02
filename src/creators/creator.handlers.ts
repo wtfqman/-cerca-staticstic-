@@ -183,6 +183,16 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.scene.enter(SCENE_IDS.monthlyVideo);
   });
 
+  bot.action(/^creator_monthly_video_reminder:(.+)$/, roleGuard(UserRole.CREATOR), async (ctx) => {
+    const monthKey = ctx.match[1];
+
+    await safeAnswerCbQuery(ctx, 'Открываю ввод количества видео...');
+    await ctx.scene.enter(SCENE_IDS.monthlyVideo, {
+      monthKey,
+      force: true
+    });
+  });
+
   bot.hears(CREATOR_MENU.monthlyVideosMarchApril, roleGuard(UserRole.CREATOR), async (ctx) => {
     if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
       return;

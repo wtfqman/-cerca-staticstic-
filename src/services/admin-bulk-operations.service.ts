@@ -12,6 +12,7 @@ import { NotificationService } from './notification.service';
 import { formatUserError } from '../utils/user-errors';
 import { formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
 import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
+import { monthlyVideoReminderKeyboard } from '../keyboards/inline.keyboards';
 
 export class AdminBulkOperationsService {
   constructor(
@@ -52,7 +53,11 @@ export class AdminBulkOperationsService {
           userId: item.creatorUserId,
           chatId: creators.find((creator) => creator.id === item.creatorUserId)?.telegramId,
           detail: `${item.creatorName} (${monthKey})`,
-          text: `Напоминание: укажи количество видео за ${monthKey} через меню бота.`
+          text: [
+            `Напоминание: ты не указал количество видео за ${monthKey}.`,
+            'Нажми кнопку ниже и отправь число видео.'
+          ].join('\n'),
+          extra: monthlyVideoReminderKeyboard(monthKey)
         })),
       telegram
     );
@@ -238,6 +243,7 @@ export class AdminBulkOperationsService {
       chatId?: string;
       detail: string;
       text: string;
+      extra?: Parameters<Telegram['sendMessage']>[2];
     }>,
     telegram: Telegram
   ): Promise<BulkOperationResult> {
@@ -250,10 +256,17 @@ export class AdminBulkOperationsService {
             throw new Error('Не найден chatId для отправки уведомления');
           }
 
-          await this.notificationService.sendText(telegram, item.userId, item.chatId, item.text, {
-            operation,
-            detail: item.detail
-          });
+          await this.notificationService.sendText(
+            telegram,
+            item.userId,
+            item.chatId,
+            item.text,
+            {
+              operation,
+              detail: item.detail
+            },
+            item.extra
+          );
         }
       }))
     );

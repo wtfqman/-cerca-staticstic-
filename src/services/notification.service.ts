@@ -7,8 +7,15 @@ import { NotificationRepository } from '../repositories/notification.repository'
 export class NotificationService {
   constructor(private readonly repository: NotificationRepository) {}
 
-  async sendText(telegram: Telegram, userId: string, chatId: string | number, text: string, payload?: unknown) {
-    const message = await telegram.sendMessage(chatId, text);
+  async sendText(
+    telegram: Telegram,
+    userId: string,
+    chatId: string | number,
+    text: string,
+    payload?: unknown,
+    extra?: Parameters<Telegram['sendMessage']>[2]
+  ) {
+    const message = await telegram.sendMessage(chatId, text, extra);
     await this.repository.create(userId, NotificationType.SYSTEM, payload ?? { text });
     return message;
   }
