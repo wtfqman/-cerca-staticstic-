@@ -13,6 +13,7 @@ import { formatValidationError, logUserError } from '../utils/user-errors';
 type MonthlyVideoState = {
   monthKey?: string;
   videoCount?: number;
+  force?: boolean;
 };
 
 const getState = (ctx: BotContext) => ctx.wizard.state as MonthlyVideoState;
@@ -20,9 +21,26 @@ const getState = (ctx: BotContext) => ctx.wizard.state as MonthlyVideoState;
 const hasCompleteMonthlyVideoState = (state: MonthlyVideoState) =>
   Boolean(state.monthKey) && typeof state.videoCount === 'number';
 
+const replyMonthlyVideoCountPrompt = async (ctx: BotContext, monthKey: string) => {
+  const existing = await container.services.monthlyVideoService.getMonthCount(ctx.state.currentUser!.id, monthKey);
+
+  await ctx.reply(
+    existing
+      ? `Сейчас за ${monthKey} сохранено: ${existing.videoCount}. Введи новое количество видео, если нужно обновить значение.`
+      : `За ${monthKey} количество видео еще не указано. Введи число, которое нужно сохранить.`
+  );
+};
+
 export const monthlyVideoScene = new Scenes.WizardScene<BotContext>(
   SCENE_IDS.monthlyVideo,
   async (ctx) => {
+    const state = getState(ctx);
+
+    if (state.monthKey) {
+      await replyMonthlyVideoCountPrompt(ctx, state.monthKey);
+      return ctx.wizard.selectStep(2);
+    }
+
     const [currentMonthKey, previousMonthKey] = container.services.monthlyVideoService.getSuggestedMonthOptions();
     await ctx.reply(
       'За какой месяц сохранить количество видео?',
@@ -34,13 +52,8 @@ export const monthlyVideoScene = new Scenes.WizardScene<BotContext>(
     if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data.startsWith('monthly_video_month:')) {
       const monthKey = ctx.callbackQuery.data.split(':')[1];
       getState(ctx).monthKey = monthKey;
-      const existing = await container.services.monthlyVideoService.getMonthCount(ctx.state.currentUser!.id, monthKey);
       await ctx.answerCbQuery();
-      await ctx.reply(
-        existing
-          ? `Сейчас за ${monthKey} сохранено: ${existing.videoCount}. Введи новое количество видео, если нужно обновить значение.`
-          : `За ${monthKey} количество видео еще не указано. Введи число, которое нужно сохранить.`
-      );
+      await replyMonthlyVideoCountPrompt(ctx, monthKey);
       return ctx.wizard.next();
     }
 
@@ -90,7 +103,8 @@ export const monthlyVideoScene = new Scenes.WizardScene<BotContext>(
         await container.services.monthlyVideoService.saveMonthlyCount(
           ctx.state.currentUser!.id,
           state.monthKey!,
-          state.videoCount!
+          state.videoCount!,
+          { force: state.force }
         );
         await ctx.reply(
           `Количество видео за ${state.monthKey} сохранено: ${state.videoCount}. Эти данные будут использоваться в расчетах выплат и документах.`,

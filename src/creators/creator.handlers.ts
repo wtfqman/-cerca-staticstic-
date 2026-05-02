@@ -1,4 +1,4 @@
-import { SocialPlatform, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import type { Telegraf } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
@@ -23,6 +23,11 @@ import {
 import { canUseCreatorScenario } from '../utils/access';
 import { isMarchAprilStatisticsScenario } from '../utils/creator-statistics-scenario';
 import { safeAnswerCbQuery } from '../utils/telegram-callback';
+import {
+  formatRequiredSecondQueueStatisticsMissingLines,
+  getRequiredSecondQueueStatisticsStatus,
+  REQUIRED_SECOND_QUEUE_MONTH_KEY
+} from './creator-statistics-requirements';
 
 const DOCUMENT_GENERATION_DEDUPE_MS = 15_000;
 const activeDocumentGenerationKeys = new Set<string>();
@@ -68,39 +73,36 @@ const formatWeeklyReviewText = (summary: { status: string; isReviewedByTeamLead:
   return 'еще не отправлено';
 };
 
-const REQUIRED_APRIL_MONTH_KEY = '2026-04';
-const REQUIRED_APRIL_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
-
 const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
   const creatorUserId = ctx.state.currentUser!.id;
-  const [monthlyVideo, reports] = await Promise.all([
-    container.services.monthlyVideoService.getMonthCount(creatorUserId, REQUIRED_APRIL_MONTH_KEY),
-    container.repositories.weeklyStatsRepository.listReportsByCreatorAndMonth(creatorUserId, REQUIRED_APRIL_MONTH_KEY, {
-      submittedOnly: true
-    })
-  ]);
-  const hasAprilReach = reports.some((report) => report.items.some((item) => item.views > 0));
-  const aprilScreenshotCount = reports.reduce((sum, report) => sum + report.attachments.length, 0);
-  const hasAprilScreenshots = aprilScreenshotCount >= REQUIRED_APRIL_SCREENSHOT_COUNT;
+  const status = await getRequiredSecondQueueStatisticsStatus(creatorUserId);
 
-  if (monthlyVideo && hasAprilReach && hasAprilScreenshots) {
+  if (status.isReady) {
     return true;
   }
+
+  const missingLines = formatRequiredSecondQueueStatisticsMissingLines(status);
 
   await ctx.reply(
     [
       'Перед второй очередью нужно закрыть обязательную статистику за апрель.',
-      monthlyVideo ? null : '- укажи количество видео за апрель',
-      hasAprilReach ? null : '- внеси охваты за апрель',
-      hasAprilScreenshots
-        ? null
-        : `- отправь 4 скрина статистики за апрель (${aprilScreenshotCount}/${REQUIRED_APRIL_SCREENSHOT_COUNT})`,
+      ...missingLines,
       '',
-      'После этого снова нажми «Сформировать вторую очередь».'
+      status.monthlyVideoSubmitted
+        ? 'После этого снова нажми «Сформировать вторую очередь».'
+        : 'Сейчас открою ввод количества видео за апрель. После сохранения снова нажми «Сформировать вторую очередь».'
     ]
       .filter(Boolean)
       .join('\n')
   );
+
+  if (!status.monthlyVideoSubmitted) {
+    await ctx.scene.enter(SCENE_IDS.monthlyVideo, {
+      monthKey: REQUIRED_SECOND_QUEUE_MONTH_KEY,
+      force: true
+    });
+  }
+
   return false;
 };
 
