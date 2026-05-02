@@ -29,8 +29,11 @@ const isWaitingForSignedPdf = (document: {
   signedUploadedAt?: Date | null;
 }) => !signedDocumentStatuses.has(document.status) && !document.signedUploadedAt;
 
-const listUnsignedSignatureUploadDocuments = async (creatorUserId: string) =>
-  (await container.services.documentService.listSignatureUploadDocuments(creatorUserId)).filter(isWaitingForSignedPdf);
+const listSignatureUploadDocuments = (creatorUserId: string) =>
+  container.services.documentService.listSignatureUploadDocuments(creatorUserId);
+
+const listWaitingSignatureUploadDocuments = async (creatorUserId: string) =>
+  (await listSignatureUploadDocuments(creatorUserId)).filter(isWaitingForSignedPdf);
 
 const buildSignedUploadProgress = async (creatorUserId: string) => {
   const summary = await container.services.documentWorkflowService.getActiveRosterFirstQueueSummary(creatorUserId);
@@ -94,7 +97,7 @@ export const documentUploadScene = new Scenes.WizardScene<BotContext>(
       return;
     }
 
-    const documents = await listUnsignedSignatureUploadDocuments(ctx.state.currentUser!.id);
+    const documents = await listSignatureUploadDocuments(ctx.state.currentUser!.id);
 
     if (!documents.length) {
       await ctx.reply(
@@ -125,7 +128,7 @@ export const documentUploadScene = new Scenes.WizardScene<BotContext>(
     }
 
     if (!getState(ctx).documentId) {
-      const documents = await listUnsignedSignatureUploadDocuments(ctx.state.currentUser!.id);
+      const documents = await listSignatureUploadDocuments(ctx.state.currentUser!.id);
 
       if (!documents.length) {
         await ctx.reply(
@@ -160,7 +163,7 @@ export const documentUploadScene = new Scenes.WizardScene<BotContext>(
       });
       const nextStep = await buildSignedUploadProgress(ctx.state.currentUser!.id);
       const invoicePrompt = await buildCreatorInvoicePrompt(ctx.state.currentUser!.id);
-      const documents = await listUnsignedSignatureUploadDocuments(ctx.state.currentUser!.id);
+      const documents = await listWaitingSignatureUploadDocuments(ctx.state.currentUser!.id);
 
       getState(ctx).documentId = undefined;
 
@@ -172,10 +175,10 @@ export const documentUploadScene = new Scenes.WizardScene<BotContext>(
         }),
         documents.length
           ? documentSelectionKeyboard(documents)
-          : invoicePrompt?.keyboard ?? mainMenuKeyboardForUser(ctx.state.currentUser)
+          : mainMenuKeyboardForUser(ctx.state.currentUser)
       );
 
-      if (invoicePrompt && documents.length) {
+      if (invoicePrompt) {
         await ctx.reply(invoicePrompt.text, invoicePrompt.keyboard);
       }
 
