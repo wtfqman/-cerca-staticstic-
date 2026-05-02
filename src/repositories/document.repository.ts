@@ -51,7 +51,8 @@ const signatureUploadCandidateStatuses = [
   DocumentStatus.SENT_TO_CREATOR,
   DocumentStatus.VIEWED_BY_CREATOR,
   DocumentStatus.SIGNED_UPLOADED,
-  DocumentStatus.FORWARDED_TO_CHAT
+  DocumentStatus.FORWARDED_TO_CHAT,
+  DocumentStatus.FAILED
 ] as const;
 
 export interface UpsertDocumentInput {

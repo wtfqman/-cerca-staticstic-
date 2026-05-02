@@ -220,6 +220,37 @@ export const handleDocumentReplyUpload = async (ctx: BotContext) => {
         return false;
       }
 
+      const documents = await container.services.documentService.listSignatureUploadDocuments(currentUser.id);
+
+      if (documents.length === 1) {
+        try {
+          const result = await container.services.documentUploadService.acceptSignedPdf({
+            telegram: ctx.telegram,
+            creatorUserId: currentUser.id,
+            documentId: documents[0].id,
+            telegramFileId: ctx.message.document.file_id,
+            telegramDocumentId: ctx.message.document.file_unique_id,
+            originalFileName: ctx.message.document.file_name ?? 'signed.pdf',
+            mimeType: ctx.message.document.mime_type
+          });
+
+          await ctx.reply(
+            formatSignedUploadResultMessage(result.forwarding, {
+              wasAlreadySigned: result.wasAlreadySigned,
+              document: result.document
+            })
+          );
+        } catch (error) {
+          logUserError(error, 'Signed document single-candidate upload failed', {
+            userId: currentUser.id,
+            documentId: documents[0].id
+          });
+          await ctx.reply(formatUserError(error, 'РЎРµР№С‡Р°СЃ РЅРµ СѓРґР°Р»РѕСЃСЊ РїСЂРёРЅСЏС‚СЊ РїРѕРґРїРёСЃР°РЅРЅС‹Р№ PDF. РџРѕРїСЂРѕР±СѓР№ РµС‰Рµ СЂР°Р· РЅРµРјРЅРѕРіРѕ РїРѕР·Р¶Рµ.'));
+        }
+
+        return true;
+      }
+
       await ctx.reply('Не могу определить, к какому документу привязать этот PDF. Нажми «Отправить подписанный PDF» в меню и выбери документ из списка.');
       return true;
     }
