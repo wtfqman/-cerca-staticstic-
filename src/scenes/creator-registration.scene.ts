@@ -295,6 +295,35 @@ const showReview = async (ctx: BotContext) => {
   );
 };
 
+const startCreatorDocumentsAfterRegistrationInBackground = (ctx: BotContext) => {
+  const userId = ctx.state.currentUser?.id;
+  const telegramUserId = ctx.from?.id;
+  const updateId = ctx.update.update_id;
+
+  void startCreatorDocumentsAfterRegistration(ctx).catch(async (error) => {
+    logUserError(error, 'Creator post-registration documents flow failed', {
+      userId,
+      telegramUserId,
+      updateId
+    });
+
+    try {
+      await ctx.reply(
+        formatUserError(
+          error,
+          'Анкета сохранена, но сейчас не удалось подготовить документы. Открой документы из меню или попробуй позже.'
+        )
+      );
+    } catch (replyError) {
+      logUserError(replyError, 'Creator post-registration documents failure reply failed', {
+        userId,
+        telegramUserId,
+        updateId
+      });
+    }
+  });
+};
+
 export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
   SCENE_IDS.creatorRegistration,
   async (ctx) => {
@@ -397,7 +426,7 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
       }
 
       await ctx.scene.leave();
-      await startCreatorDocumentsAfterRegistration(ctx);
+      startCreatorDocumentsAfterRegistrationInBackground(ctx);
     }
   }
 );
