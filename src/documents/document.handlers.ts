@@ -179,55 +179,57 @@ export const registerDocumentHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    let packageSent = false;
+    await safeAnswerCbQuery(ctx, 'Отправляю комплект...');
+    await ctx.reply('Принял. Собираю и отправляю актуальные PDF. Это может занять 1-2 минуты.');
 
-    try {
-      await safeAnswerCbQuery(ctx, 'Отправляю комплект...');
-      await ctx.reply('Присылаю все твои актуальные PDF подряд. Если нужен только один файл, его можно не открывать заново.');
+    void (async () => {
+      let packageSent = false;
 
-      const result = await container.services.documentService.sendAllCreatorDocumentsToCreator(
-        ctx.telegram,
-        currentUser.id,
-        { syncSheets: false }
-      );
-      packageSent = result.sentDocuments.length > 0;
-
-      if (result.sentDocuments.length === 0) {
-        await ctx.reply(
-          'Не удалось отправить актуальные PDF: файлы не найдены или временно недоступны. Я записал это в лог, администратор сможет проверить комплект.'
+      try {
+        const result = await container.services.documentService.sendAllCreatorDocumentsToCreator(
+          ctx.telegram,
+          currentUser.id,
+          { syncSheets: false }
         );
-        return;
+        packageSent = result.sentDocuments.length > 0;
+
+        if (result.sentDocuments.length === 0) {
+          await ctx.reply(
+            'Не удалось отправить актуальные PDF: файлы не найдены или временно недоступны. Я записал это в лог, администратор сможет проверить комплект.'
+          );
+          return;
+        }
+
+        const sentLines = result.sentDocuments.map((document) =>
+          `- ${getDocumentTitle(document.type)}${document.monthKey ? ` (${document.monthKey})` : ''}`
+        );
+        const skippedLine = result.skippedDocuments.length
+          ? `\nНе удалось отправить ${result.skippedDocuments.length} PDF. Я записал это в лог, администратор сможет проверить файл.`
+          : '';
+
+        await ctx.reply(
+          [
+            `Отправил комплект: ${result.sentDocuments.length} PDF.`,
+            ...sentLines,
+            skippedLine
+          ]
+            .filter(Boolean)
+            .join('\n')
+        );
+      } catch (error) {
+        logUserError(error, 'All creator documents resend failed', {
+          userId: currentUser.id
+        });
+        await ctx.reply(
+          formatUserError(
+            error,
+            'Сейчас не удалось прислать все документы. Открой "Мои документы" или попробуй позже.'
+          )
+        );
+      } finally {
+        finishDocumentPackageSend(sendKey, packageSent);
       }
-
-      const sentLines = result.sentDocuments.map((document) =>
-        `- ${getDocumentTitle(document.type)}${document.monthKey ? ` (${document.monthKey})` : ''}`
-      );
-      const skippedLine = result.skippedDocuments.length
-        ? `\nНе удалось отправить ${result.skippedDocuments.length} PDF. Я записал это в лог, администратор сможет проверить файл.`
-        : '';
-
-      await ctx.reply(
-        [
-          `Отправил комплект: ${result.sentDocuments.length} PDF.`,
-          ...sentLines,
-          skippedLine
-        ]
-          .filter(Boolean)
-          .join('\n')
-      );
-    } catch (error) {
-      logUserError(error, 'All creator documents resend failed', {
-        userId: currentUser.id
-      });
-      await ctx.reply(
-        formatUserError(
-          error,
-          'Сейчас не удалось прислать все документы. Открой "Мои документы" или попробуй позже.'
-        )
-      );
-    } finally {
-      finishDocumentPackageSend(sendKey, packageSent);
-    }
+    })();
   });
 
   bot.action('document_resend_list', roleGuard(UserRole.CREATOR), async (ctx) => {

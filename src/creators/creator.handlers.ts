@@ -336,12 +336,26 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    try {
-      await safeAnswerCbQuery(ctx, 'Проверяю первую очередь...');
-      await openCreatorFirstQueueEntryFlow(ctx, { showMenu: false });
-    } finally {
-      finishDocumentGenerationAction(sendKey);
-    }
+    await safeAnswerCbQuery(ctx, 'Проверяю первую очередь...');
+    await ctx.reply('Принял. Проверяю и при необходимости формирую первую очередь. Это может занять 1-2 минуты.');
+
+    void (async () => {
+      try {
+        await openCreatorFirstQueueEntryFlow(ctx, { showMenu: false });
+      } catch (error) {
+        logUserError(error, 'Active roster first queue generation failed', {
+          userId: ctx.state.currentUser?.id
+        });
+        await ctx.reply(
+          formatUserError(
+            error,
+            'Сейчас не удалось сформировать или отправить первую очередь. Попробуй позже или сообщи администратору.'
+          )
+        );
+      } finally {
+        finishDocumentGenerationAction(sendKey);
+      }
+    })();
   });
 
   bot.action('document_generate_second_queue', roleGuard(UserRole.CREATOR), async (ctx) => {
@@ -362,40 +376,43 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await safeAnswerCbQuery(ctx, 'Формирую вторую очередь...');
+    await ctx.reply('Принял. Формирую акты и передачу прав. Это может занять 1-2 минуты.');
 
-    try {
-      const documents = await container.services.documentService.generateActiveRosterResigningSecondQueueDocuments(
-        ctx.state.currentUser!.id,
-        ctx.telegram
-      );
-      const summary = await container.services.documentWorkflowService.getActiveRosterSecondQueueSummary(
-        ctx.state.currentUser!.id
-      );
-      const hasGeneratedDocuments =
-        summary.documents.length > 0 &&
-        summary.documents.every((document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED');
+    void (async () => {
+      try {
+        const documents = await container.services.documentService.generateActiveRosterResigningSecondQueueDocuments(
+          ctx.state.currentUser!.id,
+          ctx.telegram
+        );
+        const summary = await container.services.documentWorkflowService.getActiveRosterSecondQueueSummary(
+          ctx.state.currentUser!.id
+        );
+        const hasGeneratedDocuments =
+          summary.documents.length > 0 &&
+          summary.documents.every((document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED');
 
-      await ctx.reply(
-        [
-          'Отправил вторую очередь документов: акты и передачу прав.',
-          'Подпиши PDF и отправь подписанные файлы обратно в бот.'
-        ].join('\n'),
-        creatorSecondQueueActionsKeyboard({
-          isCompleted: summary.isCompleted,
-          hasGeneratedDocuments,
-          hasAvailableDocuments: documents.length > 0
-        })
-      );
-    } catch (error) {
-      logUserError(error, 'Active roster second queue generation failed', {
-        userId: ctx.state.currentUser?.id
-      });
-      await ctx.reply(
-        'Вторая очередь не отправлена. Сначала первая очередь должна быть подписана, а шаблоны и данные должны пройти проверку.'
-      );
-    } finally {
-      finishDocumentGenerationAction(sendKey);
-    }
+        await ctx.reply(
+          [
+            'Отправил вторую очередь документов: акты и передачу прав.',
+            'Подпиши PDF и отправь подписанные файлы обратно в бот.'
+          ].join('\n'),
+          creatorSecondQueueActionsKeyboard({
+            isCompleted: summary.isCompleted,
+            hasGeneratedDocuments,
+            hasAvailableDocuments: documents.length > 0
+          })
+        );
+      } catch (error) {
+        logUserError(error, 'Active roster second queue generation failed', {
+          userId: ctx.state.currentUser?.id
+        });
+        await ctx.reply(
+          'Вторая очередь не отправлена. Сначала первая очередь должна быть подписана, а шаблоны и данные должны пройти проверку.'
+        );
+      } finally {
+        finishDocumentGenerationAction(sendKey);
+      }
+    })();
   });
 
   const openProfileChangeRequest = async (ctx: BotContext) => {
