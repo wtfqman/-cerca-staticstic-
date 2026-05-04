@@ -60,10 +60,10 @@ export interface PaymentsSheetRowInput {
   fixedSalaryPart: number;
   rawViews: number;
   roundedViews: number;
-  appliedRate: number;
-  viewSteps: number;
   variablePart: number;
-  totalPayment: number;
+  baseTotalPayment: number;
+  invoiceSurcharge: number;
+  invoiceTotalPayment: number;
   calculationUpdatedAt: string;
 }
 
@@ -271,30 +271,30 @@ export class SpreadsheetFormatterService {
         'Тимлид',
         'Месяц',
         'Видео за месяц',
-        'Окладная часть',
         'Просмотры фактические',
         'Просмотры округленные',
-        'Ставка за шаг',
-        'Шаг просмотров',
+        'Оклад',
         'Переменная часть',
-        'Итого к выплате',
+        'Сумма по акту',
+        '+ к счету',
+        'Сумма счета',
         'Расчет обновлен'
       ],
       hiddenColumnIndexes: [0, 1],
-      integerColumnIndexes: [5, 7, 8, 10],
-      moneyColumnIndexes: [6, 9, 11, 12],
+      integerColumnIndexes: [5, 6, 7],
+      moneyColumnIndexes: [8, 9, 10, 11, 12],
       wrapColumnIndexes: [2, 3],
       columnWidths: {
         2: 210,
         3: 180,
         4: 90,
         5: 120,
-        6: 130,
-        7: 145,
-        8: 150,
-        9: 125,
-        10: 120,
-        11: 140,
+        6: 145,
+        7: 150,
+        8: 130,
+        9: 140,
+        10: 140,
+        11: 105,
         12: 140,
         13: 135
       }
@@ -414,13 +414,13 @@ export class SpreadsheetFormatterService {
         input.teamLeadName,
         input.monthKey,
         input.actualVideoCount,
-        input.fixedSalaryPart,
         input.rawViews,
         input.roundedViews,
-        input.appliedRate,
-        input.viewSteps,
+        input.fixedSalaryPart,
         input.variablePart,
-        input.totalPayment,
+        input.baseTotalPayment,
+        input.invoiceSurcharge,
+        input.invoiceTotalPayment,
         input.calculationUpdatedAt
       ]
     };

@@ -1,4 +1,4 @@
-import { SocialPlatform } from '@prisma/client';
+import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 
 import { MonthlyVideoRepository } from '../repositories/monthly-video.repository';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
@@ -15,6 +15,11 @@ import type { StatsSheetSyncFilters } from './stats-sheet-sync.service';
 
 const SOCIALS_MATRIX_START_MONTH_KEY = '2026-05';
 const SOCIALS_WEEK_SLOT_COUNT = 6;
+
+const SUBMITTED_WEEKLY_STATUSES = new Set<WeeklyReportStatus>([
+  WeeklyReportStatus.SUBMITTED,
+  WeeklyReportStatus.CONFIRMED
+]);
 
 const PLATFORM_ORDER = [
   SocialPlatform.INSTAGRAM,
@@ -127,7 +132,11 @@ export class SocialsSheetSyncService {
   }
 
   private async buildRows(reports: SheetReport[]) {
-    const matrixReports = reports.filter((report) => report.monthKey >= SOCIALS_MATRIX_START_MONTH_KEY);
+    const matrixReports = reports.filter(
+      (report) =>
+        report.monthKey >= SOCIALS_MATRIX_START_MONTH_KEY &&
+        SUBMITTED_WEEKLY_STATUSES.has(report.status)
+    );
     const groups = new Map<string, SheetReport[]>();
 
     for (const report of matrixReports) {

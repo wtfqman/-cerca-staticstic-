@@ -8,7 +8,7 @@ import { PaymentCalculationService } from './payment-calculation.service';
 import { GoogleSheetsService, type SheetRow, type SheetUpsertResult } from './google-sheets.service';
 import { SpreadsheetFormatterService } from './spreadsheet-formatter.service';
 import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
-import { getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
+import { CREATOR_INVOICE_MESSAGE_SURCHARGE, getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
 
 interface CreatorMonthPair {
   creatorUserId: string;
@@ -111,7 +111,9 @@ export class PaymentsSheetSyncService {
       this.monthlyVideoRepository.listCreatorMonthsWithData()
     ]);
 
-    return deduplicatePairs([...weeklyPairs, ...monthlyPairs]);
+    return deduplicatePairs([...weeklyPairs, ...monthlyPairs]).filter((pair) =>
+      isCreatorInvoiceMonth(pair.monthKey)
+    );
   }
 
   private async buildRows(pairs: CreatorMonthPair[], creatorMap: Map<string, AppUser>) {
@@ -124,14 +126,15 @@ export class PaymentsSheetSyncService {
   }
 
   private async buildRow(pair: CreatorMonthPair, creator: AppUser) {
+    if (!isCreatorInvoiceMonth(pair.monthKey)) {
+      return null;
+    }
+
     const payment = await this.paymentCalculationService.calculateForCreatorMonth(
       pair.creatorUserId,
       pair.monthKey
     );
-
-    const totalPayment = isCreatorInvoiceMonth(pair.monthKey)
-      ? getCreatorInvoiceDisplayAmount(payment.totalPayment)
-      : payment.totalPayment;
+    const invoiceTotalPayment = getCreatorInvoiceDisplayAmount(payment.totalPayment);
 
     return this.formatter.buildPaymentsRow({
       creatorUserId: pair.creatorUserId,
@@ -142,10 +145,10 @@ export class PaymentsSheetSyncService {
       fixedSalaryPart: payment.fixedSalaryPart,
       rawViews: payment.rawViews,
       roundedViews: payment.roundedViews,
-      appliedRate: payment.appliedRate,
-      viewSteps: payment.viewSteps,
       variablePart: payment.variablePart,
-      totalPayment,
+      baseTotalPayment: payment.totalPayment,
+      invoiceSurcharge: CREATOR_INVOICE_MESSAGE_SURCHARGE,
+      invoiceTotalPayment,
       calculationUpdatedAt: formatRussianDateTime(payment.generatedAt)
     });
   }
