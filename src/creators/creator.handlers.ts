@@ -239,18 +239,10 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.uploadSigned, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
-      return;
-    }
-
     await ctx.scene.enter(SCENE_IDS.signedDocumentUpload);
   });
 
   bot.action('document_upload_start', roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
-      return;
-    }
-
     await safeAnswerCbQuery(ctx);
     await ctx.scene.enter(SCENE_IDS.signedDocumentUpload);
   });

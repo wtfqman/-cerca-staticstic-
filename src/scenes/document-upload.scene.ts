@@ -14,7 +14,6 @@ import {
 } from '../documents/document.formatters';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
 import { formatUserError, logUserError } from '../utils/user-errors';
-import { ensureCreatorProfileCompletedForDocuments } from '../creators/creator-documents.flow';
 
 type UploadSceneState = {
   documentId?: string;
@@ -93,10 +92,6 @@ const buildCreatorInvoicePrompt = async (creatorUserId: string) => {
 export const documentUploadScene = new Scenes.WizardScene<BotContext>(
   SCENE_IDS.signedDocumentUpload,
   async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
-      return;
-    }
-
     const documents = await listSignatureUploadDocuments(ctx.state.currentUser!.id);
 
     if (!documents.length) {

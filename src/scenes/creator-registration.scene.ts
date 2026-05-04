@@ -58,6 +58,8 @@ type RegistrationState = {
   fieldIndex: number;
 };
 
+type ExistingCreatorProfile = NonNullable<NonNullable<BotContext['state']['currentUser']>['creatorProfile']>;
+
 type FieldConfig = {
   key: RegistrationField;
   prompt: string;
@@ -246,6 +248,30 @@ const buildDraftFromProfile = (
   } satisfies RegistrationDraft;
 };
 
+const canResumeRegistrationFromProfile = (
+  profile?: ExistingCreatorProfile | null
+) =>
+  profile?.legalType === LegalType.SELF_EMPLOYED ||
+  profile?.legalType === LegalType.IP ||
+  Boolean(profile?.profileCompleted && isNoContractLegalType(profile.legalType));
+
+const isRegistrationFieldFilled = (draft: RegistrationDraft, field: RegistrationField) => {
+  const value = draft[field];
+
+  if (value instanceof Date) {
+    return true;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+
+  return value !== null && value !== undefined;
+};
+
+const findFirstMissingFieldIndex = (draft: RegistrationDraft) =>
+  getFieldsForDraft(draft).findIndex((field) => !isRegistrationFieldFilled(draft, field));
+
 const showReview = async (ctx: BotContext) => {
   const draft = getState(ctx).draft;
   const legalType = isNoContractLegalType(draft.legalType)
@@ -328,7 +354,23 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
   SCENE_IDS.creatorRegistration,
   async (ctx) => {
     const state = getState(ctx);
-    state.draft = buildDraftFromProfile(ctx.state.currentUser?.creatorProfile);
+    const profile = ctx.state.currentUser?.creatorProfile;
+    state.draft = buildDraftFromProfile(profile);
+    state.fieldIndex = 0;
+
+    if (canResumeRegistrationFromProfile(profile)) {
+      const missingFieldIndex = findFirstMissingFieldIndex(state.draft);
+
+      if (missingFieldIndex === -1) {
+        state.fieldIndex = getFieldsForDraft(state.draft).length;
+        await showReview(ctx);
+        return ctx.wizard.selectStep(3);
+      }
+
+      state.fieldIndex = missingFieldIndex;
+      await askCurrentField(ctx);
+      return ctx.wizard.selectStep(2);
+    }
 
     await ctx.reply(
       'Давай завершим анкету. Сначала выбери юридический тип.',

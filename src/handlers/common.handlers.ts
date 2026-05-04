@@ -375,10 +375,6 @@ export const handleDocumentReplyUpload = async (ctx: BotContext) => {
       return true;
     }
 
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
-      return true;
-    }
-
     try {
       const result = await container.services.documentUploadService.acceptSignedPdf({
         telegram: ctx.telegram,
