@@ -29,13 +29,19 @@ const deduplicatePairs = (pairs: CreatorMonthPair[]) => {
 
 const sortPaymentRows = (rows: SheetRow[]) =>
   [...rows].sort((left, right) => {
+    const monthCompare = String(right.values[4] ?? '').localeCompare(String(left.values[4] ?? ''));
+
+    if (monthCompare !== 0) {
+      return monthCompare;
+    }
+
     const creatorCompare = String(left.values[2] ?? '').localeCompare(String(right.values[2] ?? ''), 'ru');
 
     if (creatorCompare !== 0) {
       return creatorCompare;
     }
 
-    return String(left.values[4] ?? '').localeCompare(String(right.values[4] ?? ''));
+    return String(left.values[0] ?? '').localeCompare(String(right.values[0] ?? ''));
   });
 
 export class PaymentsSheetSyncService {

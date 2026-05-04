@@ -25,6 +25,13 @@ const PLATFORM_ORDER = [
   SocialPlatform.YOUTUBE
 ] as const;
 
+const PLATFORM_LABEL_ORDER = new Map([
+  ['Instagram', 0],
+  ['TikTok', 1],
+  ['VK', 2],
+  ['YouTube', 3]
+]);
+
 const formatReviewStatus = (status: string, reviewedAt?: Date | null) => {
   if (reviewedAt) {
     return 'Проверено';
@@ -63,7 +70,7 @@ export class StatsSheetSyncService {
   }
 
   private buildRows(reports: Awaited<ReturnType<WeeklyStatsRepository['listReportsForSheetSync']>>) {
-    return this.sortReports(reports).flatMap((report) => {
+    const rows = this.sortReports(reports).flatMap((report) => {
       const itemsByPlatform = new Map(report.items.map((item) => [item.platform, item]));
       const creatorName = formatCreatorDisplayName(report.creator);
       const teamLeadName = formatAssignedTeamLeadName(report.creator);
@@ -98,6 +105,29 @@ export class StatsSheetSyncService {
           updatedAt: formatRussianDateTime(updatedAt)
         });
       });
+    });
+
+    return rows.sort((left, right) => {
+      const monthCompare = String(right.values[7] ?? '').localeCompare(String(left.values[7] ?? ''));
+
+      if (monthCompare !== 0) {
+        return monthCompare;
+      }
+
+      const leftPlatformOrder = PLATFORM_LABEL_ORDER.get(String(left.values[4] ?? '')) ?? 99;
+      const rightPlatformOrder = PLATFORM_LABEL_ORDER.get(String(right.values[4] ?? '')) ?? 99;
+
+      if (leftPlatformOrder !== rightPlatformOrder) {
+        return leftPlatformOrder - rightPlatformOrder;
+      }
+
+      const creatorCompare = String(left.values[5] ?? '').localeCompare(String(right.values[5] ?? ''), 'ru');
+
+      if (creatorCompare !== 0) {
+        return creatorCompare;
+      }
+
+      return String(left.values[8] ?? '').localeCompare(String(right.values[8] ?? ''));
     });
   }
 

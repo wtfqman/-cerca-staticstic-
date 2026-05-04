@@ -173,7 +173,7 @@ export class GoogleSheetsService {
       };
     }
 
-    const existingRows = await this.getExistingKeyMap(definition.sheetName);
+    const existingRows = await this.getExistingKeyMap(definition);
     const rowsToUpdate: Array<SheetRow & { rowNumber: number }> = [];
     const rowsToAppend: SheetRow[] = [];
 
@@ -447,7 +447,7 @@ export class GoogleSheetsService {
         row,
         sheetRowIndex: index + 1
       }))
-      .filter(({ row }) => String(row[0] ?? '').trim() === definition.headers[0])
+      .filter(({ row }) => this.isDuplicateHeaderRow(definition, row))
       .map(({ sheetRowIndex }) => sheetRowIndex)
       .sort((left, right) => right - left);
 
@@ -487,18 +487,87 @@ export class GoogleSheetsService {
     return sheetId;
   }
 
-  private async getExistingKeyMap(sheetName: string) {
+  private isDuplicateHeaderRow(definition: SheetDefinition, row: unknown[]) {
+    if (this.rowMatchesHeaderSequence(row, definition.headers, 0)) {
+      return true;
+    }
+
+    const hiddenColumnIndexes = new Set(definition.hiddenColumnIndexes ?? []);
+    const visibleHeaders = definition.headers.filter((_, index) => !hiddenColumnIndexes.has(index));
+
+    for (let startIndex = 0; startIndex < row.length; startIndex += 1) {
+      if (this.rowMatchesHeaderSequence(row, visibleHeaders, startIndex)) {
+        return true;
+      }
+    }
+
+    return this.rowLooksLikeHeader(definition, row);
+  }
+
+  private rowMatchesHeaderSequence(row: unknown[], headers: string[], startIndex: number) {
+    if (headers.length === 0 || startIndex >= row.length) {
+      return false;
+    }
+
+    const maxComparedCells = Math.min(8, headers.length, row.length - startIndex);
+
+    if (maxComparedCells < 3 || String(row[startIndex] ?? '').trim() !== headers[0]) {
+      return false;
+    }
+
+    let matchedCells = 0;
+
+    for (let index = 0; index < maxComparedCells; index += 1) {
+      if (String(row[startIndex + index] ?? '').trim() !== headers[index]) {
+        break;
+      }
+
+      matchedCells += 1;
+    }
+
+    return matchedCells >= Math.min(4, maxComparedCells);
+  }
+
+  private rowLooksLikeHeader(definition: SheetDefinition, row: unknown[]) {
+    const headerSet = new Set(definition.headers);
+
+    for (let startIndex = 0; startIndex < row.length; startIndex += 1) {
+      const cells = row
+        .slice(startIndex, startIndex + 8)
+        .map((cell) => String(cell ?? '').trim())
+        .filter(Boolean);
+
+      if (cells.length < 4 || !headerSet.has(cells[0])) {
+        continue;
+      }
+
+      const headerLikeCellCount = cells.filter((cell) => headerSet.has(cell)).length;
+
+      if (headerLikeCellCount >= 4 && headerLikeCellCount / cells.length >= 0.75) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async getExistingKeyMap(definition: SheetDefinition) {
     const api = await this.client.getSheetsApi();
     const spreadsheetId = this.client.getSpreadsheetId();
+    const lastColumn = columnNumberToLetters(definition.headers.length);
     const response = await api.spreadsheets.values.get({
       spreadsheetId,
-      range: buildSheetRange(sheetName, 'A2:A')
+      range: buildSheetRange(definition.sheetName, `A2:${lastColumn}`)
     });
 
     const map = new Map<string, ExistingRowReference>();
     const values = response.data.values ?? [];
 
     values.forEach((row, index) => {
+      if (this.isDuplicateHeaderRow(definition, row)) {
+        return;
+      }
+
       const key = String(row[0] ?? '').trim();
 
       if (!key) {
@@ -506,7 +575,10 @@ export class GoogleSheetsService {
       }
 
       if (map.has(key)) {
-        logger.warn({ sheetName, key }, 'Duplicate key found in Google Sheet; using the last row for updates');
+        logger.warn(
+          { sheetName: definition.sheetName, key },
+          'Duplicate key found in Google Sheet; using the last row for updates'
+        );
       }
 
       map.set(key, {
