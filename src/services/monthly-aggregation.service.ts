@@ -2,6 +2,7 @@ import type { MonthlyAggregationSummary, PlatformStatSummary } from '../types/re
 import { MonthlyVideoRepository } from '../repositories/monthly-video.repository';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { getMonthRange, toDateKey, toDateOnly } from '../utils/periods';
+import { hasWeeklyReportData } from '../utils/weekly-report-data';
 
 const EMPTY_TOTALS = {
   videoCount: 0,
@@ -62,10 +63,11 @@ export class MonthlyAggregationService {
       this.monthlyVideoRepository.findByCreatorAndMonth(creatorUserId, monthKey)
     ]);
     const monthRange = getMonthRange(monthKey);
-    const fullMonthReports = reports.filter(
+    const reportsWithData = reports.filter(hasWeeklyReportData);
+    const fullMonthReports = reportsWithData.filter(
       (report) => toDateKey(report.weekStart) === monthRange.dateFrom && toDateKey(report.weekEnd) === monthRange.dateTo
     );
-    const reportsForAggregation = fullMonthReports.length > 0 ? fullMonthReports : reports;
+    const reportsForAggregation = fullMonthReports.length > 0 ? fullMonthReports : reportsWithData;
     const isTemporaryReachBackfill =
       reportsForAggregation.length > 0 &&
       reportsForAggregation.every((report) => isTemporaryReachBackfillReport(report, monthRange));

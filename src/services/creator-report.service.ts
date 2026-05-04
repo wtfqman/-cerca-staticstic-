@@ -4,6 +4,7 @@ import { PaymentCalculationService } from './payment-calculation.service';
 import { getCurrentMonthKey, getLastSevenDaysRange, getMonthRange, getPreviousMonthKey, toDateKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
+import { hasWeeklyReportData } from '../utils/weekly-report-data';
 
 const buildWeeklyItems = (
   report: Awaited<ReturnType<WeeklyStatsRepository['listReportsByCreatorAndMonth']>>[number]
@@ -70,7 +71,7 @@ export class CreatorReportService {
       label: monthKey,
       aggregation,
       payment,
-      weeklyReports: weeklyReports.map((report) => {
+      weeklyReports: weeklyReports.filter(hasWeeklyReportData).map((report) => {
         const items = buildWeeklyItems(report);
 
         return {

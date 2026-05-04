@@ -4,6 +4,7 @@ import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 import { formatFullName, formatTeamLeadDisplayName } from '../utils/formatters';
+import { hasWeeklyReportData } from '../utils/weekly-report-data';
 
 const EMPTY_TOTALS = {
   videoCount: 0,
@@ -70,7 +71,7 @@ export class TeamLeadReportService {
       creator,
       aggregation,
       payment,
-      weeklyReports: weeklyReports.map((report) => {
+      weeklyReports: weeklyReports.filter(hasWeeklyReportData).map((report) => {
         const items = buildWeeklyItems(report);
 
         return {
