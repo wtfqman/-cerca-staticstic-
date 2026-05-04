@@ -37,6 +37,7 @@ import {
   formatTeamLeadDisplayName
 } from '../utils/formatters';
 import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
+import { splitTelegramMessage } from '../utils/telegram';
 import { SCENE_IDS } from '../scenes/scene-ids';
 import {
   formatActiveRosterFirstQueueStatus,
@@ -535,7 +536,9 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
     try {
       const report = await container.services.adminReportService.getGlobalPaymentsReport(monthKey);
-      await ctx.reply(formatAdminPaymentsReport(report));
+      for (const chunk of splitTelegramMessage(formatAdminPaymentsReport(report))) {
+        await ctx.reply(chunk);
+      }
     } catch (error) {
       logUserError(error, 'Admin payments report failed', {
         userId: ctx.state.currentUser?.id,
