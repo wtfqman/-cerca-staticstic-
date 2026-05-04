@@ -1,9 +1,9 @@
-import { UserRole } from '@prisma/client';
+import { UserRole, type LegalType } from '@prisma/client';
 
 export type AccessUser = {
   role?: UserRole | null;
   isActive?: boolean | null;
-  creatorProfile?: unknown | null;
+  creatorProfile?: { legalType?: LegalType | null; profileCompleted?: boolean | null } | null;
   teamLeadProfile?: unknown | null;
   documentWorkflowStates?: Array<{
     campaign?: {
