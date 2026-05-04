@@ -44,22 +44,19 @@ const formatCreatorProfileCard = async (teamLeadUserId: string, creatorUserId: s
   ].join('\n');
 };
 
-const replyTeamLeadAssignmentDisabled = async (ctx: BotContext) => {
-  await ctx.answerCbQuery('Назначения делает админ').catch(() => undefined);
-  await ctx.reply(
-    'Назначение креаторов по тимлидам теперь делает только администратор. Если в группе не хватает креатора или прикреплен лишний, напиши админу.'
-  );
-};
-
 const buildUnassignedCreatorItems = async () =>
   (await container.repositories.teamLeadRepository.listUnassignedCreators()).map((creator) => ({
     id: creator.id,
     label: formatCreatorDisplayName(creator)
   }));
 
+const teamLeadGroupActionsKeyboard = () =>
+  Markup.inlineKeyboard([[Markup.button.callback('Добавить креатора', 'teamlead_group_assign_start')]]);
+
 const replyEmptyGroup = async (ctx: BotContext) => {
   await ctx.reply(
-    'В твоей группе пока нет креаторов. Назначение креаторов по тимлидам делает администратор.'
+    'В твоей группе пока нет креаторов. Если креатор уже открыл бота и получил доступ, его можно добавить кнопкой ниже.',
+    teamLeadGroupActionsKeyboard()
   );
 };
 
@@ -70,20 +67,24 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(
       creators.length
         ? creators.map((creator) => `• ${formatCreatorDisplayName(creator)}`).join('\n')
-        : 'В группе пока нет креаторов. Назначение креаторов по тимлидам делает администратор.'
+        : 'В группе пока нет креаторов. Если креатор уже открыл бота и получил доступ, его можно добавить кнопкой ниже.',
+      teamLeadGroupActionsKeyboard()
     );
   });
 
   bot.action('teamlead_group_assign_start', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    await replyTeamLeadAssignmentDisabled(ctx);
-    return;
-
     const creators = await buildUnassignedCreatorItems();
     await ctx.answerCbQuery();
     ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;
 
     if (!creators.length) {
-      await ctx.reply('Свободных зарегистрированных креаторов для добавления сейчас нет.');
+      await ctx.reply(
+        [
+          'Свободных креаторов для добавления сейчас нет.',
+          '',
+          'Креатор должен сначала открыть бота через /start и получить доступ креатора. Если он уже закреплен за другим тимлидом, переназначить его может только админ.'
+        ].join('\n')
+      );
       return;
     }
 
@@ -94,9 +95,6 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action(/^teamlead_group_assign_creator:page:(\d+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    await replyTeamLeadAssignmentDisabled(ctx);
-    return;
-
     const page = Number(ctx.match[1]!);
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(
@@ -105,9 +103,6 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action(/^teamlead_group_assign_creator:pick:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    await replyTeamLeadAssignmentDisabled(ctx);
-    return;
-
     const creatorUserId = ctx.match[1]!;
     const [creator, activeLink] = await Promise.all([
       container.services.userService.getById(creatorUserId),
@@ -136,18 +131,12 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action('teamlead_group_assign_cancel', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    await replyTeamLeadAssignmentDisabled(ctx);
-    return;
-
     ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;
     await ctx.answerCbQuery('Отменено');
     await ctx.reply('Добавление креатора отменено.');
   });
 
   bot.action('teamlead_group_assign_confirm', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    await replyTeamLeadAssignmentDisabled(ctx);
-    return;
-
     const creatorUserId = ctx.scene.session.teamLeadGroupAssignCreatorId;
     await ctx.answerCbQuery('Добавляю...');
 
