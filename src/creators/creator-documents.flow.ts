@@ -258,7 +258,7 @@ export const openCreatorFirstQueueEntryFlow = async (
     return;
   }
 
-  if (entryStatus === 'READY_TO_GENERATE_FIRST_QUEUE') {
+  if (entryStatus === 'READY_TO_GENERATE_FIRST_QUEUE' || !hasAllFirstQueueDocumentsGenerated(summary)) {
     try {
       const documents = await container.services.documentService.generateActiveRosterResigningFirstQueueDocuments(
         creatorUserId,

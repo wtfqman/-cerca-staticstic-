@@ -2,6 +2,7 @@ import type { AdminReportSummary } from '../types/report.types';
 import { TeamLeadRepository } from '../repositories/teamlead.repository';
 import { UserRepository } from '../repositories/user.repository';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
+import { DocumentWorkflowRepository } from '../repositories/document-workflow.repository';
 import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 import {
@@ -25,7 +26,8 @@ export class AdminReportService {
     private readonly teamLeadRepository: TeamLeadRepository,
     private readonly aggregationService: MonthlyAggregationService,
     private readonly paymentService: PaymentCalculationService,
-    private readonly weeklyStatsRepository?: WeeklyStatsRepository
+    private readonly weeklyStatsRepository?: WeeklyStatsRepository,
+    private readonly documentWorkflowRepository?: DocumentWorkflowRepository
   ) {}
 
   async getCreatorReport(creatorUserId: string, monthKey: string) {
@@ -150,48 +152,95 @@ export class AdminReportService {
 
   async getGlobalPaymentsReport(monthKey: string): Promise<AdminReportSummary> {
     const creators = await this.userRepository.listActiveCreators();
+    const creatorIds = creators.map((creator) => creator.id);
     const submittedReports = this.weeklyStatsRepository
       ? await this.weeklyStatsRepository.listSubmittedReportsForCreators(
-          creators.map((creator) => creator.id),
+          creatorIds,
           monthKey
         )
       : [];
     const submittedCreatorIds = new Set(submittedReports.map((report) => report.creatorUserId));
+    const paymentUploads = this.documentWorkflowRepository
+      ? await this.documentWorkflowRepository.listLatestPaymentUploadsForCreatorsMonth(creatorIds, monthKey)
+      : [];
+    const paymentUploadMap = new Map<string, (typeof paymentUploads)[number]>();
+
+    for (const upload of paymentUploads) {
+      const key = `${upload.creatorUserId}:${upload.type}`;
+
+      if (!paymentUploadMap.has(key)) {
+        paymentUploadMap.set(key, upload);
+      }
+    }
 
     const creatorSummaries = (
       await Promise.all(
         creators.map(async (creator) => {
-          const [aggregation, payment] = await Promise.all([
-            this.aggregationService.aggregateCreatorMonth(creator.id, monthKey, { submittedOnly: true }),
-            this.paymentService.calculateForCreatorMonth(creator.id, monthKey, {
-              submittedOnly: true,
-              persistSnapshot: false
-            })
-          ]);
-          const hasSubmittedStats = submittedCreatorIds.has(creator.id);
-          const hasPaymentData = payment.totalPayment > 0 || aggregation.monthlyVideoSubmitted;
-
-          if (!hasSubmittedStats && !hasPaymentData) {
-            return null;
-          }
-
-          const invoiceTotalPayment = getCreatorInvoiceDisplayAmount(payment.totalPayment);
-
-          return {
-            creatorUserId: creator.id,
-            creatorName:
-              creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор'),
-            monthKey,
-            totals: aggregation.totals,
-            totalPayment: invoiceTotalPayment,
-            baseTotalPayment: payment.totalPayment,
-            invoiceSurcharge: CREATOR_INVOICE_MESSAGE_SURCHARGE,
-            invoiceTotalPayment,
-            weeklyReportCount: aggregation.weeklyReportCount,
-            monthlyVideoCount: aggregation.monthlyVideoCount,
-            monthlyVideoSubmitted: aggregation.monthlyVideoSubmitted,
-            payment
+          const invoiceUpload = paymentUploadMap.get(`${creator.id}:INVOICE`);
+          const receiptUpload = paymentUploadMap.get(`${creator.id}:RECEIPT`);
+          const paymentDocumentFields = {
+            invoiceUploadedAt: invoiceUpload?.uploadedAt?.toISOString() ?? null,
+            invoiceFileName: invoiceUpload?.originalFileName ?? null,
+            receiptUploadedAt: receiptUpload?.uploadedAt?.toISOString() ?? null,
+            receiptFileName: receiptUpload?.originalFileName ?? null
           };
+
+          try {
+            const [aggregation, payment] = await Promise.all([
+              this.aggregationService.aggregateCreatorMonth(creator.id, monthKey, { submittedOnly: true }),
+              this.paymentService.calculateForCreatorMonth(creator.id, monthKey, {
+                submittedOnly: true,
+                persistSnapshot: false
+              })
+            ]);
+            const hasSubmittedStats = submittedCreatorIds.has(creator.id);
+            const hasPaymentData =
+              payment.totalPayment > 0 ||
+              aggregation.monthlyVideoSubmitted ||
+              Boolean(invoiceUpload) ||
+              Boolean(receiptUpload);
+
+            if (!hasSubmittedStats && !hasPaymentData) {
+              return null;
+            }
+
+            const invoiceTotalPayment = getCreatorInvoiceDisplayAmount(payment.totalPayment);
+
+            return {
+              creatorUserId: creator.id,
+              creatorName:
+                creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор'),
+              monthKey,
+              totals: aggregation.totals,
+              totalPayment: invoiceTotalPayment,
+              baseTotalPayment: payment.totalPayment,
+              invoiceSurcharge: CREATOR_INVOICE_MESSAGE_SURCHARGE,
+              invoiceTotalPayment,
+              weeklyReportCount: aggregation.weeklyReportCount,
+              monthlyVideoCount: aggregation.monthlyVideoCount,
+              monthlyVideoSubmitted: aggregation.monthlyVideoSubmitted,
+              payment,
+              ...paymentDocumentFields
+            };
+          } catch (error) {
+            if (!invoiceUpload && !receiptUpload) {
+              return null;
+            }
+
+            return {
+              creatorUserId: creator.id,
+              creatorName:
+                creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор'),
+              monthKey,
+              totals: { ...EMPTY_TOTALS },
+              totalPayment: 0,
+              weeklyReportCount: 0,
+              monthlyVideoCount: 0,
+              monthlyVideoSubmitted: false,
+              calculationError: error instanceof Error ? error.message : 'неизвестная ошибка расчета',
+              ...paymentDocumentFields
+            };
+          }
         })
       )
     ).filter((item): item is NonNullable<typeof item> => Boolean(item));

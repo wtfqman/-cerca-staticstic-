@@ -1,7 +1,7 @@
 import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 
 import type { WeeklyReportReviewSummary, WeeklyStatSummary } from '../types/report.types';
-import { getWeeklyReportPeriod, toDateOnly, toDateKey } from '../utils/periods';
+import { getMonthRange, getWeeklyReportPeriod, toDateOnly, toDateKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
 import { kpiViewsSchema, nonNegativeIntSchema } from '../validators/stats.schemas';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
@@ -36,6 +36,24 @@ const REVIEWABLE_WEEKLY_STATUSES = new Set<string>([
   WeeklyReportStatus.CONFIRMED
 ]);
 
+const isTemporaryReachBackfillReport = (report: WeeklyReportWithItems | WeeklyReportWithRelations) => {
+  const monthRange = getMonthRange(report.monthKey);
+
+  return (
+    toDateKey(report.weekStart) === monthRange.dateFrom &&
+    toDateKey(report.weekEnd) === monthRange.dateTo &&
+    report.items.some((item) => item.views > 0) &&
+    report.items.every(
+      (item) =>
+        item.videoCount === 0 &&
+        item.likes === 0 &&
+        item.comments === 0 &&
+        item.reposts === 0 &&
+        item.saves === 0
+    )
+  );
+};
+
 type WeeklyReportWithItems = NonNullable<Awaited<ReturnType<WeeklyStatsRepository['getReportById']>>>;
 type WeeklyReportWithRelations = NonNullable<
   Awaited<ReturnType<WeeklyStatsRepository['getReportByIdWithRelations']>>
@@ -47,6 +65,8 @@ export interface WeeklyReportReviewResult {
 }
 
 export class WeeklyStatsService {
+  private readonly attachmentSaveLocks = new Map<string, Promise<void>>();
+
   constructor(
     private readonly repository: WeeklyStatsRepository,
     private readonly fileStorageService: FileStorageService,
@@ -86,46 +106,52 @@ export class WeeklyStatsService {
     telegramFileId: string;
     telegramFileUniqueId?: string;
   }) {
-    const report = await this.repository.getReportById(params.reportId);
+    return this.withAttachmentSaveLock(params.reportId, async () => {
+      const report = await this.repository.getReportById(params.reportId);
 
-    if (!report || report.creatorUserId !== params.creatorUserId) {
-      throw new Error('Недельный отчет для загрузки скрина не найден.');
-    }
+      if (!report || report.creatorUserId !== params.creatorUserId) {
+        throw new Error('Недельный отчет для загрузки скрина не найден.');
+      }
 
-    const fileLink = await params.telegram.getFileLink(params.telegramFileId);
-    const response = await fetch(fileLink.toString());
+      const fileLink = await params.telegram.getFileLink(params.telegramFileId);
+      const response = await fetch(fileLink.toString());
 
-    if (!response.ok) {
-      throw new Error('Не удалось скачать скрин из Telegram.');
-    }
+      if (!response.ok) {
+        throw new Error('Не удалось скачать скрин из Telegram.');
+      }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = Buffer.from(await response.arrayBuffer());
 
-    if (buffer.length === 0) {
-      throw new Error('Не удалось сохранить пустой файл. Отправь скрин еще раз.');
-    }
+      if (buffer.length === 0) {
+        throw new Error('Не удалось сохранить пустой файл. Отправь скрин еще раз.');
+      }
 
-    const sortOrder = (await this.repository.countAttachments(params.reportId)) + 1;
-    const stored = await this.fileStorageService.saveWeeklyStatAttachment({
-      creatorUserId: params.creatorUserId,
-      weeklyReportId: params.reportId,
-      buffer,
-      sortOrder,
-      telegramFileUniqueId: params.telegramFileUniqueId
-    });
+      const sortOrder = (await this.repository.countAttachments(params.reportId)) + 1;
+      const stored = await this.fileStorageService.saveWeeklyStatAttachment({
+        creatorUserId: params.creatorUserId,
+        weeklyReportId: params.reportId,
+        buffer,
+        sortOrder,
+        telegramFileUniqueId: params.telegramFileUniqueId
+      });
 
-    return this.repository.createAttachment({
-      weeklyReportId: params.reportId,
-      creatorUserId: params.creatorUserId,
-      telegramFileId: params.telegramFileId,
-      telegramFileUniqueId: params.telegramFileUniqueId,
-      filePath: stored.filePath,
-      sortOrder
+      return this.repository.createAttachment({
+        weeklyReportId: params.reportId,
+        creatorUserId: params.creatorUserId,
+        telegramFileId: params.telegramFileId,
+        telegramFileUniqueId: params.telegramFileUniqueId,
+        filePath: stored.filePath,
+        sortOrder
+      });
     });
   }
 
   async listAttachments(reportId: string) {
     return this.repository.listAttachmentsByReport(reportId);
+  }
+
+  async countAttachments(reportId: string) {
+    return this.repository.countAttachments(reportId);
   }
 
   async submitReport(reportId: string): Promise<WeeklyStatSummary> {
@@ -262,8 +288,30 @@ export class WeeklyStatsService {
       reviewedAt: report.reviewedAt?.toISOString(),
       attachmentCount: report.attachments.length,
       totalVideoCount: report.totalVideoCount ?? items.reduce((sum, item) => sum + item.videoCount, 0),
+      isTemporaryReachBackfill: isTemporaryReachBackfillReport(report),
       totals: buildTotals(items, report.totalVideoCount),
       items
     };
+  }
+
+  private async withAttachmentSaveLock<T>(reportId: string, task: () => Promise<T>) {
+    const previous = this.attachmentSaveLocks.get(reportId) ?? Promise.resolve();
+    let releaseLock!: () => void;
+    const current = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    this.attachmentSaveLocks.set(reportId, current);
+    await previous.catch(() => undefined);
+
+    try {
+      return await task();
+    } finally {
+      releaseLock();
+
+      if (this.attachmentSaveLocks.get(reportId) === current) {
+        this.attachmentSaveLocks.delete(reportId);
+      }
+    }
   }
 }

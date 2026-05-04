@@ -17,8 +17,18 @@ import { getDocumentTitle } from '../documents/document.constants';
 import { formatIntegerRu, formatMoneyRu, formatRussianDate } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
 
-const formatPlatforms = (aggregation: MonthlyAggregationSummary) =>
-  aggregation.platformBreakdown.length
+const TEMPORARY_REACH_BACKFILL_NOTICE =
+  'Детализация по платформам, лайкам, комментариям, репостам и сохранениям в этом временном сценарии не собиралась';
+
+const formatPlatforms = (aggregation: MonthlyAggregationSummary) => {
+  if (aggregation.isTemporaryReachBackfill) {
+    return [
+      `• Общий охват: ${formatIntegerRu(aggregation.totals.views)}`,
+      `• ${TEMPORARY_REACH_BACKFILL_NOTICE}`
+    ].join('\n');
+  }
+
+  return aggregation.platformBreakdown.length
     ? aggregation.platformBreakdown
         .map(
           (item) =>
@@ -26,6 +36,7 @@ const formatPlatforms = (aggregation: MonthlyAggregationSummary) =>
         )
         .join('\n')
     : '• Платформенные данные пока не внесены';
+};
 
 const getEffectiveVideoCount = (aggregation: MonthlyAggregationSummary) =>
   aggregation.monthlyVideoSubmitted ? aggregation.monthlyVideoCount : aggregation.totals.videoCount;
@@ -98,6 +109,24 @@ const buildCreatorEntryWarnings = (entry: AdminReportSummary['creators'][number]
   return warnings;
 };
 
+const hasPaymentDocumentStatus = (entry: AdminReportSummary['creators'][number]) =>
+  entry.invoiceUploadedAt !== undefined || entry.receiptUploadedAt !== undefined;
+
+const formatPaymentDocumentStatusLine = (entry: AdminReportSummary['creators'][number]) => {
+  if (!hasPaymentDocumentStatus(entry)) {
+    return null;
+  }
+
+  const invoice = entry.invoiceUploadedAt
+    ? `счет загружен ${formatRussianDate(entry.invoiceUploadedAt)}`
+    : 'счет не загружен';
+  const receipt = entry.receiptUploadedAt
+    ? `чек загружен ${formatRussianDate(entry.receiptUploadedAt)}`
+    : 'чек не загружен';
+
+  return `  документы оплаты: ${invoice}; ${receipt}`;
+};
+
 const formatCreatorPaymentLine = (entry: AdminReportSummary['creators'][number]) => {
   const warnings = buildCreatorEntryWarnings(entry);
   const effectiveVideoCount = entry.payment?.actualVideoCount ?? entry.monthlyVideoCount ?? entry.totals.videoCount ?? 0;
@@ -110,6 +139,7 @@ const formatCreatorPaymentLine = (entry: AdminReportSummary['creators'][number])
 
   return [
     `• ${entry.creatorName}: ${formatMoneyRu(displayPayment)}`,
+    formatPaymentDocumentStatusLine(entry),
     entry.payment
       ? `  оклад ${formatMoneyRu(entry.payment.fixedSalaryPart)}${
           entry.payment.fixedRatePerVideo
@@ -125,6 +155,7 @@ const formatCreatorPaymentLine = (entry: AdminReportSummary['creators'][number])
     entry.payment
       ? `  видео за месяц: ${videoCount}; просмотры: ${formatIntegerRu(entry.payment.rawViews)} -> ${formatIntegerRu(entry.payment.roundedViews)}`
       : `  видео за месяц: ${videoCount}; просмотры: ${formatIntegerRu(entry.totals.views)}`,
+    entry.calculationError ? `  ошибка расчета: ${entry.calculationError}` : null,
     warnings.length ? `  не хватает: ${warnings.join('; ')}` : null
   ]
     .filter(Boolean)
@@ -158,16 +189,22 @@ const formatWeeklyReportPlatformLine = (item: WeeklyReportReviewSummary['items']
   )}, сохранения ${formatIntegerRu(item.saves)}`;
 
 const formatWeeklyReportMetrics = (report: WeeklyReportReviewSummary) =>
-  [
-    `  Видео за неделю: ${formatIntegerRu(report.totals.videoCount)}`,
-    `  Просмотры: ${formatIntegerRu(report.totals.views)}, лайки: ${formatIntegerRu(
-      report.totals.likes
-    )}, комментарии: ${formatIntegerRu(report.totals.comments)}`,
-    `  Репосты: ${formatIntegerRu(report.totals.reposts)}, сохранения: ${formatIntegerRu(report.totals.saves)}`,
-    report.items.length
-      ? report.items.map(formatWeeklyReportPlatformLine).join('\n')
-      : '  Данные по платформам пока не внесены'
-  ].join('\n');
+  report.isTemporaryReachBackfill
+    ? [
+        `  Видео за период: ${formatIntegerRu(report.totals.videoCount)}`,
+        `  Общий охват: ${formatIntegerRu(report.totals.views)}`,
+        `  ${TEMPORARY_REACH_BACKFILL_NOTICE}`
+      ].join('\n')
+    : [
+        `  Видео за неделю: ${formatIntegerRu(report.totals.videoCount)}`,
+        `  Просмотры: ${formatIntegerRu(report.totals.views)}, лайки: ${formatIntegerRu(
+          report.totals.likes
+        )}, комментарии: ${formatIntegerRu(report.totals.comments)}`,
+        `  Репосты: ${formatIntegerRu(report.totals.reposts)}, сохранения: ${formatIntegerRu(report.totals.saves)}`,
+        report.items.length
+          ? report.items.map(formatWeeklyReportPlatformLine).join('\n')
+          : '  Данные по платформам пока не внесены'
+      ].join('\n');
 
 const formatWeeklyReviewLine = (report: WeeklyReportReviewSummary) => {
   const periodLabel = formatPeriodLabel(report.weekStart, report.weekEnd);

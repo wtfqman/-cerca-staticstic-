@@ -17,6 +17,33 @@ const getReportVideoCount = (report: {
   items: Array<{ videoCount: number }>;
 }) => report.totalVideoCount ?? report.items.reduce((sum, item) => sum + item.videoCount, 0);
 
+const isTemporaryReachBackfillReport = (
+  report: {
+    weekStart: Date;
+    weekEnd: Date;
+    items: Array<{
+      videoCount: number;
+      views: number;
+      likes: number;
+      comments: number;
+      reposts: number;
+      saves: number;
+    }>;
+  },
+  monthRange: { dateFrom: string; dateTo: string }
+) =>
+  toDateKey(report.weekStart) === monthRange.dateFrom &&
+  toDateKey(report.weekEnd) === monthRange.dateTo &&
+  report.items.some((item) => item.views > 0) &&
+  report.items.every(
+    (item) =>
+      item.videoCount === 0 &&
+      item.likes === 0 &&
+      item.comments === 0 &&
+      item.reposts === 0 &&
+      item.saves === 0
+  );
+
 export class MonthlyAggregationService {
   constructor(
     private readonly weeklyStatsRepository: WeeklyStatsRepository,
@@ -39,6 +66,9 @@ export class MonthlyAggregationService {
       (report) => toDateKey(report.weekStart) === monthRange.dateFrom && toDateKey(report.weekEnd) === monthRange.dateTo
     );
     const reportsForAggregation = fullMonthReports.length > 0 ? fullMonthReports : reports;
+    const isTemporaryReachBackfill =
+      reportsForAggregation.length > 0 &&
+      reportsForAggregation.every((report) => isTemporaryReachBackfillReport(report, monthRange));
 
     const platformMap = new Map<string, PlatformStatSummary>();
 
@@ -83,6 +113,7 @@ export class MonthlyAggregationService {
         dateTo: monthRange.dateTo
       },
       weeklyReportCount: reportsForAggregation.length,
+      isTemporaryReachBackfill,
       totals,
       platformBreakdown,
       monthlyVideoCount: monthlyVideo?.videoCount ?? 0,

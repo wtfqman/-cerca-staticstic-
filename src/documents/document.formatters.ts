@@ -182,23 +182,26 @@ const formatCreatorUploadChecklist = (
     signedUploadedAt?: Date | null;
   }>
 ) => {
-  const availableDocuments = documents.filter(
-    (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
-  );
-  const signedCount = availableDocuments.filter(isCreatorDocumentSigned).length;
-  const totalCount = availableDocuments.length || documents.length;
-  const waitingDocuments = availableDocuments.filter((document) => !isCreatorDocumentSigned(document));
-  const notReadyCount = documents.filter(
-    (document) => document.status === 'LOCKED' || document.status === 'NOT_GENERATED'
-  ).length;
+  const signedCount = documents.filter(isCreatorDocumentSigned).length;
+  const totalCount = documents.length;
+  const waitingDocuments = documents.filter((document) => !isCreatorDocumentSigned(document));
+  const formatWaitingDocument = (document: (typeof documents)[number]) => {
+    const title = formatCreatorDocumentTitle(document);
+
+    if (document.status === 'LOCKED' || document.status === 'NOT_GENERATED') {
+      return `- ${title}: ${formatCreatorDocumentStatus(document.status)}`;
+    }
+
+    return `- ${title}`;
+  };
 
   return [
     `Подписанные PDF: ${signedCount} из ${totalCount}`,
     'Осталось догрузить:',
     ...(waitingDocuments.length
-      ? waitingDocuments.map((document) => `- ${formatCreatorDocumentTitle(document)}`)
-      : notReadyCount > 0
-        ? ['- пока нечего догружать: часть документов еще не сформирована']
+      ? waitingDocuments.map(formatWaitingDocument)
+      : totalCount === 0
+        ? ['- документы еще не сформированы']
         : ['- ничего, все нужные PDF уже загружены'])
   ];
 };

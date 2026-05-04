@@ -1,7 +1,7 @@
 import type { CreatorReportSummary } from '../types/report.types';
 import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentCalculationService } from './payment-calculation.service';
-import { getCurrentMonthKey, getLastSevenDaysRange, getPreviousMonthKey } from '../utils/periods';
+import { getCurrentMonthKey, getLastSevenDaysRange, getMonthRange, getPreviousMonthKey, toDateKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 
@@ -29,6 +29,26 @@ const buildWeeklyTotals = (
   reposts: items.reduce((sum, item) => sum + item.reposts, 0),
   saves: items.reduce((sum, item) => sum + item.saves, 0)
 });
+
+const isTemporaryReachBackfillReport = (
+  report: Awaited<ReturnType<WeeklyStatsRepository['listReportsByCreatorAndMonth']>>[number]
+) => {
+  const monthRange = getMonthRange(report.monthKey);
+
+  return (
+    toDateKey(report.weekStart) === monthRange.dateFrom &&
+    toDateKey(report.weekEnd) === monthRange.dateTo &&
+    report.items.some((item) => item.views > 0) &&
+    report.items.every(
+      (item) =>
+        item.videoCount === 0 &&
+        item.likes === 0 &&
+        item.comments === 0 &&
+        item.reposts === 0 &&
+        item.saves === 0
+    )
+  );
+};
 
 export class CreatorReportService {
   constructor(
@@ -68,6 +88,7 @@ export class CreatorReportService {
           reviewedAt: report.reviewedAt?.toISOString(),
           attachmentCount: report.attachments.length,
           totalVideoCount: report.totalVideoCount ?? items.reduce((sum, item) => sum + item.videoCount, 0),
+          isTemporaryReachBackfill: isTemporaryReachBackfillReport(report),
           totals: buildWeeklyTotals(report, items),
           items
         };

@@ -126,7 +126,8 @@ const adminReportService = new AdminReportService(
   teamLeadRepository,
   monthlyAggregationService,
   paymentCalculationService,
-  weeklyStatsRepository
+  weeklyStatsRepository,
+  documentWorkflowRepository
 );
 const notificationService = new NotificationService(notificationRepository);
 const creatorDisciplineService = new CreatorDisciplineService(weeklyStatsRepository, monthlyVideoRepository);

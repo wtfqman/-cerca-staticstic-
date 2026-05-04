@@ -54,6 +54,7 @@ export interface WeeklyReportReviewSummary {
   reviewedAt?: string;
   attachmentCount: number;
   totalVideoCount: number;
+  isTemporaryReachBackfill?: boolean;
   totals: Omit<PlatformStatSummary, 'platform'>;
   items: PlatformStatSummary[];
 }
@@ -63,6 +64,7 @@ export interface MonthlyAggregationSummary {
   monthKey: string;
   period: PeriodRange;
   weeklyReportCount: number;
+  isTemporaryReachBackfill?: boolean;
   totals: Omit<PlatformStatSummary, 'platform'>;
   platformBreakdown: PlatformStatSummary[];
   monthlyVideoCount: number;
@@ -117,6 +119,11 @@ export interface TeamLeadCreatorReportEntry {
   baseTotalPayment?: number;
   invoiceSurcharge?: number;
   invoiceTotalPayment?: number;
+  invoiceUploadedAt?: string | null;
+  invoiceFileName?: string | null;
+  receiptUploadedAt?: string | null;
+  receiptFileName?: string | null;
+  calculationError?: string;
 }
 
 export interface TeamLeadGroupReportSummary {

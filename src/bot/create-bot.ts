@@ -20,6 +20,7 @@ import {
   handleCancel,
   handleDocumentReplyUpload,
   handleHelp,
+  handleMonthlyReachScreenshotUpload,
   handleWeeklyStatAttachments
 } from '../handlers/common.handlers';
 import { formatUserError, logUserError } from '../utils/user-errors';
@@ -51,6 +52,19 @@ export const createBot = () => {
 
   bot.use(errorBoundaryMiddleware);
   bot.use(updateLoggingMiddleware);
+  bot.start(async (ctx, next) => {
+    logUserError(new Error('Start command received'), 'Start command received', {
+      updateId: ctx.update.update_id,
+      telegramUserId: ctx.from?.id,
+      chatId: ctx.chat?.id
+    });
+
+    if (ctx.chat) {
+      await ctx.reply('Команда /start получена. Открываю меню...');
+    }
+
+    return next();
+  });
   bot.use(
     session({
       store: new PrismaSessionStore<any>(),
@@ -117,7 +131,21 @@ export const createBot = () => {
     async (ctx) => handleWeeklyStatAttachments(ctx, ctx.match[1])
   );
 
+  bot.on('photo', async (ctx, next) => {
+    const handled = await handleMonthlyReachScreenshotUpload(ctx);
+
+    if (!handled) {
+      await next();
+    }
+  });
+
   bot.on('document', async (ctx, next) => {
+    const screenshotHandled = await handleMonthlyReachScreenshotUpload(ctx);
+
+    if (screenshotHandled) {
+      return;
+    }
+
     const handled = await handleDocumentReplyUpload(ctx);
 
     if (!handled) {

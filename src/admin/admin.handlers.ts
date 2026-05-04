@@ -44,7 +44,7 @@ import {
   formatDocumentStatusLine
 } from '../documents/document.formatters';
 import { config } from '../config';
-import { logUserError } from '../utils/user-errors';
+import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
 
 const formatSheetSyncMessage = (result: {
@@ -533,8 +533,21 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     const monthKey = ctx.match[1];
     await answerCallbackQuerySafely(ctx);
 
-    const report = await container.services.adminReportService.getGlobalPaymentsReport(monthKey);
-    await ctx.reply(formatAdminPaymentsReport(report));
+    try {
+      const report = await container.services.adminReportService.getGlobalPaymentsReport(monthKey);
+      await ctx.reply(formatAdminPaymentsReport(report));
+    } catch (error) {
+      logUserError(error, 'Admin payments report failed', {
+        userId: ctx.state.currentUser?.id,
+        monthKey
+      });
+      await ctx.reply(
+        formatUserError(
+          error,
+          'Сейчас не удалось собрать сводку по выплатам. Я записал ошибку в лог, попробуй еще раз чуть позже.'
+        )
+      );
+    }
   });
 
   bot.action(/^admin_creator_pick:page:(\d+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {

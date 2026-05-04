@@ -196,14 +196,16 @@ export const monthlyReachMarchAprilScene = new Scenes.WizardScene<BotContext>(
         return;
       }
 
-      const attachment = await container.services.weeklyStatsService.saveAttachment({
+      await container.services.weeklyStatsService.saveAttachment({
         telegram: ctx.telegram,
         reportId: state.aprilReportId,
         creatorUserId: ctx.state.currentUser!.id,
         telegramFileId: file.file_id,
         telegramFileUniqueId: file.file_unique_id
       });
-      state.aprilScreenshotCount = Math.max(state.aprilScreenshotCount ?? 0, attachment.sortOrder);
+      state.aprilScreenshotCount = await container.services.weeklyStatsService.countAttachments(
+        state.aprilReportId
+      );
 
       if (state.aprilScreenshotCount < REQUIRED_APRIL_SCREENSHOT_COUNT) {
         await ctx.reply(

@@ -226,6 +226,29 @@ export class DocumentWorkflowRepository {
     });
   }
 
+  async listLatestPaymentUploadsForCreatorsMonth(creatorUserIds: string[], monthKey: string) {
+    if (!creatorUserIds.length) {
+      return [];
+    }
+
+    return prisma.paymentDocumentUpload.findMany({
+      where: {
+        creatorUserId: {
+          in: creatorUserIds
+        },
+        monthKey,
+        status: {
+          not: PaymentDocumentStatus.REJECTED
+        }
+      },
+      orderBy: [
+        { creatorUserId: 'asc' },
+        { type: 'asc' },
+        { uploadedAt: 'desc' }
+      ]
+    });
+  }
+
   async clearInvoiceReceiptReminderDue(input: {
     workflowStateId: string;
     creatorUserId: string;
