@@ -31,6 +31,14 @@ type SheetReport = Awaited<ReturnType<WeeklyStatsRepository['listReportsForSheet
 
 const toCreatorMonthKey = (creatorUserId: string, monthKey: string) => `${creatorUserId}:${monthKey}`;
 
+const hasMetricData = (week: {
+  views: number;
+  likes: number;
+  comments: number;
+  reposts: number;
+  saves: number;
+}) => week.views > 0 || week.likes > 0 || week.comments > 0 || week.reposts > 0 || week.saves > 0;
+
 const sortRows = (rows: SheetRow[]) =>
   [...rows].sort((left, right) => {
     const monthCompare = String(right.values[5] ?? '').localeCompare(String(left.values[5] ?? ''));
@@ -146,18 +154,28 @@ export class SocialsSheetSyncService {
       const teamLeadName = formatAssignedTeamLeadName(firstReport.creator);
 
       for (const platform of PLATFORM_ORDER) {
-        const weeks = sortedReports.map((report) => {
+        const weeks = sortedReports.flatMap((report) => {
           const item = report.items.find((candidate) => candidate.platform === platform);
 
-          return {
+          if (!item) {
+            return [];
+          }
+
+          const week = {
             period: `${toDateKey(report.weekStart)} - ${toDateKey(report.weekEnd)}`,
-            views: item?.views ?? 0,
-            likes: item?.likes ?? 0,
-            comments: item?.comments ?? 0,
-            reposts: item?.reposts ?? 0,
-            saves: item?.saves ?? 0
+            views: item.views,
+            likes: item.likes,
+            comments: item.comments,
+            reposts: item.reposts,
+            saves: item.saves
           };
+
+          return hasMetricData(week) ? [week] : [];
         });
+
+        if (weeks.length === 0) {
+          continue;
+        }
 
         rows.push(
           this.formatter.buildSocialsRow({

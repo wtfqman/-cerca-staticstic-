@@ -132,27 +132,26 @@ const buildSocialsHeaders = () => [
   'Креатор',
   'Тимлид',
   'Месяц',
-  ...Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, weekIndex) =>
-    SOCIALS_WEEK_METRICS.map((metric) => `${metric} ${weekIndex + 1}`)
-  ),
   'Итого охват',
   'Итого лайки',
   'Итого комментарии',
   'Итого репосты',
   'Итого сохранения',
   'Видео за месяц',
+  ...Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, weekIndex) =>
+    SOCIALS_WEEK_METRICS.map((metric) => `${metric} ${weekIndex + 1}`)
+  ),
   'Обновлено'
 ];
 
 const buildSocialsIntegerColumnIndexes = () => {
-  const indexes: number[] = [];
+  const indexes: number[] = [6, 7, 8, 9, 10, 11];
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
-    const startIndex = 6 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    const startIndex = 12 + weekIndex * SOCIALS_WEEK_METRICS.length;
     indexes.push(startIndex + 1, startIndex + 2, startIndex + 3, startIndex + 4, startIndex + 5);
   }
 
-  indexes.push(42, 43, 44, 45, 46, 47);
   return indexes;
 };
 
@@ -161,11 +160,17 @@ const buildSocialsColumnWidths = () => {
     2: 105,
     3: 210,
     4: 170,
-    5: 90
+    5: 90,
+    6: 120,
+    7: 105,
+    8: 135,
+    9: 115,
+    10: 130,
+    11: 120
   };
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
-    const startIndex = 6 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    const startIndex = 12 + weekIndex * SOCIALS_WEEK_METRICS.length;
     widths[startIndex] = 155;
     widths[startIndex + 1] = 105;
     widths[startIndex + 2] = 80;
@@ -174,12 +179,6 @@ const buildSocialsColumnWidths = () => {
     widths[startIndex + 5] = 110;
   }
 
-  widths[42] = 120;
-  widths[43] = 105;
-  widths[44] = 135;
-  widths[45] = 115;
-  widths[46] = 130;
-  widths[47] = 120;
   widths[48] = 135;
   return widths;
 };
@@ -378,13 +377,13 @@ export class SpreadsheetFormatterService {
         input.creatorName,
         input.teamLeadName,
         input.monthKey,
-        ...weekValues,
         input.totalViews,
         input.totalLikes,
         input.totalComments,
         input.totalReposts,
         input.totalSaves,
         input.monthlyVideoCount ?? '',
+        ...weekValues,
         input.updatedAt
       ]
     };
