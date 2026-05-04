@@ -1,4 +1,4 @@
-import { NotificationType, SocialPlatform, WeeklyReportStatus } from '@prisma/client';
+import { NotificationType, SocialPlatform, UserRole, WeeklyReportStatus } from '@prisma/client';
 import type { Telegraf } from 'telegraf';
 
 import { container } from '../container';
@@ -32,6 +32,11 @@ const TELEGRAM_MESSAGE_LIMIT = 3900;
 type WeeklyReportForTeamLead = Awaited<
   ReturnType<typeof container.repositories.weeklyStatsRepository.listReportsForCreatorsInPeriod>
 >[number];
+
+type ListedCreator = Awaited<ReturnType<typeof container.services.userService.listCreators>>[number];
+
+const shouldReceiveWeeklyStatsReminders = (creator: ListedCreator) =>
+  creator.role === UserRole.CREATOR || Boolean(creator.creatorProfile?.profileCompleted);
 
 const getCurrentReminderSlot = () => getNow().format('HH');
 
@@ -171,7 +176,7 @@ export const runWeeklyStatsReminderJob = async (
 
   const period = getWeeklyReportPeriod();
   const periodLabel = formatPeriodLabel(period.weekStart, period.weekEnd);
-  const creators = await container.services.userService.listCreators();
+  const creators = (await container.services.userService.listCreators()).filter(shouldReceiveWeeklyStatsReminders);
 
   for (const creator of creators) {
     try {
@@ -261,7 +266,7 @@ export const runWeeklyStatsTeamLeadReportJob = async (bot: Telegraf<BotContext>)
     }
   }
 
-  const allCreators = await container.services.userService.listCreators();
+  const allCreators = (await container.services.userService.listCreators()).filter(shouldReceiveWeeklyStatsReminders);
   const unassignedCreators = allCreators.filter((creator) => !assignedCreatorIds.has(creator.id));
 
   if (unassignedCreators.length > 0) {
