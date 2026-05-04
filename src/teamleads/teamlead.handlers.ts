@@ -44,10 +44,12 @@ const formatCreatorProfileCard = async (teamLeadUserId: string, creatorUserId: s
   ].join('\n');
 };
 
-const teamLeadGroupActionsKeyboard = () =>
-  Markup.inlineKeyboard([
-    [Markup.button.callback('Добавить креатора в команду', 'teamlead_group_assign_start')]
-  ]);
+const replyTeamLeadAssignmentDisabled = async (ctx: BotContext) => {
+  await ctx.answerCbQuery('Назначения делает админ').catch(() => undefined);
+  await ctx.reply(
+    'Назначение креаторов по тимлидам теперь делает только администратор. Если в группе не хватает креатора или прикреплен лишний, напиши админу.'
+  );
+};
 
 const buildUnassignedCreatorItems = async () =>
   (await container.repositories.teamLeadRepository.listUnassignedCreators()).map((creator) => ({
@@ -57,8 +59,7 @@ const buildUnassignedCreatorItems = async () =>
 
 const replyEmptyGroup = async (ctx: BotContext) => {
   await ctx.reply(
-    'В твоей группе пока нет креаторов. Можешь добавить креатора из списка тех, кто уже зарегистрирован и еще не прикреплен к другому тимлиду.',
-    teamLeadGroupActionsKeyboard()
+    'В твоей группе пока нет креаторов. Назначение креаторов по тимлидам делает администратор.'
   );
 };
 
@@ -69,12 +70,14 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(
       creators.length
         ? creators.map((creator) => `• ${formatCreatorDisplayName(creator)}`).join('\n')
-        : 'В группе пока нет креаторов.',
-      teamLeadGroupActionsKeyboard()
+        : 'В группе пока нет креаторов. Назначение креаторов по тимлидам делает администратор.'
     );
   });
 
   bot.action('teamlead_group_assign_start', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    await replyTeamLeadAssignmentDisabled(ctx);
+    return;
+
     const creators = await buildUnassignedCreatorItems();
     await ctx.answerCbQuery();
     ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;
@@ -91,7 +94,10 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action(/^teamlead_group_assign_creator:page:(\d+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    const page = Number(ctx.match[1]);
+    await replyTeamLeadAssignmentDisabled(ctx);
+    return;
+
+    const page = Number(ctx.match[1]!);
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(
       entitySelectionKeyboard('teamlead_group_assign_creator', await buildUnassignedCreatorItems(), page).reply_markup
@@ -99,7 +105,10 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action(/^teamlead_group_assign_creator:pick:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
-    const creatorUserId = ctx.match[1];
+    await replyTeamLeadAssignmentDisabled(ctx);
+    return;
+
+    const creatorUserId = ctx.match[1]!;
     const [creator, activeLink] = await Promise.all([
       container.services.userService.getById(creatorUserId),
       container.repositories.teamLeadRepository.getActiveTeamLeadForCreator(creatorUserId)
@@ -118,7 +127,7 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
 
     ctx.scene.session.teamLeadGroupAssignCreatorId = creatorUserId;
     await ctx.reply(
-      ['Добавить креатора в твою команду?', '', `Креатор: ${formatCreatorDisplayName(creator)}`].join('\n'),
+      ['Добавить креатора в твою команду?', '', `Креатор: ${formatCreatorDisplayName(creator!)}`].join('\n'),
       Markup.inlineKeyboard([
         [Markup.button.callback('Да', 'teamlead_group_assign_confirm')],
         [Markup.button.callback('Отмена', 'teamlead_group_assign_cancel')]
@@ -127,12 +136,18 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action('teamlead_group_assign_cancel', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    await replyTeamLeadAssignmentDisabled(ctx);
+    return;
+
     ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;
     await ctx.answerCbQuery('Отменено');
     await ctx.reply('Добавление креатора отменено.');
   });
 
   bot.action('teamlead_group_assign_confirm', roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    await replyTeamLeadAssignmentDisabled(ctx);
+    return;
+
     const creatorUserId = ctx.scene.session.teamLeadGroupAssignCreatorId;
     await ctx.answerCbQuery('Добавляю...');
 
@@ -141,7 +156,7 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    const activeLink = await container.repositories.teamLeadRepository.getActiveTeamLeadForCreator(creatorUserId);
+    const activeLink = await container.repositories.teamLeadRepository.getActiveTeamLeadForCreator(creatorUserId!);
 
     if (activeLink) {
       ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;
@@ -150,7 +165,7 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     const result = await container.repositories.teamLeadRepository.assignCreatorToTeamLead(
-      creatorUserId,
+      creatorUserId!,
       ctx.state.currentUser!.id
     );
     ctx.scene.session.teamLeadGroupAssignCreatorId = undefined;

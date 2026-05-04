@@ -14,6 +14,8 @@
     "seed": "prisma db seed",
     "reconcile:known-users": "tsx src/scripts/reconcile-known-users.ts",
     "seed:teamleads": "tsx src/scripts/seed-teamleads.ts",
+    "teamleads:audit": "tsx src/scripts/audit-teamlead-links.ts",
+    "teamleads:restore-previous": "tsx src/scripts/audit-teamlead-links.ts --restore-previous",
     "grant:teamlead-creators": "tsx src/scripts/grant-teamlead-creator-access.ts",
     "grant:admin": "tsx src/scripts/grant-admin.ts",
     "reset:test-creator": "tsx src/scripts/reset-test-creator.ts",
