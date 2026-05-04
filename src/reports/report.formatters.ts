@@ -302,14 +302,7 @@ export const formatTeamLeadGroupReport = (report: TeamLeadGroupReportSummary): s
     `Комментарии: ${formatIntegerRu(report.totals.comments)}`,
     `Репосты: ${formatIntegerRu(report.totals.reposts)}`,
     `Сохранения: ${formatIntegerRu(report.totals.saves)}`,
-    `Сумма выплат: ${formatMoneyRu(report.totalPayment)}`,
-    '',
-    'Креаторы:',
-    report.creators.length
-      ? report.creators
-          .map(formatCreatorPaymentLine)
-          .join('\n')
-      : '• В группе пока нет креаторов'
+    `Сумма выплат: ${formatMoneyRu(report.totalPayment)}`
   ]
     .filter((line) => line !== null)
     .join('\n');
