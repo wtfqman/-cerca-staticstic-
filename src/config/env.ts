@@ -181,12 +181,30 @@ if (dotenvResult.error) {
   }
 }
 
+const dotenvEnv = dotenvResult.parsed ?? {};
+
+const resolveBotToken = () => {
+  const processToken = typeof process.env.BOT_TOKEN === 'string' ? process.env.BOT_TOKEN.trim() : '';
+  const dotenvToken = typeof dotenvEnv.BOT_TOKEN === 'string' ? dotenvEnv.BOT_TOKEN.trim() : '';
+
+  if (!BOT_TOKEN_PATTERN.test(processToken) && BOT_TOKEN_PATTERN.test(dotenvToken)) {
+    if (processToken) {
+      console.warn('[config] Ignoring invalid BOT_TOKEN from process environment and using .env BOT_TOKEN.');
+    }
+
+    return dotenvEnv.BOT_TOKEN;
+  }
+
+  return process.env.BOT_TOKEN;
+};
+
 if (!process.env.STORAGE_ROOT && process.env.STORAGE_DIR?.trim()) {
   console.warn('[config] STORAGE_DIR is deprecated. Use STORAGE_ROOT instead.');
 }
 
 const envSource = {
   ...process.env,
+  BOT_TOKEN: resolveBotToken(),
   STORAGE_ROOT: process.env.STORAGE_ROOT ?? process.env.STORAGE_DIR
 };
 
