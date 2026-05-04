@@ -9,6 +9,7 @@ import {
   CREATOR_INVOICE_MESSAGE_SURCHARGE,
   getCreatorInvoiceDisplayAmount
 } from '../payments/payment.constants';
+import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
 import { formatFullName } from '../utils/formatters';
 
 const EMPTY_TOTALS = {
@@ -204,7 +205,10 @@ export class AdminReportService {
               return null;
             }
 
-            const invoiceTotalPayment = getCreatorInvoiceDisplayAmount(payment.totalPayment);
+            const invoiceTotalPayment = isCreatorInvoiceMonth(monthKey)
+              ? getCreatorInvoiceDisplayAmount(payment.totalPayment)
+              : payment.totalPayment;
+            const invoiceSurcharge = isCreatorInvoiceMonth(monthKey) ? CREATOR_INVOICE_MESSAGE_SURCHARGE : undefined;
 
             return {
               creatorUserId: creator.id,
@@ -214,8 +218,8 @@ export class AdminReportService {
               totals: aggregation.totals,
               totalPayment: invoiceTotalPayment,
               baseTotalPayment: payment.totalPayment,
-              invoiceSurcharge: CREATOR_INVOICE_MESSAGE_SURCHARGE,
-              invoiceTotalPayment,
+              invoiceSurcharge,
+              invoiceTotalPayment: isCreatorInvoiceMonth(monthKey) ? invoiceTotalPayment : undefined,
               weeklyReportCount: aggregation.weeklyReportCount,
               monthlyVideoCount: aggregation.monthlyVideoCount,
               monthlyVideoSubmitted: aggregation.monthlyVideoSubmitted,

@@ -7,6 +7,8 @@ import { mapInBatches } from '../utils/batch';
 import { PaymentCalculationService } from './payment-calculation.service';
 import { GoogleSheetsService, type SheetRow, type SheetUpsertResult } from './google-sheets.service';
 import { SpreadsheetFormatterService } from './spreadsheet-formatter.service';
+import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
+import { getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
 
 interface CreatorMonthPair {
   creatorUserId: string;
@@ -121,6 +123,10 @@ export class PaymentsSheetSyncService {
       pair.monthKey
     );
 
+    const totalPayment = isCreatorInvoiceMonth(pair.monthKey)
+      ? getCreatorInvoiceDisplayAmount(payment.totalPayment)
+      : payment.totalPayment;
+
     return this.formatter.buildPaymentsRow({
       creatorUserId: pair.creatorUserId,
       creatorName: formatCreatorDisplayName(creator),
@@ -133,7 +139,7 @@ export class PaymentsSheetSyncService {
       appliedRate: payment.appliedRate,
       viewSteps: payment.viewSteps,
       variablePart: payment.variablePart,
-      totalPayment: payment.totalPayment,
+      totalPayment,
       calculationUpdatedAt: formatRussianDateTime(payment.generatedAt)
     });
   }
