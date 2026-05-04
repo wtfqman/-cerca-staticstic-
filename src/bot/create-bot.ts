@@ -52,19 +52,7 @@ export const createBot = () => {
 
   bot.use(errorBoundaryMiddleware);
   bot.use(updateLoggingMiddleware);
-  bot.start(async (ctx, next) => {
-    logUserError(new Error('Start command received'), 'Start command received', {
-      updateId: ctx.update.update_id,
-      telegramUserId: ctx.from?.id,
-      chatId: ctx.chat?.id
-    });
-
-    if (ctx.chat) {
-      await ctx.reply('Команда /start получена. Открываю меню...');
-    }
-
-    return next();
-  });
+  bot.start((_ctx, next) => next());
   bot.use(
     session({
       store: new PrismaSessionStore<any>(),
