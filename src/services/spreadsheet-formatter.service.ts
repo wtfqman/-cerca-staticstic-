@@ -123,7 +123,8 @@ const documentStatusLabelMap: Record<string, string> = {
 const labelOrValue = (map: Record<string, string>, value: string) => map[value] ?? value;
 
 const SOCIALS_WEEK_SLOT_COUNT = 6;
-const SOCIALS_WEEK_METRICS = ['Неделя', 'Охват', 'Лайки', 'Комментарии', 'Репосты', 'Сохранения'];
+const SOCIALS_WEEK_METRICS = ['Неделя', 'Охват', 'Лайки', 'Комментарии', 'Сохранения', 'Репосты'];
+const SOCIALS_BASE_COLUMN_COUNT = 6;
 
 const buildSocialsHeaders = () => [
   'Ключ синхронизации',
@@ -132,25 +133,35 @@ const buildSocialsHeaders = () => [
   'Креатор',
   'Тимлид',
   'Месяц',
-  'Итого охват',
-  'Итого лайки',
-  'Итого комментарии',
-  'Итого репосты',
-  'Итого сохранения',
-  'Видео за месяц',
   ...Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, weekIndex) =>
     SOCIALS_WEEK_METRICS.map((metric) => `${metric} ${weekIndex + 1}`)
   ),
+  'Итого охват',
+  'Итого лайки',
+  'Итого комментарии',
+  'Итого сохранения',
+  'Итого репосты',
+  'Видео за месяц',
   'Обновлено'
 ];
 
 const buildSocialsIntegerColumnIndexes = () => {
-  const indexes: number[] = [6, 7, 8, 9, 10, 11];
+  const indexes: number[] = [];
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
-    const startIndex = 12 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    const startIndex = SOCIALS_BASE_COLUMN_COUNT + weekIndex * SOCIALS_WEEK_METRICS.length;
     indexes.push(startIndex + 1, startIndex + 2, startIndex + 3, startIndex + 4, startIndex + 5);
   }
+
+  const totalsStartIndex = SOCIALS_BASE_COLUMN_COUNT + SOCIALS_WEEK_SLOT_COUNT * SOCIALS_WEEK_METRICS.length;
+  indexes.push(
+    totalsStartIndex,
+    totalsStartIndex + 1,
+    totalsStartIndex + 2,
+    totalsStartIndex + 3,
+    totalsStartIndex + 4,
+    totalsStartIndex + 5
+  );
 
   return indexes;
 };
@@ -160,26 +171,28 @@ const buildSocialsColumnWidths = () => {
     2: 105,
     3: 210,
     4: 170,
-    5: 90,
-    6: 120,
-    7: 105,
-    8: 135,
-    9: 115,
-    10: 130,
-    11: 120
+    5: 90
   };
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
-    const startIndex = 12 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    const startIndex = SOCIALS_BASE_COLUMN_COUNT + weekIndex * SOCIALS_WEEK_METRICS.length;
     widths[startIndex] = 155;
     widths[startIndex + 1] = 105;
     widths[startIndex + 2] = 80;
     widths[startIndex + 3] = 110;
-    widths[startIndex + 4] = 90;
-    widths[startIndex + 5] = 110;
+    widths[startIndex + 4] = 110;
+    widths[startIndex + 5] = 90;
   }
 
-  widths[48] = 135;
+  const totalsStartIndex = SOCIALS_BASE_COLUMN_COUNT + SOCIALS_WEEK_SLOT_COUNT * SOCIALS_WEEK_METRICS.length;
+  widths[totalsStartIndex] = 120;
+  widths[totalsStartIndex + 1] = 105;
+  widths[totalsStartIndex + 2] = 135;
+  widths[totalsStartIndex + 3] = 130;
+  widths[totalsStartIndex + 4] = 115;
+  widths[totalsStartIndex + 5] = 120;
+  widths[totalsStartIndex + 6] = 135;
+
   return widths;
 };
 
@@ -364,7 +377,7 @@ export class SpreadsheetFormatterService {
       const week = input.weeks[index];
 
       return week
-        ? [week.period, week.views, week.likes, week.comments, week.reposts, week.saves]
+        ? [week.period, week.views, week.likes, week.comments, week.saves, week.reposts]
         : ['', 0, 0, 0, 0, 0];
     });
 
@@ -377,13 +390,13 @@ export class SpreadsheetFormatterService {
         input.creatorName,
         input.teamLeadName,
         input.monthKey,
+        ...weekValues,
         input.totalViews,
         input.totalLikes,
         input.totalComments,
-        input.totalReposts,
         input.totalSaves,
+        input.totalReposts,
         input.monthlyVideoCount ?? '',
-        ...weekValues,
         input.updatedAt
       ]
     };
