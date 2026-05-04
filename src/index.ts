@@ -1,4 +1,5 @@
 import { createBot } from './bot/create-bot';
+import { syncTelegramCommands } from './bot/telegram-commands';
 import { container } from './container';
 import { logger } from './lib/logger';
 import { prisma } from './lib/prisma';
@@ -9,6 +10,7 @@ const bootstrap = async () => {
   await prisma.$connect();
 
   const bot = createBot();
+  await syncTelegramCommands(bot);
   const scheduler = startScheduler(bot);
 
   await bot.launch();
