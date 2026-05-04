@@ -14,6 +14,7 @@ import {
 } from '../documents/document.formatters';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
 import { formatUserError, logUserError } from '../utils/user-errors';
+import { ensureCreatorProfileCompletedForDocuments } from '../creators/creator-documents.flow';
 
 type UploadSceneState = {
   documentId?: string;
@@ -95,6 +96,10 @@ export const documentUploadScene = new Scenes.WizardScene<BotContext>(
     const documents = await listSignatureUploadDocuments(ctx.state.currentUser!.id);
 
     if (!documents.length) {
+      if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+        return;
+      }
+
       await ctx.reply(
         'Сейчас нет документов, к которым можно загрузить подписанный PDF.',
         mainMenuKeyboardForUser(ctx.state.currentUser)
