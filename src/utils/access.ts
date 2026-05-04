@@ -49,3 +49,6 @@ export const canUseCreatorAndTeamLeadScenarios = (user?: AccessUser | null) =>
 
 export const canUseAdminAndCreatorScenarios = (user?: AccessUser | null) =>
   canUseAdminScenario(user) && canUseCreatorScenario(user);
+
+export const canUseAdminAndTeamLeadScenarios = (user?: AccessUser | null) =>
+  canUseAdminScenario(user) && canUseTeamLeadScenario(user);

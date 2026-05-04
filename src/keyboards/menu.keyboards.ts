@@ -2,6 +2,7 @@ import { Markup } from 'telegraf';
 
 import { ADMIN_MENU, CREATOR_MENU, TEAMLEAD_MENU } from './menu-labels';
 import {
+  canUseAdminAndTeamLeadScenarios,
   canUseAdminScenario,
   canUseCreatorAndTeamLeadScenarios,
   canUseCreatorScenario,
@@ -60,6 +61,19 @@ export const adminMenuKeyboard = () =>
     [ADMIN_MENU.help]
   ]).resize();
 
+export const adminTeamLeadMenuKeyboard = () =>
+  Markup.keyboard([
+    [ADMIN_MENU.creators, ADMIN_MENU.teamLeads],
+    [ADMIN_MENU.groups, ADMIN_MENU.stats],
+    [ADMIN_MENU.payments, ADMIN_MENU.documents],
+    [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
+    [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
+    [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
+    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
+    [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
+    [TEAMLEAD_MENU.attention, ADMIN_MENU.help]
+  ]).resize();
+
 export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
   Markup.keyboard([
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
@@ -70,6 +84,10 @@ export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
   ]).resize();
 
 export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {
+  if (canUseAdminAndTeamLeadScenarios(user)) {
+    return adminTeamLeadMenuKeyboard();
+  }
+
   if (canUseAdminScenario(user)) {
     return adminMenuKeyboard();
   }
@@ -90,6 +108,14 @@ export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {
 };
 
 export const mainMenuTextForUser = (user?: AccessUser | null) => {
+  if (canUseAdminAndTeamLeadScenarios(user)) {
+    return [
+      'Главное меню: администратор и тимлид.',
+      'Сверху - разделы администратора.',
+      'Ниже - разделы тимлида.'
+    ].join('\n');
+  }
+
   if (canUseAdminScenario(user)) {
     return 'Главное меню администратора.';
   }
