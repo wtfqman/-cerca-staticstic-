@@ -1,6 +1,6 @@
 import type { Message } from 'telegraf/typings/core/types/typegram';
 
-export const TELEGRAM_MESSAGE_SAFE_LIMIT = 3900;
+export const TELEGRAM_MESSAGE_SAFE_LIMIT = 3000;
 
 export const getMessageText = (message?: Message): string => {
   if (message && 'text' in message) {
@@ -10,8 +10,10 @@ export const getMessageText = (message?: Message): string => {
   return '';
 };
 
+const getTelegramMessageSize = (text: string) => Buffer.byteLength(text, 'utf8');
+
 export const splitTelegramMessage = (text: string, limit = TELEGRAM_MESSAGE_SAFE_LIMIT): string[] => {
-  if (text.length <= limit) {
+  if (getTelegramMessageSize(text) <= limit) {
     return [text];
   }
 
@@ -19,13 +21,30 @@ export const splitTelegramMessage = (text: string, limit = TELEGRAM_MESSAGE_SAFE
   let current = '';
 
   const pushLongLine = (line: string) => {
-    for (let index = 0; index < line.length; index += limit) {
-      chunks.push(line.slice(index, index + limit));
+    let part = '';
+
+    for (const char of Array.from(line)) {
+      const next = `${part}${char}`;
+
+      if (getTelegramMessageSize(next) > limit) {
+        if (part) {
+          chunks.push(part);
+        }
+
+        part = char;
+        continue;
+      }
+
+      part = next;
+    }
+
+    if (part) {
+      chunks.push(part);
     }
   };
 
   for (const line of text.split('\n')) {
-    if (line.length > limit) {
+    if (getTelegramMessageSize(line) > limit) {
       if (current) {
         chunks.push(current);
         current = '';
@@ -37,7 +56,7 @@ export const splitTelegramMessage = (text: string, limit = TELEGRAM_MESSAGE_SAFE
 
     const next = current ? `${current}\n${line}` : line;
 
-    if (next.length > limit) {
+    if (getTelegramMessageSize(next) > limit) {
       if (current) {
         chunks.push(current);
       }
