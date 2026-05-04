@@ -13,7 +13,8 @@ import { isMarchAprilStatisticsScenario } from '../utils/creator-statistics-scen
 const creatorStatisticsRows = (user?: AccessUser | null) =>
   isMarchAprilStatisticsScenario(user)
     ? [
-        [CREATOR_MENU.weeklyStats, CREATOR_MENU.monthlyVideos],
+        [CREATOR_MENU.weeklyStats],
+        [CREATOR_MENU.monthlyVideos],
         [CREATOR_MENU.monthlyVideosMarchApril],
         [CREATOR_MENU.monthlyReachMarchApril]
       ]

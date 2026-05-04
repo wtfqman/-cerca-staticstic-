@@ -1,5 +1,5 @@
 import { UserRole } from '@prisma/client';
-import type { Telegraf } from 'telegraf';
+import { Markup, type Telegraf } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
 import { container } from '../container';
@@ -72,6 +72,9 @@ const formatWeeklyReviewText = (summary: { status: string; isReviewedByTeamLead:
 
   return 'еще не отправлено';
 };
+
+const creatorStatsActionKeyboard = () =>
+  Markup.inlineKeyboard([[Markup.button.callback('Внести статистику за 7 дней', 'creator_weekly_stats_start')]]);
 
 const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
   const creatorUserId = ctx.state.currentUser!.id;
@@ -147,7 +150,8 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
         `Тимлид: ${
           activeTeamLeadLink ? formatTeamLeadDisplayName(activeTeamLeadLink.teamLead) : 'пока не назначен'
         }`
-      ].join('\n')
+      ].join('\n'),
+      creatorStatsActionKeyboard()
     );
     await ctx.reply(
       formatAggregationSnapshot(
@@ -163,6 +167,15 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     }
 
 
+    await ctx.scene.enter(SCENE_IDS.weeklyStats);
+  });
+
+  bot.action('creator_weekly_stats_start', roleGuard(UserRole.CREATOR), async (ctx) => {
+    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+      return;
+    }
+
+    await safeAnswerCbQuery(ctx, 'Открываю недельную статистику...');
     await ctx.scene.enter(SCENE_IDS.weeklyStats);
   });
 
