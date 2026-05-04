@@ -162,10 +162,6 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    if (isMarchAprilStatisticsScenario(ctx.state.currentUser)) {
-      await ctx.reply('Для твоего сценария сейчас нужно закрыть март и апрель через кнопки «Видео за март и апрель» и «Охваты март/апрель».');
-      return;
-    }
 
     await ctx.scene.enter(SCENE_IDS.weeklyStats);
   });
@@ -175,10 +171,6 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    if (isMarchAprilStatisticsScenario(ctx.state.currentUser)) {
-      await ctx.reply('Для твоего сценария сейчас нужно закрыть март и апрель через кнопку «Видео за март и апрель».');
-      return;
-    }
 
     await ctx.scene.enter(SCENE_IDS.monthlyVideo);
   });
