@@ -10,6 +10,10 @@ import { formatUserError, logUserError } from '../utils/user-errors';
 import { SCENE_IDS } from './scene-ids';
 import { ensureCreatorProfileCompletedForDocuments } from '../creators/creator-documents.flow';
 import {
+  formatRequiredSecondQueueStatisticsMissingLines,
+  getRequiredSecondQueueStatisticsStatus
+} from '../creators/creator-statistics-requirements';
+import {
   CREATOR_INVOICE_MONTH_KEY,
   NO_CONTRACT_PAYMENT_CAMPAIGN_KEY,
   filterCreatorInvoiceMonths
@@ -30,6 +34,32 @@ const getAvailablePaymentMonths = (monthKeys: string[]) => {
   const filtered = filterCreatorInvoiceMonths(monthKeys);
 
   return filtered.length > 0 ? filtered : [CREATOR_INVOICE_MONTH_KEY];
+};
+
+const ensureNoContractInvoiceStatisticsReady = async (ctx: BotContext, monthKey: string) => {
+  if (monthKey !== CREATOR_INVOICE_MONTH_KEY) {
+    return true;
+  }
+
+  const status = await getRequiredSecondQueueStatisticsStatus(ctx.state.currentUser!.id);
+
+  if (status.isReady) {
+    return true;
+  }
+
+  const missingLines = formatRequiredSecondQueueStatisticsMissingLines(status);
+
+  await ctx.reply(
+    [
+      'Сначала нужно закрыть обязательную статистику за апрель, потом можно выставлять счет.',
+      ...missingLines,
+      '',
+      'После заполнения снова открой «Мои документы» и нажми «Выставить счет».'
+    ].join('\n'),
+    mainMenuKeyboardForUser(ctx.state.currentUser)
+  );
+  await ctx.scene.leave();
+  return false;
 };
 
 export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
@@ -110,6 +140,14 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
       const monthKey = ctx.callbackQuery.data.split(':')[1];
       getState(ctx).monthKey = monthKey;
       await ctx.answerCbQuery();
+
+      if (
+        uploadType === 'INVOICE' &&
+        getState(ctx).campaignKey === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY &&
+        !(await ensureNoContractInvoiceStatisticsReady(ctx, monthKey))
+      ) {
+        return;
+      }
 
       const access =
         uploadType === 'INVOICE'
