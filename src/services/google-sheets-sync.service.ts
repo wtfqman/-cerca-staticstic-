@@ -3,14 +3,16 @@ import { normalizeErrorForLog } from '../utils/error-logging';
 import { GoogleSheetsService } from './google-sheets.service';
 import { DocumentsSheetSyncService, type DocumentsSheetSyncFilters } from './documents-sheet-sync.service';
 import { PaymentsSheetSyncService } from './payments-sheet-sync.service';
+import { SocialsSheetSyncService } from './socials-sheet-sync.service';
 import { StatsSheetSyncService, type StatsSheetSyncFilters } from './stats-sheet-sync.service';
 
-export type GoogleSheetsTarget = 'stats' | 'payments' | 'documents';
+export type GoogleSheetsTarget = 'stats' | 'socials' | 'payments' | 'documents';
 
 export class GoogleSheetsSyncService {
   constructor(
     private readonly googleSheetsService: GoogleSheetsService,
     private readonly statsSheetSyncService: StatsSheetSyncService,
+    private readonly socialsSheetSyncService: SocialsSheetSyncService,
     private readonly paymentsSheetSyncService: PaymentsSheetSyncService,
     private readonly documentsSheetSyncService: DocumentsSheetSyncService
   ) {}
@@ -28,6 +30,11 @@ export class GoogleSheetsSyncService {
   async syncStats(filters: StatsSheetSyncFilters = {}) {
     this.ensureEnabled();
     return this.statsSheetSyncService.sync(filters);
+  }
+
+  async syncSocials(filters: StatsSheetSyncFilters = {}) {
+    this.ensureEnabled();
+    return this.socialsSheetSyncService.sync(filters);
   }
 
   async syncPayments(params: {
@@ -61,11 +68,13 @@ export class GoogleSheetsSyncService {
     this.ensureEnabled();
 
     const stats = await this.statsSheetSyncService.sync();
+    const socials = await this.socialsSheetSyncService.rebuild();
     const payments = await this.paymentsSheetSyncService.syncAll();
     const documents = await this.documentsSheetSyncService.sync();
 
     return {
       stats,
+      socials,
       payments,
       documents
     };
@@ -77,6 +86,8 @@ export class GoogleSheetsSyncService {
     switch (target) {
       case 'stats':
         return this.statsSheetSyncService.rebuild();
+      case 'socials':
+        return this.socialsSheetSyncService.rebuild();
       case 'payments':
         return this.paymentsSheetSyncService.rebuild();
       case 'documents':
@@ -91,6 +102,7 @@ export class GoogleSheetsSyncService {
 
     await Promise.all([
       this.statsSheetSyncService.prepareSheet(),
+      this.socialsSheetSyncService.prepareSheet(),
       this.paymentsSheetSyncService.prepareSheet(),
       this.documentsSheetSyncService.prepareSheet()
     ]);
@@ -102,12 +114,13 @@ export class GoogleSheetsSyncService {
     }
 
     try {
-      const [stats, payments] = await Promise.all([
+      const [stats, socials, payments] = await Promise.all([
         this.statsSheetSyncService.sync({ reportId }),
+        this.socialsSheetSyncService.sync({ creatorUserId, monthKey }),
         this.paymentsSheetSyncService.syncCreatorMonth(creatorUserId, monthKey)
       ]);
 
-      return { stats, payments };
+      return { stats, socials, payments };
     } catch (error) {
       logger.error(
         { error: normalizeErrorForLog(error), reportId, creatorUserId, monthKey },
@@ -123,7 +136,12 @@ export class GoogleSheetsSyncService {
     }
 
     try {
-      return await this.paymentsSheetSyncService.syncCreatorMonth(creatorUserId, monthKey);
+      const [socials, payments] = await Promise.all([
+        this.socialsSheetSyncService.sync({ creatorUserId, monthKey }),
+        this.paymentsSheetSyncService.syncCreatorMonth(creatorUserId, monthKey)
+      ]);
+
+      return { socials, payments };
     } catch (error) {
       logger.error(
         { error: normalizeErrorForLog(error), creatorUserId, monthKey },

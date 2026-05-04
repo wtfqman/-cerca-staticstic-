@@ -979,7 +979,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
   });
 
-  bot.action(/^admin_sheets_sync:(stats|payments|documents|all)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_sheets_sync:(stats|socials|payments|documents|all)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const target = ctx.match[1];
 
     if (!container.services.googleSheetsSyncService.isEnabled()) {
@@ -1001,6 +1001,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
             '',
             formatSheetSyncMessage(result.stats),
             '',
+            formatSheetSyncMessage(result.socials),
+            '',
             formatSheetSyncMessage(result.payments),
             '',
             formatSheetSyncMessage(result.documents)
@@ -1012,9 +1014,11 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       const result =
         target === 'stats'
           ? await container.services.googleSheetsSyncService.syncStats()
+          : target === 'socials'
+          ? await container.services.googleSheetsSyncService.syncSocials()
           : target === 'payments'
-            ? await container.services.googleSheetsSyncService.syncPayments()
-            : await container.services.googleSheetsSyncService.syncDocuments();
+          ? await container.services.googleSheetsSyncService.syncPayments()
+          : await container.services.googleSheetsSyncService.syncDocuments();
 
       await ctx.reply(formatSheetSyncMessage(result));
     } catch (error) {
@@ -1039,7 +1043,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply('Выбери лист для полной пересборки.', googleSheetsRebuildKeyboard());
   });
 
-  bot.action(/^admin_sheets_rebuild:(stats|payments|documents)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_sheets_rebuild:(stats|socials|payments|documents)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const target = ctx.match[1];
     await ctx.answerCbQuery();
 
@@ -1054,8 +1058,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     );
   });
 
-  bot.action(/^admin_sheets_rebuild_confirm:(stats|payments|documents)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
-    const target = ctx.match[1] as 'stats' | 'payments' | 'documents';
+  bot.action(/^admin_sheets_rebuild_confirm:(stats|socials|payments|documents)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const target = ctx.match[1] as 'stats' | 'socials' | 'payments' | 'documents';
 
     if (!container.services.googleSheetsSyncService.isEnabled()) {
       await ctx.answerCbQuery('Google Sheets отключены');

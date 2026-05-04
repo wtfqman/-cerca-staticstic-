@@ -63,6 +63,7 @@ export const config = Object.freeze({
     serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? null,
     privateKey: env.GOOGLE_PRIVATE_KEY ?? null,
     sheetNames: Object.freeze({
+      socials: env.GOOGLE_SHEETS_SOCIALS_SHEET_NAME,
       stats: env.GOOGLE_SHEETS_STATS_SHEET_NAME,
       payments: env.GOOGLE_SHEETS_PAYMENTS_SHEET_NAME,
       documents: env.GOOGLE_SHEETS_DOCUMENTS_SHEET_NAME

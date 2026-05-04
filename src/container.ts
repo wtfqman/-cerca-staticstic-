@@ -40,6 +40,7 @@ import { PaymentDocumentUploadService } from './services/payment-document-upload
 import { PaymentsSheetSyncService } from './services/payments-sheet-sync.service';
 import { PdfGeneratorService } from './services/pdf-generator.service';
 import { SpreadsheetFormatterService } from './services/spreadsheet-formatter.service';
+import { SocialsSheetSyncService } from './services/socials-sheet-sync.service';
 import { StatsSheetSyncService } from './services/stats-sheet-sync.service';
 import { TeamLeadReportService } from './services/teamlead-report.service';
 import { TeamLeadService } from './services/teamlead.service';
@@ -84,6 +85,12 @@ const statsSheetSyncService = new StatsSheetSyncService(
   googleSheetsService,
   spreadsheetFormatterService
 );
+const socialsSheetSyncService = new SocialsSheetSyncService(
+  weeklyStatsRepository,
+  monthlyVideoRepository,
+  googleSheetsService,
+  spreadsheetFormatterService
+);
 const paymentsSheetSyncService = new PaymentsSheetSyncService(
   userRepository,
   weeklyStatsRepository,
@@ -100,6 +107,7 @@ const documentsSheetSyncService = new DocumentsSheetSyncService(
 const googleSheetsSyncService = new GoogleSheetsSyncService(
   googleSheetsService,
   statsSheetSyncService,
+  socialsSheetSyncService,
   paymentsSheetSyncService,
   documentsSheetSyncService
 );
@@ -241,6 +249,7 @@ export const container = {
     googleSheetsService,
     spreadsheetFormatterService,
     statsSheetSyncService,
+    socialsSheetSyncService,
     paymentsSheetSyncService,
     documentsSheetSyncService,
     googleSheetsSyncService

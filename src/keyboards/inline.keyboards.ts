@@ -335,6 +335,7 @@ export const creatorReportsKeyboard = (currentMonthKey: string, previousMonthKey
 export const googleSheetsMenuKeyboard = () =>
   Markup.inlineKeyboard([
     [Markup.button.callback('Синхронизировать статистику', 'admin_sheets_sync:stats')],
+    [Markup.button.callback('Синхронизировать соцсети', 'admin_sheets_sync:socials')],
     [Markup.button.callback('Синхронизировать выплаты', 'admin_sheets_sync:payments')],
     [Markup.button.callback('Синхронизировать документы', 'admin_sheets_sync:documents')],
     [Markup.button.callback('Синхронизировать все', 'admin_sheets_sync:all')],
@@ -345,6 +346,7 @@ export const googleSheetsMenuKeyboard = () =>
 export const googleSheetsRebuildKeyboard = () =>
   Markup.inlineKeyboard([
     [Markup.button.callback('Пересобрать лист статистики', 'admin_sheets_rebuild:stats')],
+    [Markup.button.callback('Пересобрать лист соцсетей', 'admin_sheets_rebuild:socials')],
     [Markup.button.callback('Пересобрать лист выплат', 'admin_sheets_rebuild:payments')],
     [Markup.button.callback('Пересобрать лист документов', 'admin_sheets_rebuild:documents')]
   ]);

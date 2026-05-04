@@ -25,6 +25,32 @@ export interface StatsSheetRowInput {
   updatedAt: string;
 }
 
+export interface SocialsSheetWeekInput {
+  period: string;
+  views: number;
+  likes: number;
+  comments: number;
+  reposts: number;
+  saves: number;
+}
+
+export interface SocialsSheetRowInput {
+  syncKey: string;
+  creatorUserId: string;
+  platform: string;
+  creatorName: string;
+  teamLeadName: string;
+  monthKey: string;
+  weeks: SocialsSheetWeekInput[];
+  totalViews: number;
+  totalLikes: number;
+  totalComments: number;
+  totalReposts: number;
+  totalSaves: number;
+  monthlyVideoCount: number | null;
+  updatedAt: string;
+}
+
 export interface PaymentsSheetRowInput {
   creatorUserId: string;
   creatorName: string;
@@ -96,6 +122,68 @@ const documentStatusLabelMap: Record<string, string> = {
 
 const labelOrValue = (map: Record<string, string>, value: string) => map[value] ?? value;
 
+const SOCIALS_WEEK_SLOT_COUNT = 6;
+const SOCIALS_WEEK_METRICS = ['Неделя', 'Охват', 'Лайки', 'Комментарии', 'Репосты', 'Сохранения'];
+
+const buildSocialsHeaders = () => [
+  'Ключ синхронизации',
+  'ID креатора',
+  'Соцсеть',
+  'Креатор',
+  'Тимлид',
+  'Месяц',
+  ...Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, weekIndex) =>
+    SOCIALS_WEEK_METRICS.map((metric) => `${metric} ${weekIndex + 1}`)
+  ),
+  'Итого охват',
+  'Итого лайки',
+  'Итого комментарии',
+  'Итого репосты',
+  'Итого сохранения',
+  'Видео за месяц',
+  'Обновлено'
+];
+
+const buildSocialsIntegerColumnIndexes = () => {
+  const indexes: number[] = [];
+
+  for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
+    const startIndex = 6 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    indexes.push(startIndex + 1, startIndex + 2, startIndex + 3, startIndex + 4, startIndex + 5);
+  }
+
+  indexes.push(42, 43, 44, 45, 46, 47);
+  return indexes;
+};
+
+const buildSocialsColumnWidths = () => {
+  const widths: Record<number, number> = {
+    2: 105,
+    3: 210,
+    4: 170,
+    5: 90
+  };
+
+  for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
+    const startIndex = 6 + weekIndex * SOCIALS_WEEK_METRICS.length;
+    widths[startIndex] = 155;
+    widths[startIndex + 1] = 105;
+    widths[startIndex + 2] = 80;
+    widths[startIndex + 3] = 110;
+    widths[startIndex + 4] = 90;
+    widths[startIndex + 5] = 110;
+  }
+
+  widths[42] = 120;
+  widths[43] = 105;
+  widths[44] = 135;
+  widths[45] = 115;
+  widths[46] = 130;
+  widths[47] = 120;
+  widths[48] = 135;
+  return widths;
+};
+
 export class SpreadsheetFormatterService {
   getStatsSheetDefinition(): SheetDefinition {
     return {
@@ -147,6 +235,17 @@ export class SpreadsheetFormatterService {
         20: 135,
         21: 135
       }
+    };
+  }
+
+  getSocialsSheetDefinition(): SheetDefinition {
+    return {
+      sheetName: config.googleSheets.sheetNames.socials,
+      headers: buildSocialsHeaders(),
+      hiddenColumnIndexes: [0, 1],
+      integerColumnIndexes: buildSocialsIntegerColumnIndexes(),
+      wrapColumnIndexes: [3, 4],
+      columnWidths: buildSocialsColumnWidths()
     };
   }
 
@@ -256,6 +355,36 @@ export class SpreadsheetFormatterService {
         input.reviewedByTeamLeadName,
         input.reviewedAt,
         input.submittedAt,
+        input.updatedAt
+      ]
+    };
+  }
+
+  buildSocialsRow(input: SocialsSheetRowInput): SheetRow {
+    const weekValues = Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, index) => {
+      const week = input.weeks[index];
+
+      return week
+        ? [week.period, week.views, week.likes, week.comments, week.reposts, week.saves]
+        : ['', 0, 0, 0, 0, 0];
+    });
+
+    return {
+      key: input.syncKey,
+      values: [
+        input.syncKey,
+        input.creatorUserId,
+        labelOrValue(platformLabelMap, input.platform),
+        input.creatorName,
+        input.teamLeadName,
+        input.monthKey,
+        ...weekValues,
+        input.totalViews,
+        input.totalLikes,
+        input.totalComments,
+        input.totalReposts,
+        input.totalSaves,
+        input.monthlyVideoCount ?? '',
         input.updatedAt
       ]
     };
