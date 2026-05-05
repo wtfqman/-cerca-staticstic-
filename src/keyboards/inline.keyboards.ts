@@ -92,6 +92,18 @@ export const weeklyReportReviewKeyboard = (
   return rows.length ? Markup.inlineKeyboard(rows) : undefined;
 };
 
+export const teamLeadGroupReviewKeyboard = (monthKey: string, reviewableCount: number) =>
+  reviewableCount > 0
+    ? Markup.inlineKeyboard([
+        [
+          Markup.button.callback(
+            `Статистику по группе проверил (${reviewableCount})`,
+            `teamlead_group_weekly_review:${monthKey}`
+          )
+        ]
+      ])
+    : undefined;
+
 export const monthlyVideoMonthKeyboard = (currentMonthKey: string, previousMonthKey: string) =>
   reportMonthKeyboard(currentMonthKey, previousMonthKey, 'monthly_video_month');
 

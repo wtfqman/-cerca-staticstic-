@@ -132,6 +132,7 @@ export interface TeamLeadGroupReportSummary {
   totals: Omit<PlatformStatSummary, 'platform'>;
   totalPayment: number;
   creators: TeamLeadCreatorReportEntry[];
+  weeklyReports: WeeklyReportReviewSummary[];
 }
 
 export interface AdminReportSummary {

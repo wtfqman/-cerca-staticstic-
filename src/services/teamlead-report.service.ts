@@ -40,6 +40,31 @@ const buildWeeklyTotals = (
   saves: items.reduce((sum, item) => sum + item.saves, 0)
 });
 
+const buildWeeklyReviewSummary = (
+  report: Awaited<ReturnType<WeeklyStatsRepository['listReportsByCreatorAndMonth']>>[number]
+) => {
+  const items = buildWeeklyItems(report);
+
+  return {
+    reportId: report.id,
+    creatorUserId: report.creatorUserId,
+    monthKey: report.monthKey,
+    weekStart: report.weekStart.toISOString().slice(0, 10),
+    weekEnd: report.weekEnd.toISOString().slice(0, 10),
+    status: report.status,
+    isReviewedByTeamLead: Boolean(report.reviewedAt),
+    reviewedByTeamLeadId: report.reviewedByTeamLeadId ?? undefined,
+    reviewedByTeamLeadName: report.reviewedByTeamLead
+      ? formatTeamLeadDisplayName(report.reviewedByTeamLead)
+      : undefined,
+    reviewedAt: report.reviewedAt?.toISOString(),
+    attachmentCount: report.attachments.length,
+    totalVideoCount: report.totalVideoCount ?? items.reduce((sum, item) => sum + item.videoCount, 0),
+    totals: buildWeeklyTotals(report, items),
+    items
+  };
+};
+
 export class TeamLeadReportService {
   constructor(
     private readonly teamLeadRepository: TeamLeadRepository,
@@ -71,54 +96,40 @@ export class TeamLeadReportService {
       creator,
       aggregation,
       payment,
-      weeklyReports: weeklyReports.filter(hasWeeklyReportData).map((report) => {
-        const items = buildWeeklyItems(report);
-
-        return {
-          reportId: report.id,
-          creatorUserId: report.creatorUserId,
-          monthKey: report.monthKey,
-          weekStart: report.weekStart.toISOString().slice(0, 10),
-          weekEnd: report.weekEnd.toISOString().slice(0, 10),
-          status: report.status,
-          isReviewedByTeamLead: Boolean(report.reviewedAt),
-          reviewedByTeamLeadId: report.reviewedByTeamLeadId ?? undefined,
-          reviewedByTeamLeadName: report.reviewedByTeamLead
-            ? formatTeamLeadDisplayName(report.reviewedByTeamLead)
-            : undefined,
-          reviewedAt: report.reviewedAt?.toISOString(),
-          attachmentCount: report.attachments.length,
-          totalVideoCount: report.totalVideoCount ?? items.reduce((sum, item) => sum + item.videoCount, 0),
-          totals: buildWeeklyTotals(report, items),
-          items
-        };
-      })
+      weeklyReports: weeklyReports.filter(hasWeeklyReportData).map(buildWeeklyReviewSummary)
     };
   }
 
   async getGroupReport(teamLeadUserId: string, monthKey: string): Promise<TeamLeadGroupReportSummary> {
     const creators = await this.listGroupCreators(teamLeadUserId);
-    const creatorEntries = await Promise.all(
+    const creatorReports = await Promise.all(
       creators.map(async (creator) => {
-        const [aggregation, payment] = await Promise.all([
+        const [aggregation, payment, weeklyReports] = await Promise.all([
           this.aggregationService.aggregateCreatorMonth(creator.id, monthKey),
-          this.paymentService.calculateForCreatorMonth(creator.id, monthKey)
+          this.paymentService.calculateForCreatorMonth(creator.id, monthKey),
+          this.weeklyStatsRepository.listReportsByCreatorAndMonth(creator.id, monthKey)
         ]);
 
         return {
-          creatorUserId: creator.id,
-          creatorName:
-            creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор'),
-          monthKey,
-          totals: aggregation.totals,
-          totalPayment: payment.totalPayment,
-          weeklyReportCount: aggregation.weeklyReportCount,
-          monthlyVideoCount: aggregation.monthlyVideoCount,
-          monthlyVideoSubmitted: aggregation.monthlyVideoSubmitted,
-          payment
+          entry: {
+            creatorUserId: creator.id,
+            creatorName:
+              creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор'),
+            monthKey,
+            totals: aggregation.totals,
+            totalPayment: payment.totalPayment,
+            weeklyReportCount: aggregation.weeklyReportCount,
+            monthlyVideoCount: aggregation.monthlyVideoCount,
+            monthlyVideoSubmitted: aggregation.monthlyVideoSubmitted,
+            payment
+          },
+          weeklyReports: weeklyReports.filter(hasWeeklyReportData).map(buildWeeklyReviewSummary)
         };
       })
     );
+
+    const creatorEntries = creatorReports.map((item) => item.entry);
+    const weeklyReports = creatorReports.flatMap((item) => item.weeklyReports);
 
     const totals = creatorEntries.reduce(
       (accumulator, item) => ({
@@ -137,7 +148,8 @@ export class TeamLeadReportService {
       monthKey,
       totals,
       totalPayment: creatorEntries.reduce((sum, item) => sum + item.totalPayment, 0),
-      creators: creatorEntries
+      creators: creatorEntries,
+      weeklyReports
     };
   }
 }

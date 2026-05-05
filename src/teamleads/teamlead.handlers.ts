@@ -9,6 +9,7 @@ import {
   creatorProfileActionsKeyboard,
   entitySelectionKeyboard,
   reportMonthKeyboard,
+  teamLeadGroupReviewKeyboard,
   weeklyReportReviewKeyboard
 } from '../keyboards/inline.keyboards';
 import { getCurrentMonthKey, getPreviousMonthKey, toDateKey } from '../utils/periods';
@@ -24,11 +25,17 @@ import { formatCreatorDisplayName } from '../utils/formatters';
 import { SCENE_IDS } from '../scenes/scene-ids';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario } from '../utils/access';
+import type { WeeklyReportReviewSummary } from '../types/report.types';
 
 const findCreatorInTeamLeadGroup = async (teamLeadUserId: string, creatorUserId: string) => {
   const creators = await container.services.teamLeadReportService.listGroupCreators(teamLeadUserId);
   return creators.find((creator) => creator.id === creatorUserId) ?? null;
 };
+
+const reviewableWeeklyReportStatuses = new Set(['SUBMITTED', 'CONFIRMED']);
+
+const getReviewableWeeklyReports = (reports: WeeklyReportReviewSummary[]) =>
+  reports.filter((report) => reviewableWeeklyReportStatuses.has(report.status) && !report.isReviewedByTeamLead);
 
 const formatCreatorProfileCard = async (teamLeadUserId: string, creatorUserId: string) => {
   const creator = await findCreatorInTeamLeadGroup(teamLeadUserId, creatorUserId);
@@ -265,8 +272,11 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
   bot.action(/^teamlead_group_report:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
     const monthKey = ctx.match[1];
     const report = await container.services.teamLeadReportService.getGroupReport(ctx.state.currentUser!.id, monthKey);
+    const reviewableReports = getReviewableWeeklyReports(report.weeklyReports);
+    const reviewKeyboard = teamLeadGroupReviewKeyboard(monthKey, reviewableReports.length);
+
     await ctx.answerCbQuery();
-    await ctx.reply(formatTeamLeadGroupReport(report));
+    await ctx.reply(formatTeamLeadGroupReport(report), reviewKeyboard);
   });
 
   bot.action(/^teamlead_creator_pick:page:(\d+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
@@ -359,6 +369,59 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
       });
       await ctx.reply(
         formatUserError(error, 'Сейчас не удалось открыть отчет креатора. Попробуй еще раз.')
+      );
+    }
+  });
+
+  bot.action(/^teamlead_group_weekly_review:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    const monthKey = ctx.match[1];
+    await ctx.answerCbQuery('Сохраняю проверку...');
+
+    try {
+      const report = await container.services.teamLeadReportService.getGroupReport(
+        ctx.state.currentUser!.id,
+        monthKey
+      );
+      const reviewableReports = getReviewableWeeklyReports(report.weeklyReports);
+
+      if (!reviewableReports.length) {
+        await ctx.reply('Новых отправленных отчетов для проверки по группе нет.');
+        return;
+      }
+
+      const results = await Promise.allSettled(
+        reviewableReports.map((item) =>
+          container.services.weeklyStatsService.markReportReviewedByTeamLead(
+            item.reportId,
+            ctx.state.currentUser!.id
+          )
+        )
+      );
+      const checked = results.filter((result) => result.status === 'fulfilled' && !result.value.alreadyReviewed)
+        .length;
+      const alreadyReviewed = results.filter(
+        (result) => result.status === 'fulfilled' && result.value.alreadyReviewed
+      ).length;
+      const failed = results.filter((result) => result.status === 'rejected').length;
+
+      await ctx.reply(
+        [
+          'Проверка статистики по группе сохранена.',
+          `Месяц: ${monthKey}`,
+          `Отмечено отчетов: ${checked}`,
+          alreadyReviewed ? `Уже были проверены: ${alreadyReviewed}` : null,
+          failed ? `Не удалось отметить: ${failed}` : null
+        ]
+          .filter(Boolean)
+          .join('\n')
+      );
+    } catch (error) {
+      logUserError(error, 'Teamlead group weekly report review failed', {
+        userId: ctx.state.currentUser?.id,
+        monthKey
+      });
+      await ctx.reply(
+        formatUserError(error, 'Сейчас не удалось отметить статистику по группе проверенной. Попробуй еще раз.')
       );
     }
   });
