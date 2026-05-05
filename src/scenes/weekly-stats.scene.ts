@@ -10,7 +10,7 @@ import { formatIntegerRu } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError } from '../utils/user-errors';
-import { kpiViewsSchema, nonNegativeIntSchema } from '../validators/stats.schemas';
+import { kpiViewsSchema, nonNegativeIntSchema, videoCountSchema } from '../validators/stats.schemas';
 import { SCENE_IDS } from './scene-ids';
 
 type WeeklyMetric = 'views' | 'likes' | 'comments' | 'reposts' | 'saves';
@@ -69,6 +69,7 @@ const getState = (ctx: BotContext) => ctx.wizard.state as WeeklyWizardState;
 
 const parseMetricValue = (ctx: BotContext) => nonNegativeIntSchema.parse(getMessageText(ctx.message));
 const parseKpiViewsValue = (ctx: BotContext) => kpiViewsSchema.parse(getMessageText(ctx.message));
+const parseVideoCount = (ctx: BotContext) => videoCountSchema.parse(getMessageText(ctx.message));
 
 const getCurrentPlatform = (state: WeeklyWizardState) =>
   PLATFORM_ORDER[state.platformIndex ?? 0] ?? PLATFORM_ORDER[PLATFORM_ORDER.length - 1];
@@ -198,7 +199,7 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
   },
   async (ctx) => {
     try {
-      const totalVideoCount = parseMetricValue(ctx);
+      const totalVideoCount = parseVideoCount(ctx);
       const state = getState(ctx);
       state.totalVideoCount = totalVideoCount;
       state.platformIndex = 0;

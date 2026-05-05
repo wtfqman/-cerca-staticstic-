@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { getCurrentMonthKey, getNow } from '../utils/periods';
-import { monthKeySchema, nonNegativeIntSchema } from '../validators/stats.schemas';
+import { monthKeySchema, videoCountSchema } from '../validators/stats.schemas';
 import { MonthlyVideoRepository } from '../repositories/monthly-video.repository';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 
@@ -17,7 +17,7 @@ export class MonthlyVideoService {
     options: { force?: boolean } = {}
   ) {
     monthKeySchema.parse(monthKey);
-    nonNegativeIntSchema.parse(videoCount);
+    videoCountSchema.parse(videoCount);
 
     if (!options.force && !this.canEditMonth(monthKey)) {
       throw new Error('Срок редактирования количества видео за этот месяц уже закрыт');

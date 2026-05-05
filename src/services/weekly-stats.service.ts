@@ -3,7 +3,7 @@ import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 import type { WeeklyReportReviewSummary, WeeklyStatSummary } from '../types/report.types';
 import { getMonthRange, getWeeklyReportPeriod, toDateOnly, toDateKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
-import { kpiViewsSchema, nonNegativeIntSchema } from '../validators/stats.schemas';
+import { kpiViewsSchema, nonNegativeIntSchema, videoCountSchema } from '../validators/stats.schemas';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import { FileStorageService } from './file-storage.service';
@@ -95,7 +95,7 @@ export class WeeklyStatsService {
   }
 
   async saveTotalVideoCount(reportId: string, totalVideoCount: number) {
-    nonNegativeIntSchema.parse(totalVideoCount);
+    videoCountSchema.parse(totalVideoCount);
     return this.repository.updateReportTotalVideoCount(reportId, totalVideoCount);
   }
 

@@ -6,7 +6,7 @@ import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statisti
 import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import { confirmInlineKeyboard, monthlyVideoMonthKeyboard } from '../keyboards/inline.keyboards';
 import { SCENE_IDS } from './scene-ids';
-import { nonNegativeIntSchema } from '../validators/stats.schemas';
+import { videoCountSchema } from '../validators/stats.schemas';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError, logUserError } from '../utils/user-errors';
 
@@ -61,7 +61,7 @@ export const monthlyVideoScene = new Scenes.WizardScene<BotContext>(
   },
   async (ctx) => {
     try {
-      getState(ctx).videoCount = nonNegativeIntSchema.parse(getMessageText(ctx.message));
+      getState(ctx).videoCount = videoCountSchema.parse(getMessageText(ctx.message));
       await ctx.reply(
         `Сохраняем ${getState(ctx).videoCount} видео за ${getState(ctx).monthKey}?`,
         confirmInlineKeyboard('monthly_video_confirm', 'monthly_video_edit')

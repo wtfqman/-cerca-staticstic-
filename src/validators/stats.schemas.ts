@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { MAX_KPI_VIEWS } from '../utils/kpi-limits';
 
+export const MAX_VIDEO_COUNT = 1000;
+
 const normalizeIntegerInput = (value: unknown) => {
   if (typeof value !== 'string') {
     return value;
@@ -25,6 +27,11 @@ export const nonNegativeIntSchema = z.preprocess(
     })
     .int('Введи целое число')
     .min(0, 'Число не может быть отрицательным')
+);
+
+export const videoCountSchema = nonNegativeIntSchema.refine(
+  (value) => value <= MAX_VIDEO_COUNT,
+  `Количество видео не может быть больше ${MAX_VIDEO_COUNT}. Если это охваты/просмотры, внеси их в раздел охватов.`
 );
 
 export const kpiViewsSchema = nonNegativeIntSchema.refine(

@@ -5,7 +5,7 @@ import { container } from '../container';
 import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statistics-next-step';
 import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import { SCENE_IDS } from './scene-ids';
-import { nonNegativeIntSchema } from '../validators/stats.schemas';
+import { videoCountSchema } from '../validators/stats.schemas';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError, logUserError } from '../utils/user-errors';
 
@@ -27,7 +27,7 @@ const getExistingText = async (creatorUserId: string, monthKey: BackfillMonthKey
     : `За ${monthKey} число видео еще не указано. Введи количество видео.`;
 };
 
-const parseVideoCount = (ctx: BotContext) => nonNegativeIntSchema.parse(getMessageText(ctx.message));
+const parseVideoCount = (ctx: BotContext) => videoCountSchema.parse(getMessageText(ctx.message));
 
 const skipMarchKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('Пропустить март', 'monthly_video_backfill_skip_march')]]);
