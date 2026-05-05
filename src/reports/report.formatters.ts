@@ -408,7 +408,8 @@ export const formatTeamLeadAttentionSummary = (summary: TeamLeadAttentionSummary
     '',
     `Креаторов в группе: ${formatIntegerRu(summary.creatorsTotal)}`,
     `Период статистики: ${summary.weekStart} - ${summary.weekEnd}`,
-    `Месяц документов и видео: ${summary.monthKey}`,
+    `Месяц видео: ${summary.monthKey}`,
+    `Месяц документов: ${summary.documentMonthKey}`,
     '',
     `Не подтвердили выкладку: ${formatIntegerRu(summary.missingPublicationConfirmations.length)}`,
     summary.missingPublicationConfirmations.length
@@ -427,7 +428,7 @@ export const formatTeamLeadAttentionSummary = (summary: TeamLeadAttentionSummary
       ? summary.monthlyVideoMissing.map(formatMonthlyVideoStatusLine).join('\n')
       : '• Нет',
     '',
-    `Не сдали документы: ${formatIntegerRu(summary.documentsMissing.length)}`,
+    `Не сдали документы за ${summary.documentMonthKey}: ${formatIntegerRu(summary.documentsMissing.length)}`,
     summary.documentsMissing.length
       ? summary.documentsMissing.map((item) => `• ${item.creatorName}`).join('\n')
       : '• Нет'

@@ -207,6 +207,7 @@ export interface DailyPublicationAttentionItem {
 export interface TeamLeadAttentionSummary {
   teamLeadUserId: string;
   monthKey: string;
+  documentMonthKey: string;
   weekStart: string;
   weekEnd: string;
   creatorsTotal: number;

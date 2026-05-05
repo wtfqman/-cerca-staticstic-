@@ -521,6 +521,9 @@ model PaymentDocumentUpload {
   receiptExpectedAt     DateTime?
   receiptReminderDueAt  DateTime?
   receiptReminderSentAt DateTime?
+  forwardedAt           DateTime?
+  forwardedChatId       String?
+  forwardedMessageId    Int?
   createdAt             DateTime                     @default(now())
   updatedAt             DateTime                     @updatedAt
   workflowState         CreatorDocumentWorkflowState @relation(fields: [workflowStateId], references: [id], onDelete: Cascade)
@@ -531,6 +534,7 @@ model PaymentDocumentUpload {
   @@index([creatorUserId, type, uploadedAt])
   @@index([creatorUserId, monthKey, type, uploadedAt], map: "PaymentUpload_creator_month_type_uploaded_idx")
   @@index([type, receiptReminderDueAt, receiptReminderSentAt], map: "PaymentUpload_receipt_reminder_due_idx")
+  @@index([type, monthKey, forwardedChatId, uploadedAt], map: "PaymentUpload_export_pending_idx")
 }
 
 model BotSession {

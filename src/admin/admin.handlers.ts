@@ -1,4 +1,4 @@
-import { UserRole } from '@prisma/client';
+import { PaymentDocumentType, UserRole } from '@prisma/client';
 import { Markup, type Telegraf } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
@@ -45,6 +45,7 @@ import {
   formatActiveRosterSecondQueueStatus,
   formatDocumentStatusLine
 } from '../documents/document.formatters';
+import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
 import { config } from '../config';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
@@ -303,9 +304,16 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await ctx.reply(
-      'Новые подписанные PDF можно выгрузить в рабочий чат вручную. Бот отправит только файлы, которые еще не выгружались.',
+      [
+        'Новые PDF можно выгрузить в рабочий чат вручную.',
+        'Документы, счета и чеки выгружаются отдельно. Бот отправит только файлы, которые еще не выгружались.'
+      ].join('\n'),
       Markup.inlineKeyboard([
-        [Markup.button.callback('Выгрузить документы', 'admin_export_new_signed_documents')]
+        [Markup.button.callback('Выгрузить документы', 'admin_export_new_signed_documents')],
+        [Markup.button.callback('Выгрузить счета', 'admin_export_new_payment_documents:INVOICE')],
+        [Markup.button.callback('Выгрузить чеки', 'admin_export_new_payment_documents:RECEIPT')],
+        [Markup.button.callback('Выгрузить все счета заново', 'admin_export_all_payment_documents:INVOICE')],
+        [Markup.button.callback('Выгрузить все чеки заново', 'admin_export_all_payment_documents:RECEIPT')]
       ])
     );
 
@@ -891,6 +899,61 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
         documentsChatId: config.documents.chatId
       });
       await ctx.reply('Не удалось выгрузить документы в рабочий чат. Подробности записаны в лог.');
+    }
+  });
+
+  bot.action(/^admin_export_(new|all)_payment_documents:(INVOICE|RECEIPT)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+    if (!config.documents.chatId) {
+      await ctx.answerCbQuery('Служебный чат не настроен');
+      await ctx.reply('Служебный чат для документов не настроен. Проверь DOCUMENTS_CHAT_ID.');
+      return;
+    }
+
+    const exportMode = ctx.match[1] as 'new' | 'all';
+    const type = ctx.match[2] as PaymentDocumentType;
+    const label = type === PaymentDocumentType.INVOICE ? 'счета' : 'чеки';
+    const scopeLabel = exportMode === 'all' ? `все ${label}` : `новые ${label}`;
+
+    await ctx.answerCbQuery(`Выгружаю ${scopeLabel}...`);
+
+    try {
+      const result = await container.services.paymentDocumentUploadService.exportPaymentDocumentsToChat(
+        ctx.telegram,
+        config.documents.chatId,
+        {
+          type,
+          monthKey: CREATOR_INVOICE_MONTH_KEY,
+          includeAlreadyForwarded: exportMode === 'all'
+        }
+      );
+
+      if (!result.uploadCount) {
+        await ctx.reply(`Файлов для выгрузки нет: ${scopeLabel} за ${CREATOR_INVOICE_MONTH_KEY}.`);
+        return;
+      }
+
+      await ctx.reply(
+        [
+          `Выгрузка завершена: ${scopeLabel} за ${CREATOR_INVOICE_MONTH_KEY}.`,
+          `Отправлено файлов: ${formatIntegerRu(result.sentUploads.length)} из ${formatIntegerRu(result.uploadCount)}`,
+          result.supersededCount
+            ? `Старых дублей пропущено: ${formatIntegerRu(result.supersededCount)}`
+            : null,
+          result.skippedUploads.length
+            ? `Не удалось отправить: ${formatIntegerRu(result.skippedUploads.length)}. Подробности записаны в лог.`
+            : null
+        ]
+          .filter(Boolean)
+          .join('\n')
+      );
+    } catch (error) {
+      logUserError(error, 'Manual payment documents export failed', {
+        adminUserId: ctx.state.currentUser?.id,
+        documentsChatId: config.documents.chatId,
+        type,
+        monthKey: CREATOR_INVOICE_MONTH_KEY
+      });
+      await ctx.reply(`Не удалось выгрузить ${label} в рабочий чат. Подробности записаны в лог.`);
     }
   });
 

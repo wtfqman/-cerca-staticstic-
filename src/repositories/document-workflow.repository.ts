@@ -249,6 +249,74 @@ export class DocumentWorkflowRepository {
     });
   }
 
+  async listPaymentUploadsForExport(input: {
+    type: PaymentDocumentType;
+    monthKey?: string;
+    includeAlreadyForwarded?: boolean;
+  }) {
+    return prisma.paymentDocumentUpload.findMany({
+      where: {
+        type: input.type,
+        monthKey: input.monthKey,
+        status: {
+          not: PaymentDocumentStatus.REJECTED
+        },
+        ...(input.includeAlreadyForwarded ? {} : { forwardedChatId: null })
+      },
+      include: {
+        creator: {
+          include: {
+            creatorProfile: true,
+            creatorAssignments: {
+              where: { isActive: true },
+              include: {
+                teamLead: {
+                  include: {
+                    teamLeadProfile: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: [
+        { monthKey: 'asc' },
+        { creatorUserId: 'asc' },
+        { uploadedAt: 'desc' }
+      ]
+    });
+  }
+
+  async markPaymentUploadsSuperseded(uploadIds: string[], marker: string) {
+    if (!uploadIds.length) {
+      return { count: 0 };
+    }
+
+    return prisma.paymentDocumentUpload.updateMany({
+      where: {
+        id: { in: uploadIds },
+        forwardedChatId: null
+      },
+      data: {
+        forwardedChatId: marker,
+        forwardedMessageId: null,
+        forwardedAt: new Date()
+      }
+    });
+  }
+
+  async updatePaymentUploadForwardInfo(id: string, forwardedChatId: string, forwardedMessageId: number) {
+    return prisma.paymentDocumentUpload.update({
+      where: { id },
+      data: {
+        forwardedChatId,
+        forwardedMessageId,
+        forwardedAt: new Date()
+      }
+    });
+  }
+
   async clearInvoiceReceiptReminderDue(input: {
     workflowStateId: string;
     creatorUserId: string;

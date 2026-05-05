@@ -183,7 +183,10 @@ const documentUploadService = new DocumentUploadService(
 );
 const paymentDocumentUploadService = new PaymentDocumentUploadService(
   fileStorageService,
-  documentWorkflowService
+  documentWorkflowService,
+  documentWorkflowRepository,
+  paymentCalculationService,
+  googleSheetsSyncService
 );
 const dailyCheckService = new DailyCheckService(
   userRepository,
