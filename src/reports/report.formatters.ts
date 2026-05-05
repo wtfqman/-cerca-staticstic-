@@ -433,6 +433,11 @@ export const formatTeamLeadAttentionSummary = (summary: TeamLeadAttentionSummary
       : '• Нет'
   ].join('\n');
 
+export const formatAdminAttentionSummary = (summary: TeamLeadAttentionSummary) =>
+  formatTeamLeadAttentionSummary(summary)
+    .replace('Требует внимания по группе', 'Требует внимания по всем креаторам')
+    .replace('Креаторов в группе:', 'Креаторов всего:');
+
 export const formatAdminDashboardSummary = (summary: AdminDashboardSummary) =>
   [
     `Сводка администратора за ${summary.monthKey}`,

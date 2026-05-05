@@ -1,3 +1,5 @@
+import type { LegalType } from '@prisma/client';
+
 import { TeamLeadRepository } from '../repositories/teamlead.repository';
 import { DailyCheckRepository } from '../repositories/daily-check.repository';
 import type { TeamLeadAttentionSummary } from '../types/report.types';
@@ -5,6 +7,28 @@ import { formatCreatorDisplayName } from '../utils/formatters';
 import { CreatorDisciplineService } from './creator-discipline.service';
 import { DocumentStatusService } from './document-status.service';
 import { getCurrentMonthKey, getWeeklyReportPeriod, toDateKey, toDateOnly } from '../utils/periods';
+
+type AttentionCreatorReference = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  telegramId?: string | null;
+  creatorProfile?: {
+    fullName?: string | null;
+    legalType?: LegalType | null;
+    profileCompleted?: boolean | null;
+  } | null;
+  creatorAssignments?: Array<{
+    teamLead: {
+      firstName?: string | null;
+      lastName?: string | null;
+      telegramId?: string | null;
+      teamLeadProfile?: {
+        displayName?: string | null;
+      } | null;
+    };
+  }>;
+};
 
 export class TeamLeadService {
   constructor(
@@ -47,10 +71,21 @@ export class TeamLeadService {
 
   async getAttentionSummary(teamLeadUserId: string, monthKey = getCurrentMonthKey()): Promise<TeamLeadAttentionSummary> {
     const creators = await this.getGroup(teamLeadUserId);
+    return this.getAttentionSummaryForCreators(creators, monthKey, teamLeadUserId);
+  }
+
+  async getAttentionSummaryForCreators(
+    creators: AttentionCreatorReference[],
+    monthKey = getCurrentMonthKey(),
+    teamLeadUserId = 'all'
+  ): Promise<TeamLeadAttentionSummary> {
     const weekPeriod = getWeeklyReportPeriod();
     const [missingPublicationConfirmations, weeklyStatsAttention, monthlyVideoStatuses, documentsMissing] =
       await Promise.all([
-        this.getMissingConfirmation(teamLeadUserId, toDateKey(new Date())),
+        this.dailyCheckRepository.listPendingForCreators(
+          creators.map((creator) => creator.id),
+          toDateOnly(toDateKey(new Date()))
+        ),
         this.creatorDisciplineService.getWeeklyAttentionForCreators(creators),
         this.creatorDisciplineService.getMonthlyVideoStatuses(creators, monthKey),
         this.documentStatusService.listCreatorsWithMissingSignedDocuments(creators, monthKey)

@@ -58,7 +58,7 @@ export const adminMenuKeyboard = () =>
     [ADMIN_MENU.payments, ADMIN_MENU.documents],
     [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
     [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
-    [ADMIN_MENU.help]
+    [ADMIN_MENU.attention, ADMIN_MENU.help]
   ]).resize();
 
 export const adminTeamLeadMenuKeyboard = () =>
@@ -68,6 +68,7 @@ export const adminTeamLeadMenuKeyboard = () =>
     [ADMIN_MENU.payments, ADMIN_MENU.documents],
     [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
     [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
+    [ADMIN_MENU.attention],
     [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
     [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
     [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],

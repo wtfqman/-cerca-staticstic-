@@ -12,10 +12,11 @@ export class AdminService {
   ) {}
 
   async getOverview() {
-    const [roleCounts, groups, documents] = await Promise.all([
+    const [roleCounts, groups, documents, creators] = await Promise.all([
       this.userRepository.getCountsByRole(),
       this.teamLeadRepository.listGroups(),
-      this.documentRepository.listAllDocuments()
+      this.documentRepository.listAllDocuments(),
+      this.userRepository.listCreators()
     ]);
 
     const generated = documents.filter((item) => item.status === DocumentStatus.GENERATED).length;
@@ -26,6 +27,7 @@ export class AdminService {
 
     return {
       roleCounts,
+      creators,
       activeGroupLinks: groups.length,
       documents: {
         total: documents.length,

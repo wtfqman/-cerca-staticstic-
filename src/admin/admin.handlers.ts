@@ -20,6 +20,7 @@ import {
 import { ADMIN_MENU } from '../keyboards/menu-labels';
 import { roleGuard } from '../middlewares/role-guard.middleware';
 import {
+  formatAdminAttentionSummary,
   formatAdminDashboardSummary,
   formatAdminPaymentsReport,
   formatAdminReport,
@@ -105,20 +106,30 @@ const answerCallbackQuerySafely = async (ctx: BotContext, text?: string) => {
   }
 };
 
-const formatServiceOverview = (overview: Awaited<ReturnType<typeof container.services.adminService.getOverview>>) =>
-  [
+const formatServiceOverview = (
+  overview: Awaited<ReturnType<typeof container.services.adminService.getOverview>>
+) => {
+  const creators = overview.creators
+    .map((creator) => formatCreatorDisplayName(creator))
+    .sort((left, right) => left.localeCompare(right, 'ru'));
+
+  return [
     'Служебная сводка',
     '',
     `Админов: ${formatIntegerRu(overview.roleCounts.admins)}`,
     `Тимлидов: ${formatIntegerRu(overview.roleCounts.teamLeads)}`,
-    `Креаторов: ${formatIntegerRu(overview.roleCounts.creators)}`,
+    `Креаторов: ${formatIntegerRu(creators.length)}`,
     `Активных связок в группах: ${formatIntegerRu(overview.activeGroupLinks)}`,
     `Документов всего: ${formatIntegerRu(overview.documents.total)}`,
     `Сгенерировано: ${formatIntegerRu(overview.documents.generated)}`,
     `Отправлено креаторам: ${formatIntegerRu(overview.documents.sent)}`,
     `Подписано или переслано: ${formatIntegerRu(overview.documents.signed)}`,
-    `Google Sheets: ${container.services.googleSheetsSyncService.isEnabled() ? 'включены' : 'отключены'}`
+    `Google Sheets: ${container.services.googleSheetsSyncService.isEnabled() ? 'включены' : 'отключены'}`,
+    '',
+    `ФИО креаторов (${formatIntegerRu(creators.length)}):`,
+    ...(creators.length ? creators.map((creator, index) => `${index + 1}. ${creator}`) : ['нет активных креаторов'])
   ].join('\n');
+};
 
 const buildCreatorItems = async () =>
   (await container.services.userService.listCreators()).map((creator) => ({
@@ -332,7 +343,24 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(ADMIN_MENU.service, roleGuard(UserRole.ADMIN), async (ctx) => {
-    await ctx.reply(formatServiceOverview(await container.services.adminService.getOverview()));
+    const text = formatServiceOverview(await container.services.adminService.getOverview());
+
+    for (const chunk of splitTelegramMessage(text)) {
+      await ctx.reply(chunk);
+    }
+  });
+
+  bot.hears(ADMIN_MENU.attention, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const creators = await container.services.userService.listCreators();
+    const summary = await container.services.teamLeadService.getAttentionSummaryForCreators(
+      creators,
+      getCurrentMonthKey(),
+      ctx.state.currentUser?.id ?? 'admin'
+    );
+
+    for (const chunk of splitTelegramMessage(formatAdminAttentionSummary(summary))) {
+      await ctx.reply(chunk);
+    }
   });
 
   bot.action('admin_group_assign_start', roleGuard(UserRole.ADMIN), async (ctx) => {

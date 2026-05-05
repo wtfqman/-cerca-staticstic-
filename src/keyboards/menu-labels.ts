@@ -32,6 +32,7 @@ export const ADMIN_MENU = {
   googleSheets: 'Google Sheets',
   bulkActions: 'Массовые действия',
   service: 'Служебное',
+  attention: 'Требует внимания: все',
   creatorTest: 'Тест как креатор',
   adminMenu: 'Админ-меню',
   help: 'Помощь'
