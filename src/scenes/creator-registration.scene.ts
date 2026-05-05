@@ -1,5 +1,5 @@
 import { LegalType } from '@prisma/client';
-import { Scenes } from 'telegraf';
+import { Markup, Scenes } from 'telegraf';
 
 import { container } from '../container';
 import { cancelSceneKeyboard } from '../keyboards/menu.keyboards';
@@ -187,6 +187,20 @@ const noContractFields: RegistrationField[] = [
   'email'
 ];
 
+const CHANGE_LEGAL_TYPE_CALLBACK = 'register_change_legal_type';
+
+const legalTypeChangeFields = new Set<RegistrationField>([
+  'contractDeadlineDate',
+  'passportSeries',
+  'registrationAddress',
+  'ogrnip'
+]);
+
+const changeLegalTypeInlineKeyboard = () =>
+  Markup.inlineKeyboard([
+    [Markup.button.callback('Сменить юридический тип', CHANGE_LEGAL_TYPE_CALLBACK)]
+  ]);
+
 const getState = (ctx: BotContext): RegistrationState => {
   const state = ctx.wizard.state as RegistrationState;
   state.draft ??= {};
@@ -217,7 +231,39 @@ const askCurrentField = async (ctx: BotContext) => {
   }
 
   await ctx.reply(fieldConfigs[field].prompt, cancelSceneKeyboard());
+  if (legalTypeChangeFields.has(field)) {
+    await ctx.reply(
+      'Если юридический тип выбран случайно, нажми кнопку ниже и выбери правильный вариант.',
+      changeLegalTypeInlineKeyboard()
+    );
+  }
   return undefined;
+};
+
+const restartLegalTypeSelection = async (ctx: BotContext) => {
+  const state = getState(ctx);
+  state.draft = {
+    ...state.draft,
+    legalType: null,
+    ogrnip: undefined
+  };
+  state.fieldIndex = 0;
+
+  await safeAnswerCbQuery(ctx);
+
+  try {
+    await container.services.creatorProfileService.saveDraft(ctx.state.currentUser!.id, state.draft);
+  } catch (error) {
+    logUserError(error, 'Creator registration legal type reset failed', {
+      userId: ctx.state.currentUser?.id
+    });
+  }
+
+  await ctx.reply(
+    'Хорошо, выбери юридический тип заново.',
+    legalTypeInlineKeyboard()
+  );
+  return ctx.wizard.selectStep(1);
 };
 
 const buildDraftFromProfile = (
@@ -393,6 +439,10 @@ export const creatorRegistrationScene = new Scenes.WizardScene<BotContext>(
     await ctx.reply('Выбери тип кнопкой ниже.', legalTypeInlineKeyboard());
   },
   async (ctx) => {
+    if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === CHANGE_LEGAL_TYPE_CALLBACK) {
+      return restartLegalTypeSelection(ctx);
+    }
+
     const state = getState(ctx);
     const fields = getFieldsForDraft(state.draft);
     const field = fields[state.fieldIndex];
