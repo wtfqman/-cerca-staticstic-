@@ -310,6 +310,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       ].join('\n'),
       Markup.inlineKeyboard([
         [Markup.button.callback('Выгрузить документы', 'admin_export_new_signed_documents')],
+        [Markup.button.callback('Выгрузить все документы заново', 'admin_export_all_signed_documents')],
         [Markup.button.callback('Выгрузить счета', 'admin_export_new_payment_documents:INVOICE')],
         [Markup.button.callback('Выгрузить чеки', 'admin_export_new_payment_documents:RECEIPT')],
         [Markup.button.callback('Выгрузить все счета заново', 'admin_export_all_payment_documents:INVOICE')],
@@ -861,31 +862,38 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(formatTeamLeadGroupReport(report));
   });
 
-  bot.action('admin_export_new_signed_documents', roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_export_(new|all)_signed_documents$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     if (!config.documents.chatId) {
       await ctx.answerCbQuery('Служебный чат не настроен');
       await ctx.reply('Служебный чат для документов не настроен. Проверь DOCUMENTS_CHAT_ID.');
       return;
     }
 
-    await ctx.answerCbQuery('Выгружаю документы...');
+    const exportMode = ctx.match[1] as 'new' | 'all';
+    const scopeLabel = exportMode === 'all' ? 'все документы' : 'новые документы';
+
+    await ctx.answerCbQuery(`Выгружаю ${scopeLabel}...`);
 
     try {
       const result = await container.services.documentUploadService.exportPendingSignedDocumentsToChat(
         ctx.telegram,
-        config.documents.chatId
+        config.documents.chatId,
+        { includeAlreadyForwarded: exportMode === 'all' }
       );
 
       if (!result.uploadCount) {
-        await ctx.reply('Новых документов для выгрузки нет.');
+        await ctx.reply(`Файлов для выгрузки нет: ${scopeLabel}.`);
         return;
       }
 
       await ctx.reply(
         [
-          `Выгрузка документов завершена.`,
+          `Выгрузка завершена: ${scopeLabel}.`,
           `Креаторов: ${formatIntegerRu(result.creatorCount)}`,
           `Отправлено файлов: ${formatIntegerRu(result.sentUploads.length)} из ${formatIntegerRu(result.uploadCount)}`,
+          result.supersededCount
+            ? `Старых дублей пропущено: ${formatIntegerRu(result.supersededCount)}`
+            : null,
           result.skippedUploads.length
             ? `Пропущено: ${formatIntegerRu(result.skippedUploads.length)}. Подробности записаны в лог.`
             : null

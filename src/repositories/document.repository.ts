@@ -260,11 +260,9 @@ export class DocumentRepository {
     });
   }
 
-  async listUnforwardedSignatureUploads() {
+  async listUnforwardedSignatureUploads(input: { includeAlreadyForwarded?: boolean } = {}) {
     return prisma.documentSignatureUpload.findMany({
-      where: {
-        forwardedChatId: null
-      },
+      where: input.includeAlreadyForwarded ? {} : { forwardedChatId: null },
       include: signatureUploadWithDocumentInclude,
       orderBy: [{ creatorUserId: 'asc' }, { uploadedAt: 'asc' }]
     });

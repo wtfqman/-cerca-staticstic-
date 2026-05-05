@@ -315,12 +315,16 @@ export class DocumentUploadService {
     private readonly documentWorkflowService?: DocumentWorkflowService
   ) {}
 
-  async exportPendingSignedDocumentsToChat(telegram: Telegram, chatId: string) {
+  async exportPendingSignedDocumentsToChat(
+    telegram: Telegram,
+    chatId: string,
+    input: { includeAlreadyForwarded?: boolean } = {}
+  ) {
     return this.chatSendQueue.enqueue(chatId, async () => {
-      const rawUploads = (await this.documentRepository.listUnforwardedSignatureUploads()).sort(sortPendingSignatureUploads);
+      const rawUploads = (await this.documentRepository.listUnforwardedSignatureUploads(input)).sort(sortPendingSignatureUploads);
       const { uploads, supersededUploads } = compactPendingSignatureUploads(rawUploads);
 
-      if (supersededUploads.length) {
+      if (!input.includeAlreadyForwarded && supersededUploads.length) {
         await this.documentRepository.markSignatureUploadsSuperseded(
           supersededUploads.map((upload) => upload.id),
           `superseded:${chatId}`
