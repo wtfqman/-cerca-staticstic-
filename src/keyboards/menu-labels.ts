@@ -8,6 +8,7 @@ export const CREATOR_MENU = {
   reports: 'Мои отчеты',
   documents: 'Мои документы',
   uploadSigned: 'Отправить подписанный PDF',
+  socialLinks: 'Мои соцсети',
   help: 'Помощь'
 } as const;
 

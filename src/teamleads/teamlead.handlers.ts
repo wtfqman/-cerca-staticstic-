@@ -44,10 +44,14 @@ const formatCreatorProfileCard = async (teamLeadUserId: string, creatorUserId: s
     return null;
   }
 
+  const socialLinks = await container.services.creatorSocialAccountService.formatCreatorLinks(creatorUserId);
+
   return [
     `Креатор: ${formatCreatorDisplayName(creator)}`,
     '',
-    container.services.creatorProfileService.formatProfileSummary(creator.creatorProfile)
+    container.services.creatorProfileService.formatProfileSummary(creator.creatorProfile),
+    '',
+    socialLinks
   ].join('\n');
 };
 

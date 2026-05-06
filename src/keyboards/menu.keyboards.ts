@@ -28,7 +28,8 @@ export const creatorMenuKeyboard = (user?: AccessUser | null) =>
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
-    [CREATOR_MENU.uploadSigned, CREATOR_MENU.help]
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
+    [CREATOR_MENU.help]
   ]).resize();
 
 export const teamLeadMenuKeyboard = () =>
@@ -44,7 +45,7 @@ export const creatorTeamLeadMenuKeyboard = (user?: AccessUser | null) =>
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
-    [CREATOR_MENU.uploadSigned],
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
     [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
     [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
     [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
@@ -80,8 +81,8 @@ export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
-    [CREATOR_MENU.uploadSigned, ADMIN_MENU.adminMenu],
-    [CREATOR_MENU.help]
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
+    [ADMIN_MENU.adminMenu, CREATOR_MENU.help]
   ]).resize();
 
 export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {

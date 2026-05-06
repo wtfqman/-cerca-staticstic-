@@ -366,26 +366,50 @@ const formatMonthlyVideoStatusLine = (item: CreatorMonthlyVideoStatusSummary) =>
     ? `• ${item.creatorName}: ${formatIntegerRu(item.videoCount ?? 0)} видео`
     : `• ${item.creatorName}: количество видео не указано`;
 
-const formatDocumentRequirementLine = (item: CreatorDocumentStatusSummary) =>
-  [
-    `• ${item.creatorName}`,
-    ...item.monthly
-      .filter((document) => document.required && !document.signed)
-      .map(
-        (document) =>
-          `  - ${getDocumentTitle(document.type as DocumentType)}: ${
-            document.generated ? 'ожидает подпись' : 'не сгенерирован'
-          }`
-      ),
-    ...item.oneOff
-      .filter((document) => document.required && !document.signed)
-      .map(
-        (document) =>
-          `  - ${getDocumentTitle(document.type as DocumentType)}: ${
-            document.generated ? 'ожидает подпись' : 'не сгенерирован'
-          }`
-      )
+const FIRST_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([
+  DocumentType.CONTRACT,
+  DocumentType.NDA,
+  DocumentType.ASSIGNMENT
+]);
+const SECOND_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([DocumentType.ACT, DocumentType.RIGHTS_TRANSFER]);
+
+const getMissingRequiredDocuments = (
+  item: CreatorDocumentStatusSummary,
+  filter?: (type: DocumentType) => boolean
+) =>
+  [...item.oneOff, ...item.monthly].filter((document) => {
+    const type = document.type as DocumentType;
+    return document.required && !document.signed && (!filter || filter(type));
+  });
+
+const formatMissingDocumentDetail = (document: ReturnType<typeof getMissingRequiredDocuments>[number]) =>
+  `  - ${getDocumentTitle(document.type as DocumentType)}: ${
+    document.generated ? 'ожидает подпись' : 'не сгенерирован'
+  }`;
+
+const formatDocumentRequirementLine = (
+  item: CreatorDocumentStatusSummary,
+  filter?: (type: DocumentType) => boolean
+) => [`• ${item.creatorName}`, ...getMissingRequiredDocuments(item, filter).map(formatMissingDocumentDetail)].join('\n');
+
+const formatDocumentQueueAttention = (
+  title: string,
+  items: CreatorDocumentStatusSummary[],
+  documentTypes: Set<DocumentType>
+) => {
+  const queueItems = items.filter((item) =>
+    getMissingRequiredDocuments(item, (type) => documentTypes.has(type)).length > 0
+  );
+
+  return [
+    `${title}: ${formatIntegerRu(queueItems.length)}`,
+    queueItems.length
+      ? queueItems
+          .map((item) => formatDocumentRequirementLine(item, (type) => documentTypes.has(type)))
+          .join('\n')
+      : '• Нет'
   ].join('\n');
+};
 
 export const formatMissingWeeklyStats = (items: CreatorWeeklyDisciplineSummary[]) =>
   items.length
@@ -399,7 +423,7 @@ export const formatMissingMonthlyVideos = (items: CreatorMonthlyVideoStatusSumma
 
 export const formatMissingDocuments = (items: CreatorDocumentStatusSummary[], monthKey: string) =>
   items.length
-    ? [`Нет полного пакета подписанных документов за ${monthKey}:`, ...items.map(formatDocumentRequirementLine)].join('\n')
+    ? [`Нет полного пакета подписанных документов за ${monthKey}:`, ...items.map((item) => formatDocumentRequirementLine(item))].join('\n')
     : `Подписанные документы за ${monthKey} получены по всем креаторам.`;
 
 export const formatTeamLeadAttentionSummary = (summary: TeamLeadAttentionSummary) =>
@@ -411,26 +435,21 @@ export const formatTeamLeadAttentionSummary = (summary: TeamLeadAttentionSummary
     `Месяц видео: ${summary.monthKey}`,
     `Месяц документов: ${summary.documentMonthKey}`,
     '',
-    `Не подтвердили выкладку: ${formatIntegerRu(summary.missingPublicationConfirmations.length)}`,
-    summary.missingPublicationConfirmations.length
-      ? summary.missingPublicationConfirmations
-          .map((item) => `• ${item.creatorName}`)
-          .join('\n')
-      : '• Нет',
+    `Не сдали документы за ${summary.documentMonthKey}: ${formatIntegerRu(summary.documentsMissing.length)}`,
+    formatDocumentQueueAttention('Первая очередь', summary.documentsMissing, FIRST_QUEUE_DOCUMENT_TYPES),
     '',
-    `Не сдали статистику: ${formatIntegerRu(summary.weeklyStatsAttention.length)}`,
+    formatDocumentQueueAttention('Вторая очередь', summary.documentsMissing, SECOND_QUEUE_DOCUMENT_TYPES),
+    '',
+    `Не заполнили статистику за 7 дней (${summary.weekStart} - ${summary.weekEnd}): ${formatIntegerRu(
+      summary.weeklyStatsAttention.length
+    )}`,
     summary.weeklyStatsAttention.length
       ? summary.weeklyStatsAttention.map(formatWeeklyStatusLine).join('\n')
       : '• Нет',
     '',
-    `Не указали количество видео: ${formatIntegerRu(summary.monthlyVideoMissing.length)}`,
+    `Не указали количество видео за ${summary.monthKey}: ${formatIntegerRu(summary.monthlyVideoMissing.length)}`,
     summary.monthlyVideoMissing.length
       ? summary.monthlyVideoMissing.map(formatMonthlyVideoStatusLine).join('\n')
-      : '• Нет',
-    '',
-    `Не сдали документы за ${summary.documentMonthKey}: ${formatIntegerRu(summary.documentsMissing.length)}`,
-    summary.documentsMissing.length
-      ? summary.documentsMissing.map((item) => `• ${item.creatorName}`).join('\n')
       : '• Нет'
   ].join('\n');
 

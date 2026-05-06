@@ -1,5 +1,6 @@
 import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 
+import { CreatorSocialAccountRepository } from '../repositories/creator-social-account.repository';
 import { MonthlyVideoRepository } from '../repositories/monthly-video.repository';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { mapInBatches } from '../utils/batch';
@@ -97,6 +98,7 @@ type PendingSocialsRow = {
   syncKey: string;
   creatorUserId: string;
   platform: SocialPlatform;
+  socialLink: string;
   creatorName: string;
   teamLeadName: string;
   monthKey: string;
@@ -109,6 +111,7 @@ export class SocialsSheetSyncService {
   constructor(
     private readonly weeklyStatsRepository: WeeklyStatsRepository,
     private readonly monthlyVideoRepository: MonthlyVideoRepository,
+    private readonly creatorSocialAccountRepository: CreatorSocialAccountRepository,
     private readonly googleSheetsService: GoogleSheetsService,
     private readonly formatter: SpreadsheetFormatterService
   ) {}
@@ -145,6 +148,9 @@ export class SocialsSheetSyncService {
     }
 
     const monthlyVideos = new Map<string, number>();
+    const socialLinks = new Map<string, string>();
+    const creatorUserIds = Array.from(new Set(Array.from(groups.keys()).map((key) => key.split(':')[0])));
+
     await mapInBatches(Array.from(groups.keys()), 20, async (key) => {
       const [creatorUserId, monthKey] = key.split(':');
       const record = await this.monthlyVideoRepository.findByCreatorAndMonth(creatorUserId, monthKey);
@@ -153,6 +159,10 @@ export class SocialsSheetSyncService {
         monthlyVideos.set(key, record.videoCount);
       }
     });
+
+    for (const account of await this.creatorSocialAccountRepository.listByCreatorUserIds(creatorUserIds)) {
+      socialLinks.set(`${account.creatorUserId}:${account.platform}`, account.handleOrUrl);
+    }
 
     const monthPeriods = new Map<string, Set<string>>();
 
@@ -219,6 +229,7 @@ export class SocialsSheetSyncService {
             syncKey: `${creatorMonthKey}:${platform}`,
             creatorUserId: firstReport.creatorUserId,
             platform,
+            socialLink: socialLinks.get(`${firstReport.creatorUserId}:${platform}`) ?? '',
             creatorName,
             teamLeadName,
             monthKey: firstReport.monthKey,
@@ -278,6 +289,7 @@ export class SocialsSheetSyncService {
           syncKey: `socials-total:${firstRow.monthKey}:${firstRow.platform}`,
           creatorUserId: '',
           platform: firstRow.platform,
+          socialLink: '',
           creatorName: 'Итог',
           teamLeadName: '',
           monthKey: firstRow.monthKey,
@@ -296,6 +308,7 @@ export class SocialsSheetSyncService {
       syncKey: row.syncKey,
       creatorUserId: row.creatorUserId,
       platform: row.platform,
+      socialLink: row.socialLink,
       creatorName: row.creatorName,
       teamLeadName: row.teamLeadName,
       monthKey: row.monthKey,

@@ -200,12 +200,15 @@ const formatCreatorProfileCard = async (creatorUserId: string) => {
   }
 
   const activeLink = await container.repositories.teamLeadRepository.getActiveTeamLeadForCreator(creatorUserId);
+  const socialLinks = await container.services.creatorSocialAccountService.formatCreatorLinks(creatorUserId);
 
   return [
     `Креатор: ${formatCreatorDisplayName(creator)}`,
     `Тимлид: ${activeLink ? formatTeamLeadDisplayName(activeLink.teamLead) : 'не назначен'}`,
     '',
-    container.services.creatorProfileService.formatProfileSummary(creator.creatorProfile)
+    container.services.creatorProfileService.formatProfileSummary(creator.creatorProfile),
+    '',
+    socialLinks
   ].join('\n');
 };
 

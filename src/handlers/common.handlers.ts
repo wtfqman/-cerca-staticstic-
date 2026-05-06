@@ -182,7 +182,16 @@ export const handleProfile = async (ctx: BotContext) => {
     return;
   }
 
-  await ctx.reply(container.services.creatorProfileService.formatProfileSummary(profile));
+  const socialLinks = await container.services.creatorSocialAccountService.formatCreatorLinks(currentUser.id);
+  await ctx.reply(
+    [
+      container.services.creatorProfileService.formatProfileSummary(profile),
+      '',
+      socialLinks,
+      '',
+      'Обновить ссылки можно кнопкой «Мои соцсети».'
+    ].join('\n')
+  );
   await ctx.reply(CREATOR_SELF_EDIT_DISABLED_TEXT, creatorProfileSelfEditKeyboard());
 };
 

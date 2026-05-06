@@ -112,6 +112,10 @@ const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
 export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   bot.hears(CREATOR_MENU.profile, roleGuard(UserRole.CREATOR), handleProfile);
 
+  bot.hears(CREATOR_MENU.socialLinks, roleGuard(UserRole.CREATOR), async (ctx) => {
+    await ctx.scene.enter(SCENE_IDS.creatorSocialLinks);
+  });
+
   bot.hears(CREATOR_MENU.stats, async (ctx, next) => {
     if (canUseAdminScenario(ctx.state.currentUser) || !canUseCreatorScenario(ctx.state.currentUser)) {
       return next();

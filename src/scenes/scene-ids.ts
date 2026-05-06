@@ -1,5 +1,6 @@
 export const SCENE_IDS = {
   creatorRegistration: 'creator_registration',
+  creatorSocialLinks: 'creator_social_links',
   profileEdit: 'profile_edit',
   profileChangeRequest: 'profile_change_request',
   weeklyStats: 'weekly_stats',

@@ -1,6 +1,7 @@
 import { config } from './config';
 import { CreatorProfileRepository } from './repositories/creator-profile.repository';
 import { CreatorProfileChangeRequestRepository } from './repositories/creator-profile-change-request.repository';
+import { CreatorSocialAccountRepository } from './repositories/creator-social-account.repository';
 import { DailyCheckRepository } from './repositories/daily-check.repository';
 import { DocumentRepository } from './repositories/document.repository';
 import { DocumentWorkflowRepository } from './repositories/document-workflow.repository';
@@ -18,6 +19,7 @@ import { CreatorDisciplineService } from './services/creator-discipline.service'
 import { CreatorProfileService } from './services/creator-profile.service';
 import { CreatorProfileChangeRequestService } from './services/creator-profile-change-request.service';
 import { CreatorReportService } from './services/creator-report.service';
+import { CreatorSocialAccountService } from './services/creator-social-account.service';
 import { DashboardSummaryService } from './services/dashboard-summary.service';
 import { DailyCheckService } from './services/daily-check.service';
 import { DocumentStatusService } from './services/document-status.service';
@@ -51,6 +53,7 @@ import { WeeklyStatsService } from './services/weekly-stats.service';
 const userRepository = new UserRepository();
 const creatorProfileRepository = new CreatorProfileRepository();
 const creatorProfileChangeRequestRepository = new CreatorProfileChangeRequestRepository();
+const creatorSocialAccountRepository = new CreatorSocialAccountRepository();
 const teamLeadRepository = new TeamLeadRepository();
 const dailyCheckRepository = new DailyCheckRepository();
 const weeklyStatsRepository = new WeeklyStatsRepository();
@@ -72,6 +75,7 @@ const creatorProfileChangeRequestService = new CreatorProfileChangeRequestServic
   userRepository,
   teamLeadRepository
 );
+const creatorSocialAccountService = new CreatorSocialAccountService(creatorSocialAccountRepository);
 const monthlyAggregationService = new MonthlyAggregationService(weeklyStatsRepository, monthlyVideoRepository);
 const paymentCalculationService = new PaymentCalculationService(
   monthlyAggregationService,
@@ -88,6 +92,7 @@ const statsSheetSyncService = new StatsSheetSyncService(
 const socialsSheetSyncService = new SocialsSheetSyncService(
   weeklyStatsRepository,
   monthlyVideoRepository,
+  creatorSocialAccountRepository,
   googleSheetsService,
   spreadsheetFormatterService
 );
@@ -209,6 +214,7 @@ export const container = {
     userRepository,
     creatorProfileRepository,
     creatorProfileChangeRequestRepository,
+    creatorSocialAccountRepository,
     teamLeadRepository,
     dailyCheckRepository,
     weeklyStatsRepository,
@@ -223,6 +229,7 @@ export const container = {
     userService,
     creatorProfileService,
     creatorProfileChangeRequestService,
+    creatorSocialAccountService,
     monthlyVideoService,
     weeklyStatsService,
     creatorDisciplineService,

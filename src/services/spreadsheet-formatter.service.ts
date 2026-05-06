@@ -38,6 +38,7 @@ export interface SocialsSheetRowInput {
   syncKey: string;
   creatorUserId: string;
   platform: string;
+  socialLink: string;
   creatorName: string;
   teamLeadName: string;
   monthKey: string;
@@ -124,12 +125,13 @@ const labelOrValue = (map: Record<string, string>, value: string) => map[value] 
 
 const SOCIALS_WEEK_SLOT_COUNT = 6;
 const SOCIALS_WEEK_METRICS = ['Неделя', 'Охват', 'Лайки', 'Комментарии', 'Сохранения', 'Репосты'];
-const SOCIALS_BASE_COLUMN_COUNT = 6;
+const SOCIALS_BASE_COLUMN_COUNT = 7;
 
 const buildSocialsHeaders = () => [
   'Ключ синхронизации',
   'ID креатора',
   'Соцсеть',
+  'Ссылка',
   'Креатор',
   'Тимлид',
   'Месяц',
@@ -170,8 +172,9 @@ const buildSocialsColumnWidths = () => {
   const widths: Record<number, number> = {
     2: 105,
     3: 210,
-    4: 170,
-    5: 90
+    4: 210,
+    5: 170,
+    6: 90
   };
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
@@ -256,7 +259,7 @@ export class SpreadsheetFormatterService {
       headers: buildSocialsHeaders(),
       hiddenColumnIndexes: [0, 1],
       integerColumnIndexes: buildSocialsIntegerColumnIndexes(),
-      wrapColumnIndexes: [3, 4],
+      wrapColumnIndexes: [3, 4, 5],
       columnWidths: buildSocialsColumnWidths()
     };
   }
@@ -387,6 +390,7 @@ export class SpreadsheetFormatterService {
         input.syncKey,
         input.creatorUserId,
         labelOrValue(platformLabelMap, input.platform),
+        input.socialLink,
         input.creatorName,
         input.teamLeadName,
         input.monthKey,
