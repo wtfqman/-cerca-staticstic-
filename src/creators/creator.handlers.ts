@@ -116,6 +116,28 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.scene.enter(SCENE_IDS.creatorSocialLinks);
   });
 
+  bot.hears(CREATOR_MENU.dailyPublication, roleGuard(UserRole.CREATOR), async (ctx) => {
+    try {
+      const result = await container.services.dailyCheckService.confirmToday(ctx.state.currentUser!.id);
+
+      await ctx.reply(
+        result.alreadyConfirmed
+          ? 'Выкладка за сегодня уже подтверждена.'
+          : 'Готово, зафиксировал: видео за сегодня выложено.'
+      );
+    } catch (error) {
+      logUserError(error, 'Daily publication menu confirmation failed', {
+        userId: ctx.state.currentUser?.id
+      });
+      await ctx.reply(
+        formatUserError(
+          error,
+          'Сейчас не удалось сохранить подтверждение выкладки. Попробуй еще раз немного позже.'
+        )
+      );
+    }
+  });
+
   bot.hears(CREATOR_MENU.stats, async (ctx, next) => {
     if (canUseAdminScenario(ctx.state.currentUser) || !canUseCreatorScenario(ctx.state.currentUser)) {
       return next();

@@ -26,6 +26,7 @@ const creatorStatisticsRows = (user?: AccessUser | null) =>
 export const creatorMenuKeyboard = (user?: AccessUser | null) =>
   Markup.keyboard([
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
     [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
@@ -43,6 +44,7 @@ export const teamLeadMenuKeyboard = () =>
 export const creatorTeamLeadMenuKeyboard = (user?: AccessUser | null) =>
   Markup.keyboard([
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
     [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
@@ -79,6 +81,7 @@ export const adminTeamLeadMenuKeyboard = () =>
 export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
   Markup.keyboard([
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
     ...creatorStatisticsRows(user),
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
     [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],

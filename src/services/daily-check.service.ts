@@ -22,7 +22,14 @@ export class DailyCheckService {
   }
 
   async promptCreatorToday(telegram: Telegram, creatorUserId: string, telegramId: string) {
-    const check = await this.dailyCheckRepository.upsertPendingCheck(creatorUserId, toDateOnly(getNow()));
+    const checkDate = toDateOnly(getNow());
+    const existingCheck = await this.dailyCheckRepository.findByCreatorAndDate(creatorUserId, checkDate);
+
+    if (existingCheck?.status === DailyPublicationStatus.CONFIRMED) {
+      return existingCheck;
+    }
+
+    const check = await this.dailyCheckRepository.upsertPendingCheck(creatorUserId, checkDate);
     await telegram.sendMessage(telegramId, 'Ты опубликовал видео за сегодня?', buildDailyCheckInlineKeyboard(check.id));
     await this.notificationRepository.create(creatorUserId, NotificationType.DAILY_PUBLICATION_REMINDER, {
       checkId: check.id,
@@ -59,6 +66,25 @@ export class DailyCheckService {
     }
 
     return this.dailyCheckRepository.confirmById(checkId);
+  }
+
+  async confirmToday(creatorUserId: string) {
+    const checkDate = toDateOnly(getNow());
+    const existingCheck = await this.dailyCheckRepository.findByCreatorAndDate(creatorUserId, checkDate);
+
+    if (existingCheck?.status === DailyPublicationStatus.CONFIRMED) {
+      return {
+        check: existingCheck,
+        alreadyConfirmed: true
+      };
+    }
+
+    const check = await this.dailyCheckRepository.upsertConfirmedCheck(creatorUserId, checkDate);
+
+    return {
+      check,
+      alreadyConfirmed: false
+    };
   }
 
   async processMissedChecks(telegram: Telegram) {

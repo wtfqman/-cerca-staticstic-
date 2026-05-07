@@ -24,8 +24,30 @@ export class DailyCheckRepository {
         reminderSentAt: new Date()
       },
       update: {
-        reminderSentAt: new Date(),
-        status: DailyPublicationStatus.PENDING
+        reminderSentAt: new Date()
+      }
+    });
+  }
+
+  async upsertConfirmedCheck(creatorUserId: string, checkDate: Date) {
+    const now = new Date();
+
+    return prisma.dailyPublicationCheck.upsert({
+      where: {
+        creatorUserId_checkDate: {
+          creatorUserId,
+          checkDate
+        }
+      },
+      create: {
+        creatorUserId,
+        checkDate,
+        status: DailyPublicationStatus.CONFIRMED,
+        confirmedAt: now
+      },
+      update: {
+        status: DailyPublicationStatus.CONFIRMED,
+        confirmedAt: now
       }
     });
   }

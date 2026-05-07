@@ -1,6 +1,7 @@
 export const CREATOR_MENU = {
   profile: 'Мой профиль',
   stats: 'Статистика',
+  dailyPublication: 'Выложил видео за сегодня',
   weeklyStats: 'Внести статистику за 7 дней',
   monthlyVideos: 'Указать количество видео за месяц',
   monthlyVideosMarchApril: 'Видео за март и апрель',
