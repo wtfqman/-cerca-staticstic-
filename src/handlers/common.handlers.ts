@@ -9,7 +9,7 @@ import { ACCESS_PENDING_TEXT, CREATOR_SELF_EDIT_DISABLED_TEXT, HELP_TEXTS } from
 import { mainMenuKeyboardForUser, mainMenuTextForUser } from '../keyboards/menu.keyboards';
 import { creatorProfileSelfEditKeyboard, reportMonthKeyboard } from '../keyboards/inline.keyboards';
 import { getCurrentMonthKey, getMonthRange, getPreviousMonthKey, toDateOnly } from '../utils/periods';
-import { getMessageText } from '../utils/telegram';
+import { getMessageText, splitTelegramMessage } from '../utils/telegram';
 import { formatIntegerRu } from '../utils/formatters';
 import { formatAggregationSnapshot, formatCreatorMonthlyReport } from '../reports/report.formatters';
 import { formatSignedUploadResultMessage } from '../documents/document.formatters';
@@ -28,7 +28,6 @@ import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statisti
 import {
   canUseAdminScenario,
   canUseAnyScenario,
-  canUseCreatorAndTeamLeadScenarios,
   canUseCreatorScenario,
   canUseTeamLeadScenario
 } from '../utils/access';
@@ -146,17 +145,17 @@ export const handleHelp = async (ctx: BotContext) => {
     return;
   }
 
-  const roleText = canUseAdminScenario(currentUser)
-    ? canUseCreatorScenario(currentUser)
-      ? [HELP_TEXTS.admin, '', HELP_TEXTS.creator].join('\n')
-      : HELP_TEXTS.admin
-    : canUseCreatorAndTeamLeadScenarios(currentUser)
-      ? [HELP_TEXTS.creator, '', HELP_TEXTS.teamLead].join('\n')
-      : canUseTeamLeadScenario(currentUser)
-        ? HELP_TEXTS.teamLead
-        : HELP_TEXTS.creator;
+  const roleTexts = [
+    canUseAdminScenario(currentUser) ? HELP_TEXTS.admin : null,
+    canUseTeamLeadScenario(currentUser) ? HELP_TEXTS.teamLead : null,
+    canUseCreatorScenario(currentUser) ? HELP_TEXTS.creator : null
+  ].filter(Boolean);
 
-  await ctx.reply([HELP_TEXTS.common, '', roleText].join('\n'));
+  const text = [HELP_TEXTS.common, ...roleTexts].join('\n\n');
+
+  for (const chunk of splitTelegramMessage(text)) {
+    await ctx.reply(chunk);
+  }
 };
 
 export const handleCancel = async (ctx: BotContext) => {
