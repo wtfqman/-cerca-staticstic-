@@ -268,6 +268,28 @@ export class DocumentRepository {
     });
   }
 
+  async listLatestSignedSignatureUploadsForCreatorMonth(input: {
+    creatorUserId: string;
+    monthKey: string;
+    types?: DocumentType[];
+  }) {
+    return prisma.documentSignatureUpload.findMany({
+      where: {
+        creatorUserId: input.creatorUserId,
+        document: {
+          creatorUserId: input.creatorUserId,
+          monthKey: input.monthKey,
+          type: input.types?.length ? { in: input.types } : undefined,
+          status: {
+            in: [DocumentStatus.SIGNED_UPLOADED, DocumentStatus.FORWARDED_TO_CHAT]
+          }
+        }
+      },
+      include: signatureUploadWithDocumentInclude,
+      orderBy: [{ uploadedAt: 'desc' }]
+    });
+  }
+
   async listAllDocuments() {
     return prisma.document.findMany({
       include: documentWithRelationsInclude,

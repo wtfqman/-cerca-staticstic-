@@ -190,6 +190,7 @@ const paymentDocumentUploadService = new PaymentDocumentUploadService(
   fileStorageService,
   documentWorkflowService,
   documentWorkflowRepository,
+  documentRepository,
   paymentCalculationService,
   googleSheetsSyncService
 );

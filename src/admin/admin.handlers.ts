@@ -309,14 +309,15 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(
       [
         'Новые PDF можно выгрузить в рабочий чат вручную.',
-        'Документы, счета и чеки выгружаются отдельно. Бот отправит только файлы, которые еще не выгружались.'
+        'Договоры/NDA выгружаются отдельно. Счета выгружаются комплектом: счет, акт, передача прав и задание за тот же месяц.',
+        'Бот отправит только файлы, которые еще не выгружались.'
       ].join('\n'),
       Markup.inlineKeyboard([
         [Markup.button.callback('Выгрузить документы', 'admin_export_new_signed_documents')],
         [Markup.button.callback('Выгрузить все документы заново', 'admin_export_all_signed_documents')],
-        [Markup.button.callback('Выгрузить счета', 'admin_export_new_payment_documents:INVOICE')],
+        [Markup.button.callback('Выгрузить счета + акты/задания', 'admin_export_new_payment_documents:INVOICE')],
         [Markup.button.callback('Выгрузить чеки', 'admin_export_new_payment_documents:RECEIPT')],
-        [Markup.button.callback('Выгрузить все счета заново', 'admin_export_all_payment_documents:INVOICE')],
+        [Markup.button.callback('Выгрузить все счета + акты/задания заново', 'admin_export_all_payment_documents:INVOICE')],
         [Markup.button.callback('Выгрузить все чеки заново', 'admin_export_all_payment_documents:RECEIPT')]
       ])
     );
@@ -934,7 +935,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
         {
           type,
           monthKey: CREATOR_INVOICE_MONTH_KEY,
-          includeAlreadyForwarded: exportMode === 'all'
+          includeAlreadyForwarded: exportMode === 'all',
+          includeRelatedSignedDocuments: type === PaymentDocumentType.INVOICE
         }
       );
 
@@ -947,11 +949,17 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
         [
           `Выгрузка завершена: ${scopeLabel} за ${CREATOR_INVOICE_MONTH_KEY}.`,
           `Отправлено файлов: ${formatIntegerRu(result.sentUploads.length)} из ${formatIntegerRu(result.uploadCount)}`,
+          type === PaymentDocumentType.INVOICE && result.relatedDocumentCount
+            ? `Документов рядом со счетами: ${formatIntegerRu(result.sentRelatedDocuments.length)} из ${formatIntegerRu(result.relatedDocumentCount)}`
+            : null,
           result.supersededCount
             ? `Старых дублей пропущено: ${formatIntegerRu(result.supersededCount)}`
             : null,
           result.skippedUploads.length
             ? `Не удалось отправить: ${formatIntegerRu(result.skippedUploads.length)}. Подробности записаны в лог.`
+            : null,
+          result.skippedRelatedDocuments.length
+            ? `Не удалось отправить документы к счетам: ${formatIntegerRu(result.skippedRelatedDocuments.length)}. Подробности записаны в лог.`
             : null
         ]
           .filter(Boolean)

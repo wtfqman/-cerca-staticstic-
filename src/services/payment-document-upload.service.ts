@@ -1,12 +1,14 @@
-import { PaymentDocumentType } from '@prisma/client';
+import { DocumentStatus, DocumentType, PaymentDocumentType } from '@prisma/client';
 import fs from 'node:fs';
 import type { Telegram } from 'telegraf';
 import { Input } from 'telegraf';
 
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
 import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
+import { getDocumentTitle } from '../documents/document.constants';
 import { logger } from '../lib/logger';
 import { getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
+import { DocumentRepository } from '../repositories/document.repository';
 import { DocumentWorkflowRepository } from '../repositories/document-workflow.repository';
 import { formatCreatorDisplayName, formatIntegerRu } from '../utils/formatters';
 import { DocumentWorkflowService } from './document-workflow.service';
@@ -15,6 +17,17 @@ import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 
 const PAYMENT_DOCUMENT_EXPORT_SEND_DELAY_MS = 1_200;
+const INVOICE_RELATED_SIGNED_DOCUMENT_TYPES = [
+  DocumentType.ACT,
+  DocumentType.RIGHTS_TRANSFER,
+  DocumentType.ASSIGNMENT
+] as const;
+
+const INVOICE_RELATED_SIGNED_DOCUMENT_ORDER: Partial<Record<DocumentType, number>> = {
+  [DocumentType.ACT]: 10,
+  [DocumentType.RIGHTS_TRANSFER]: 20,
+  [DocumentType.ASSIGNMENT]: 30
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -39,9 +52,42 @@ class SerializedPaymentChatSendQueue {
 
 type PaymentUploadForExport =
   Awaited<ReturnType<DocumentWorkflowRepository['listPaymentUploadsForExport']>>[number];
+type RelatedSignedDocumentUpload =
+  Awaited<ReturnType<DocumentRepository['listLatestSignedSignatureUploadsForCreatorMonth']>>[number];
 
 const getPaymentDocumentTitle = (type: PaymentDocumentType) =>
   type === PaymentDocumentType.INVOICE ? 'Счет' : 'Чек';
+
+const getRelatedSignedDocumentOrder = (type: DocumentType) =>
+  INVOICE_RELATED_SIGNED_DOCUMENT_ORDER[type] ?? 999;
+
+const sortRelatedSignedDocumentUploads = (
+  left: RelatedSignedDocumentUpload,
+  right: RelatedSignedDocumentUpload
+) => {
+  const orderDiff = getRelatedSignedDocumentOrder(left.document.type) - getRelatedSignedDocumentOrder(right.document.type);
+
+  if (orderDiff !== 0) {
+    return orderDiff;
+  }
+
+  return left.uploadedAt.getTime() - right.uploadedAt.getTime();
+};
+
+const compactRelatedSignedDocumentUploads = (uploads: RelatedSignedDocumentUpload[]) => {
+  const latestByKey = new Map<string, RelatedSignedDocumentUpload>();
+
+  for (const upload of uploads) {
+    const key = `${upload.creatorUserId}:${upload.document.type}:${upload.document.monthKey ?? ''}`;
+    const existing = latestByKey.get(key);
+
+    if (!existing || upload.uploadedAt.getTime() >= existing.uploadedAt.getTime()) {
+      latestByKey.set(key, upload);
+    }
+  }
+
+  return [...latestByKey.values()].sort(sortRelatedSignedDocumentUploads);
+};
 
 const compactPaymentUploadsForExport = (uploads: PaymentUploadForExport[]) => {
   const latestByKey = new Map<string, PaymentUploadForExport>();
@@ -83,6 +129,7 @@ export class PaymentDocumentUploadService {
     private readonly fileStorageService: FileStorageService,
     private readonly documentWorkflowService: DocumentWorkflowService,
     private readonly documentWorkflowRepository: DocumentWorkflowRepository,
+    private readonly documentRepository: DocumentRepository,
     private readonly paymentCalculationService: PaymentCalculationService,
     private readonly googleSheetsSyncService?: GoogleSheetsSyncService
   ) {}
@@ -244,6 +291,7 @@ export class PaymentDocumentUploadService {
       type: PaymentDocumentType;
       monthKey?: string;
       includeAlreadyForwarded?: boolean;
+      includeRelatedSignedDocuments?: boolean;
     }
   ) {
     return this.chatSendQueue.enqueue(chatId, async () => {
@@ -271,6 +319,26 @@ export class PaymentDocumentUploadService {
         creatorName: string;
         monthKey: string | null;
         type: PaymentDocumentType;
+        reason: string;
+      }> = [];
+      const sentRelatedDocuments: Array<{
+        uploadId: string;
+        invoiceUploadId: string;
+        documentId: string;
+        creatorUserId: string;
+        creatorName: string;
+        monthKey: string | null;
+        type: DocumentType;
+        messageId: number;
+      }> = [];
+      const skippedRelatedDocuments: Array<{
+        uploadId: string;
+        invoiceUploadId: string;
+        documentId: string;
+        creatorUserId: string;
+        creatorName: string;
+        monthKey: string | null;
+        type: DocumentType;
         reason: string;
       }> = [];
 
@@ -322,6 +390,95 @@ export class PaymentDocumentUploadService {
             type: upload.type,
             messageId: message.message_id
           });
+
+          if (input.includeRelatedSignedDocuments && upload.type === PaymentDocumentType.INVOICE) {
+            const relatedUploads = await this.listRelatedSignedDocumentsForInvoice(upload);
+
+            for (const relatedUpload of relatedUploads) {
+              const relatedFileInput = relatedUpload.filePath && fs.existsSync(relatedUpload.filePath)
+                ? Input.fromLocalFile(relatedUpload.filePath)
+                : relatedUpload.telegramFileId ?? null;
+
+              if (!relatedFileInput) {
+                logger.error(
+                  {
+                    uploadId: relatedUpload.id,
+                    invoiceUploadId: upload.id,
+                    creatorUserId: relatedUpload.creatorUserId,
+                    documentId: relatedUpload.documentId,
+                    documentType: relatedUpload.document.type,
+                    monthKey: relatedUpload.document.monthKey,
+                    filePath: relatedUpload.filePath
+                  },
+                  'Related signed document file is missing during invoice export'
+                );
+
+                skippedRelatedDocuments.push({
+                  uploadId: relatedUpload.id,
+                  invoiceUploadId: upload.id,
+                  documentId: relatedUpload.documentId,
+                  creatorUserId: relatedUpload.creatorUserId,
+                  creatorName,
+                  monthKey: relatedUpload.document.monthKey,
+                  type: relatedUpload.document.type,
+                  reason: 'file_missing'
+                });
+                continue;
+              }
+
+              try {
+                const relatedMessage = await telegram.sendDocument(chatId, relatedFileInput, {
+                  caption: this.formatInvoiceRelatedDocumentExportCaption(upload, relatedUpload)
+                });
+                await sleep(PAYMENT_DOCUMENT_EXPORT_SEND_DELAY_MS);
+
+                await this.documentRepository.updateSignatureForwardInfo(
+                  relatedUpload.id,
+                  chatId,
+                  relatedMessage.message_id
+                );
+                await this.documentRepository.updateStatus(relatedUpload.documentId, DocumentStatus.FORWARDED_TO_CHAT, {
+                  forwardedAt: new Date()
+                });
+
+                sentRelatedDocuments.push({
+                  uploadId: relatedUpload.id,
+                  invoiceUploadId: upload.id,
+                  documentId: relatedUpload.documentId,
+                  creatorUserId: relatedUpload.creatorUserId,
+                  creatorName,
+                  monthKey: relatedUpload.document.monthKey,
+                  type: relatedUpload.document.type,
+                  messageId: relatedMessage.message_id
+                });
+              } catch (error) {
+                logger.error(
+                  {
+                    error,
+                    uploadId: relatedUpload.id,
+                    invoiceUploadId: upload.id,
+                    creatorUserId: relatedUpload.creatorUserId,
+                    documentId: relatedUpload.documentId,
+                    documentType: relatedUpload.document.type,
+                    monthKey: relatedUpload.document.monthKey,
+                    documentsChatId: chatId
+                  },
+                  'Related signed document export failed'
+                );
+
+                skippedRelatedDocuments.push({
+                  uploadId: relatedUpload.id,
+                  invoiceUploadId: upload.id,
+                  documentId: relatedUpload.documentId,
+                  creatorUserId: relatedUpload.creatorUserId,
+                  creatorName,
+                  monthKey: relatedUpload.document.monthKey,
+                  type: relatedUpload.document.type,
+                  reason: 'send_failed'
+                });
+              }
+            }
+          }
         } catch (error) {
           logger.error(
             {
@@ -346,15 +503,37 @@ export class PaymentDocumentUploadService {
         }
       }
 
+      const relatedDocumentIds = [...new Set(sentRelatedDocuments.map((upload) => upload.documentId))];
+      if (relatedDocumentIds.length) {
+        await this.googleSheetsSyncService?.safeSyncDocuments(relatedDocumentIds);
+      }
+
       return {
         type: input.type,
         monthKey: input.monthKey ?? null,
         uploadCount: uploads.length,
         supersededCount: supersededUploads.length,
         sentUploads,
-        skippedUploads
+        skippedUploads,
+        relatedDocumentCount: sentRelatedDocuments.length + skippedRelatedDocuments.length,
+        sentRelatedDocuments,
+        skippedRelatedDocuments
       };
     });
+  }
+
+  private async listRelatedSignedDocumentsForInvoice(upload: PaymentUploadForExport) {
+    if (!upload.monthKey) {
+      return [];
+    }
+
+    const signedUploads = await this.documentRepository.listLatestSignedSignatureUploadsForCreatorMonth({
+      creatorUserId: upload.creatorUserId,
+      monthKey: upload.monthKey,
+      types: [...INVOICE_RELATED_SIGNED_DOCUMENT_TYPES]
+    });
+
+    return compactRelatedSignedDocumentUploads(signedUploads);
   }
 
   private async formatPaymentDocumentExportCaption(upload: PaymentUploadForExport) {
@@ -370,6 +549,21 @@ export class PaymentDocumentUploadService {
     ]
       .filter(Boolean)
       .join('\n');
+  }
+
+  private formatInvoiceRelatedDocumentExportCaption(
+    invoiceUpload: PaymentUploadForExport,
+    signedUpload: RelatedSignedDocumentUpload
+  ) {
+    const documentMonth = signedUpload.document.monthKey ? ` (${signedUpload.document.monthKey})` : '';
+
+    return [
+      'Документ к счету',
+      `Счет за ${invoiceUpload.monthKey ?? 'период не указан'}`,
+      `Креатор: ${formatCreatorDisplayName(invoiceUpload.creator)}`,
+      `Документ: ${getDocumentTitle(signedUpload.document.type)}${documentMonth}`,
+      `Файл: ${signedUpload.originalFileName}`
+    ].join('\n');
   }
 
   private async resolveInvoiceAmount(upload: PaymentUploadForExport) {
