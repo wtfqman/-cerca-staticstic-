@@ -1,5 +1,8 @@
 # Cerca Trova Bot
 
+> Codex handoff: before working on this repo in a new chat, read [PROJECT_MEMORY.md](PROJECT_MEMORY.md).
+> The production server also has a separate booking bot; do not confuse it with this statistics bot.
+
 Telegram-бот на `Node.js + Telegraf + Prisma + PostgreSQL` для работы с креаторами, недельной статистикой, ежемесячными выплатами, PDF-документами и синхронизацией в Google Sheets.
 
 ## Инструкции для пользователей
