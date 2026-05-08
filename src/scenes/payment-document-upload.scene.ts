@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf';
 
 import { formatCreatorInvoiceAmountHint, formatCreatorSecondQueueScreen } from '../documents/document.formatters';
-import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
+import { isPdfTelegramDocument, isReceiptTelegramDocument } from '../documents/document-upload.helpers';
 import { container } from '../container';
 import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import { paymentInvoiceMonthKeyboard, paymentReceiptMonthKeyboard } from '../keyboards/inline.keyboards';
@@ -28,12 +28,51 @@ type PaymentUploadSceneState = {
   campaignKey?: string;
 };
 
+type PaymentTelegramFile = {
+  telegramFileId: string;
+  telegramDocumentId?: string;
+  originalFileName: string;
+  mimeType?: string;
+};
+
 const getState = (ctx: BotContext) => ctx.wizard.state as PaymentUploadSceneState;
 const getUploadType = (ctx: BotContext): PaymentUploadType => getState(ctx).type ?? 'INVOICE';
 const getAvailablePaymentMonths = (monthKeys: string[]) => {
   const filtered = filterCreatorInvoiceMonths(monthKeys);
 
   return filtered.length > 0 ? filtered : [CREATOR_INVOICE_MONTH_KEY];
+};
+
+const getReceiptUploadFile = (ctx: BotContext, monthKey: string): PaymentTelegramFile | null => {
+  if (!ctx.message) {
+    return null;
+  }
+
+  if ('document' in ctx.message) {
+    if (!isReceiptTelegramDocument(ctx.message.document)) {
+      return null;
+    }
+
+    return {
+      telegramFileId: ctx.message.document.file_id,
+      telegramDocumentId: ctx.message.document.file_unique_id,
+      originalFileName: ctx.message.document.file_name ?? `receipt_${monthKey}.pdf`,
+      mimeType: ctx.message.document.mime_type
+    };
+  }
+
+  if ('photo' in ctx.message && ctx.message.photo.length > 0) {
+    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+
+    return {
+      telegramFileId: photo.file_id,
+      telegramDocumentId: photo.file_unique_id,
+      originalFileName: `receipt_${monthKey}.jpg`,
+      mimeType: 'image/jpeg'
+    };
+  }
+
+  return null;
 };
 
 const ensureNoContractInvoiceStatisticsReady = async (ctx: BotContext, monthKey: string) => {
@@ -198,7 +237,7 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
               invoiceAmountHint,
               'Если передумал, нажми /cancel.'
             ].filter(Boolean).join('\n')
-          : `Отправь PDF-файл чека за ${monthKey} одним документом. Если передумал, нажми /cancel.`
+          : `Отправь чек за ${monthKey}: PDF, JPG/PNG-файл или просто фото. Если передумал, нажми /cancel.`
       );
       return ctx.wizard.next();
     }
@@ -218,26 +257,18 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
       return;
     }
 
-    if (!ctx.message || !('document' in ctx.message)) {
-      await ctx.reply(
-        uploadType === 'INVOICE'
-          ? 'Жду PDF-файл счета именно как документ. Если нужно выйти без загрузки, нажми /cancel.'
-          : 'Жду PDF-файл чека именно как документ. Если нужно выйти без загрузки, нажми /cancel.'
-      );
-      return;
-    }
-
-    if (!isPdfTelegramDocument(ctx.message.document)) {
-      await ctx.reply(
-        uploadType === 'INVOICE'
-          ? 'Нужен именно PDF-файл счета. Отправь документ с расширением .pdf.'
-          : 'Нужен именно PDF-файл чека. Отправь документ с расширением .pdf.'
-      );
-      return;
-    }
-
     try {
       if (uploadType === 'INVOICE') {
+        if (!ctx.message || !('document' in ctx.message)) {
+          await ctx.reply('Жду PDF-файл счета именно как документ. Если нужно выйти без загрузки, нажми /cancel.');
+          return;
+        }
+
+        if (!isPdfTelegramDocument(ctx.message.document)) {
+          await ctx.reply('Нужен именно PDF-файл счета. Отправь документ с расширением .pdf.');
+          return;
+        }
+
         await container.services.paymentDocumentUploadService.acceptInvoicePdf({
           telegram: ctx.telegram,
           creatorUserId: ctx.state.currentUser!.id,
@@ -249,15 +280,21 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
           mimeType: ctx.message.document.mime_type
         });
       } else {
-        await container.services.paymentDocumentUploadService.acceptReceiptPdf({
+        const receiptFile = getReceiptUploadFile(ctx, monthKey);
+
+        if (!receiptFile) {
+          await ctx.reply(
+            'Жду чек в формате PDF, JPG или PNG. Можно отправить файлом или обычным фото. Если нужно выйти без загрузки, нажми /cancel.'
+          );
+          return;
+        }
+
+        await container.services.paymentDocumentUploadService.acceptReceiptFile({
           telegram: ctx.telegram,
           creatorUserId: ctx.state.currentUser!.id,
           monthKey,
           campaignKey: getState(ctx).campaignKey,
-          telegramFileId: ctx.message.document.file_id,
-          telegramDocumentId: ctx.message.document.file_unique_id,
-          originalFileName: ctx.message.document.file_name ?? `receipt_${monthKey}.pdf`,
-          mimeType: ctx.message.document.mime_type
+          ...receiptFile
         });
       }
 

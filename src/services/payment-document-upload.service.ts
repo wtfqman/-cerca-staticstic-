@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import type { Telegram } from 'telegraf';
 import { Input } from 'telegraf';
 
-import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
+import {
+  isPdfTelegramDocument,
+  isReceiptTelegramDocument,
+  looksLikePdfBuffer,
+  looksLikeReceiptBuffer
+} from '../documents/document-upload.helpers';
 import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
 import { getDocumentTitle } from '../documents/document.constants';
 import { logger } from '../lib/logger';
@@ -178,7 +183,7 @@ export class PaymentDocumentUploadService {
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    if (buffer.subarray(0, 4).toString('utf8') !== '%PDF') {
+    if (!looksLikePdfBuffer(buffer)) {
       throw new Error('Файл не похож на PDF. Проверь файл и отправь счет еще раз.');
     }
 
@@ -209,7 +214,7 @@ export class PaymentDocumentUploadService {
     };
   }
 
-  async acceptReceiptPdf(params: {
+  async acceptReceiptFile(params: {
     telegram: Telegram;
     creatorUserId: string;
     monthKey: string;
@@ -220,12 +225,12 @@ export class PaymentDocumentUploadService {
     mimeType?: string;
   }) {
     if (
-      !isPdfTelegramDocument({
+      !isReceiptTelegramDocument({
         file_name: params.originalFileName,
         mime_type: params.mimeType
       })
     ) {
-      throw new Error('Нужен PDF-файл чека. Отправь документ с расширением .pdf.');
+      throw new Error('Нужен чек в формате PDF, JPG или PNG. Отправь файл или фото чека еще раз.');
     }
 
     const access = await this.documentWorkflowService.canUploadReceipt(
@@ -253,8 +258,8 @@ export class PaymentDocumentUploadService {
 
     const buffer = Buffer.from(await response.arrayBuffer());
 
-    if (buffer.subarray(0, 4).toString('utf8') !== '%PDF') {
-      throw new Error('Файл не похож на PDF. Проверь файл и отправь чек еще раз.');
+    if (!looksLikeReceiptBuffer(buffer)) {
+      throw new Error('Файл не похож на PDF, JPG или PNG. Проверь файл и отправь чек еще раз.');
     }
 
     const stored = await this.fileStorageService.savePaymentDocument({
