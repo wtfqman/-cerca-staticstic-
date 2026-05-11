@@ -1,4 +1,5 @@
 import { container } from '../container';
+import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
 import { formatCreatorSecondQueueScreen } from '../documents/document.formatters';
 import {
   creatorFirstQueueActionsKeyboard,
@@ -24,10 +25,50 @@ const hasAvailableSecondQueueDocuments = (summary: ActiveRosterSecondQueueSummar
     (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
   );
 
-export const replyCreatorPostStatisticsNextStep = async (ctx: BotContext) => {
+const getInvoicePayment = (summary: ActiveRosterSecondQueueSummary) =>
+  summary.payments.find((payment) => payment.monthKey === CREATOR_INVOICE_MONTH_KEY);
+
+const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSummary) => {
+  const invoicePayment = getInvoicePayment(summary);
+
+  if (invoicePayment?.receiptUploadedAt) {
+    return [
+      'Статистика сохранена.',
+      'Апрельский счет и чек уже загружены.',
+      '',
+      formatCreatorSecondQueueScreen(summary)
+    ].join('\n');
+  }
+
+  if (invoicePayment?.invoiceUploadedAt) {
+    return [
+      'Статистика сохранена.',
+      'Счет за апрель уже загружен. После оплаты загрузи чек в бот.',
+      '',
+      formatCreatorSecondQueueScreen(summary)
+    ].join('\n');
+  }
+
+  return [
+    'Статистика сохранена.',
+    'Следующий шаг: выставить счет за апрель. Счет за март не нужен.',
+    'После оплаты загрузи чек в бот.',
+    '',
+    formatCreatorSecondQueueScreen(summary)
+  ].join('\n');
+};
+
+export const replyCreatorPostStatisticsNextStep = async (
+  ctx: BotContext,
+  options: { statisticsMonthKey?: string } = {}
+) => {
   const currentUser = ctx.state.currentUser;
 
   if (!currentUser) {
+    return;
+  }
+
+  if (options.statisticsMonthKey && options.statisticsMonthKey !== CREATOR_INVOICE_MONTH_KEY) {
     return;
   }
 
@@ -49,13 +90,7 @@ export const replyCreatorPostStatisticsNextStep = async (ctx: BotContext) => {
 
   if (summary.isCompleted) {
     await ctx.reply(
-      [
-        'Статистика сохранена.',
-        'Следующий шаг: выставить счет за апрель. Счет за март не нужен.',
-        'После оплаты загрузи чек в бот.',
-        '',
-        formatCreatorSecondQueueScreen(summary)
-      ].join('\n'),
+      formatCompletedSecondQueueNextStep(summary),
       creatorSecondQueueActionsKeyboard({
         isCompleted: true,
         hasGeneratedDocuments: true,

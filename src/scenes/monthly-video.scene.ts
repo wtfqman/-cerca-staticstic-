@@ -110,7 +110,7 @@ export const monthlyVideoScene = new Scenes.WizardScene<BotContext>(
           `Количество видео за ${state.monthKey} сохранено: ${state.videoCount}. Эти данные будут использоваться в расчетах выплат и документах.`,
           mainMenuKeyboardForUser(ctx.state.currentUser)
         );
-        await replyCreatorPostStatisticsNextStep(ctx);
+        await replyCreatorPostStatisticsNextStep(ctx, { statisticsMonthKey: state.monthKey });
         await ctx.scene.leave();
       } catch (error) {
         logUserError(error, 'Monthly video save failed', {

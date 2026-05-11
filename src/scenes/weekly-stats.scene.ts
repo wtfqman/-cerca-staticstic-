@@ -149,7 +149,7 @@ const submitAndLeave = async (ctx: BotContext) => {
     ].join('\n'),
     mainMenuKeyboardForUser(ctx.state.currentUser)
   );
-  await replyCreatorPostStatisticsNextStep(ctx);
+  await replyCreatorPostStatisticsNextStep(ctx, { statisticsMonthKey: summary.monthKey });
   await ctx.scene.leave();
 };
 
