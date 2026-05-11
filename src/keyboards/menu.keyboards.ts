@@ -36,7 +36,8 @@ export const creatorMenuKeyboard = (user?: AccessUser | null) =>
 export const teamLeadMenuKeyboard = () =>
   Markup.keyboard([
     [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
-    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
+    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.closeCreator],
+    [TEAMLEAD_MENU.missedChecks],
     [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
     [TEAMLEAD_MENU.attention, TEAMLEAD_MENU.help]
   ]).resize();
@@ -49,7 +50,8 @@ export const creatorTeamLeadMenuKeyboard = (user?: AccessUser | null) =>
     [CREATOR_MENU.reports, CREATOR_MENU.documents],
     [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
     [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
-    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
+    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.closeCreator],
+    [TEAMLEAD_MENU.missedChecks],
     [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
     [TEAMLEAD_MENU.attention, CREATOR_MENU.help]
   ]).resize();
@@ -73,7 +75,8 @@ export const adminTeamLeadMenuKeyboard = () =>
     [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
     [ADMIN_MENU.attention],
     [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
-    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.missedChecks],
+    [TEAMLEAD_MENU.creatorReport, TEAMLEAD_MENU.closeCreator],
+    [TEAMLEAD_MENU.missedChecks],
     [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
     [TEAMLEAD_MENU.attention, ADMIN_MENU.help]
   ]).resize();

@@ -17,6 +17,7 @@ export const TEAMLEAD_MENU = {
   group: 'Моя группа',
   groupReport: 'Отчеты по группе',
   creatorReport: 'Отчет по креатору',
+  closeCreator: 'Запросить закрытие',
   missedChecks: 'Кто не подтвердил выкладку',
   missingStats: 'Кто не сдал статистику',
   missingDocuments: 'Кто не сдал документы',

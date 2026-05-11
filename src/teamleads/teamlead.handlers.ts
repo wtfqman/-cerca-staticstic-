@@ -2,8 +2,10 @@ import { UserRole } from '@prisma/client';
 import { Markup, type Telegraf } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
+import type { AppUser } from '../types/domain';
 import { container } from '../container';
-import { TEAMLEAD_MENU } from '../keyboards/menu-labels';
+import { CREATOR_MENU, TEAMLEAD_MENU } from '../keyboards/menu-labels';
+import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import { roleGuard } from '../middlewares/role-guard.middleware';
 import {
   creatorProfileActionsKeyboard,
@@ -21,11 +23,15 @@ import {
   formatTeamLeadGroupReport,
   formatWeeklyReviewActionResult
 } from '../reports/report.formatters';
-import { formatCreatorDisplayName } from '../utils/formatters';
+import { formatCreatorDisplayName, formatTeamLeadDisplayName } from '../utils/formatters';
 import { SCENE_IDS } from '../scenes/scene-ids';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario } from '../utils/access';
 import type { WeeklyReportReviewSummary } from '../types/report.types';
+
+type TeamLeadGroupCreator = Awaited<
+  ReturnType<typeof container.services.teamLeadReportService.listGroupCreators>
+>[number];
 
 const findCreatorInTeamLeadGroup = async (teamLeadUserId: string, creatorUserId: string) => {
   const creators = await container.services.teamLeadReportService.listGroupCreators(teamLeadUserId);
@@ -63,6 +69,28 @@ const buildUnassignedCreatorItems = async () =>
 
 const teamLeadGroupActionsKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('Добавить креатора', 'teamlead_group_assign_start')]]);
+
+const creatorSelectionItems = (creators: TeamLeadGroupCreator[]) =>
+  creators.map((creator) => ({
+    id: creator.id,
+    label: formatCreatorDisplayName(creator)
+  }));
+
+const formatCreatorClosingReminder = (teamLead: AppUser, creator: TeamLeadGroupCreator) =>
+  [
+    `${formatTeamLeadDisplayName(teamLead)} просит закрыть задачи по сотрудничеству в боте.`,
+    '',
+    `Креатор: ${formatCreatorDisplayName(creator)}`,
+    '',
+    'Проверь, пожалуйста, что все шаги закрыты:',
+    `1. Заполни статистику: «${CREATOR_MENU.weeklyStats}».`,
+    `2. Укажи количество видео: «${CREATOR_MENU.monthlyVideos}».`,
+    `3. Подпиши и отправь документы: «${CREATOR_MENU.uploadSigned}».`,
+    `4. Выставь счет: «${CREATOR_MENU.documents}» -> «Выставить счет».`,
+    `5. После оплаты загрузи чек: «${CREATOR_MENU.documents}» -> «Загрузить чек».`,
+    '',
+    'Если часть уже сделана, повторно делать не нужно. Закрой только оставшиеся шаги.'
+  ].join('\n');
 
 const replyEmptyGroup = async (ctx: BotContext) => {
   await ctx.reply(
@@ -199,13 +227,21 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
 
     await ctx.reply(
       'Выбери креатора из своей группы.',
-      entitySelectionKeyboard(
-        'teamlead_creator_pick',
-        creators.map((creator) => ({
-          id: creator.id,
-          label: formatCreatorDisplayName(creator)
-        }))
-      )
+      entitySelectionKeyboard('teamlead_creator_pick', creatorSelectionItems(creators))
+    );
+  });
+
+  bot.hears(TEAMLEAD_MENU.closeCreator, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    const creators = await container.services.teamLeadReportService.listGroupCreators(ctx.state.currentUser!.id);
+
+    if (!creators.length) {
+      await replyEmptyGroup(ctx);
+      return;
+    }
+
+    await ctx.reply(
+      'Выбери креатора, которому нужно отправить запрос на закрытие статистики, документов и счета.',
+      entitySelectionKeyboard('teamlead_close_creator', creatorSelectionItems(creators))
     );
   });
 
@@ -288,15 +324,48 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
     const creators = await container.services.teamLeadReportService.listGroupCreators(ctx.state.currentUser!.id);
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(
-      entitySelectionKeyboard(
-        'teamlead_creator_pick',
-        creators.map((creator) => ({
-          id: creator.id,
-          label: formatCreatorDisplayName(creator)
-        })),
-        page
-      ).reply_markup
+      entitySelectionKeyboard('teamlead_creator_pick', creatorSelectionItems(creators), page).reply_markup
     );
+  });
+
+  bot.action(/^teamlead_close_creator:page:(\d+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    const page = Number(ctx.match[1]);
+    const creators = await container.services.teamLeadReportService.listGroupCreators(ctx.state.currentUser!.id);
+    await ctx.answerCbQuery();
+    await ctx.editMessageReplyMarkup(
+      entitySelectionKeyboard('teamlead_close_creator', creatorSelectionItems(creators), page).reply_markup
+    );
+  });
+
+  bot.action(/^teamlead_close_creator:pick:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    const creatorUserId = ctx.match[1];
+    const creator = await findCreatorInTeamLeadGroup(ctx.state.currentUser!.id, creatorUserId);
+    await ctx.answerCbQuery();
+
+    if (!creator) {
+      await ctx.reply('У тебя нет доступа к этому креатору.');
+      return;
+    }
+
+    try {
+      await ctx.telegram.sendMessage(
+        creator.telegramId,
+        formatCreatorClosingReminder(ctx.state.currentUser!, creator),
+        mainMenuKeyboardForUser(creator)
+      );
+      await ctx.reply(`Отправил креатору запрос на закрытие: ${formatCreatorDisplayName(creator)}.`);
+    } catch (error) {
+      logUserError(error, 'Teamlead creator close reminder failed', {
+        userId: ctx.state.currentUser?.id,
+        creatorUserId
+      });
+      await ctx.reply(
+        formatUserError(
+          error,
+          'Сейчас не удалось отправить сообщение креатору. Возможно, он не нажимал /start или заблокировал бота.'
+        )
+      );
+    }
   });
 
   bot.action(/^teamlead_creator_pick:pick:(.+)$/, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
