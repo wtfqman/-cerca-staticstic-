@@ -87,8 +87,11 @@ export class TeamLeadReportService {
     }
 
     const [aggregation, payment, weeklyReports] = await Promise.all([
-      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey),
-      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey),
+      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey, { submittedOnly: true }),
+      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey, {
+        submittedOnly: true,
+        persistSnapshot: false
+      }),
       this.weeklyStatsRepository.listReportsByCreatorAndMonth(creatorUserId, monthKey)
     ]);
 
@@ -105,8 +108,11 @@ export class TeamLeadReportService {
     const creatorReports = await Promise.all(
       creators.map(async (creator) => {
         const [aggregation, payment, weeklyReports] = await Promise.all([
-          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey),
-          this.paymentService.calculateForCreatorMonth(creator.id, monthKey),
+          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey, { submittedOnly: true }),
+          this.paymentService.calculateForCreatorMonth(creator.id, monthKey, {
+            submittedOnly: true,
+            persistSnapshot: false
+          }),
           this.weeklyStatsRepository.listReportsByCreatorAndMonth(creator.id, monthKey)
         ]);
 

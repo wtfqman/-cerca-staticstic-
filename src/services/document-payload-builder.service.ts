@@ -114,8 +114,11 @@ export class DocumentPayloadBuilderService {
     const documentDate = options.generatedDate ?? new Date();
     const monthRange = getMonthRange(monthKey);
     const [aggregation, payment] = await Promise.all([
-      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey),
-      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey)
+      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey, { submittedOnly: true }),
+      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey, {
+        submittedOnly: true,
+        persistSnapshot: false
+      })
     ]);
 
     const basePayload = this.buildBasePayload(creator);

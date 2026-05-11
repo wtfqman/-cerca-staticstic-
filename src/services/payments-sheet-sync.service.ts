@@ -132,7 +132,11 @@ export class PaymentsSheetSyncService {
 
     const payment = await this.paymentCalculationService.calculateForCreatorMonth(
       pair.creatorUserId,
-      pair.monthKey
+      pair.monthKey,
+      {
+        submittedOnly: true,
+        persistSnapshot: false
+      }
     );
     const invoiceTotalPayment = getCreatorInvoiceDisplayAmount(payment.totalPayment);
 

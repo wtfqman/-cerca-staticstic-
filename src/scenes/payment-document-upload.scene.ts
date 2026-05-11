@@ -217,7 +217,10 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
                     await container.services.paymentCalculationService.calculateForCreatorMonth(
                       ctx.state.currentUser!.id,
                       monthKey,
-                      { persistSnapshot: false }
+                      {
+                        submittedOnly: true,
+                        persistSnapshot: false
+                      }
                     )
                   ).totalPayment
                 }

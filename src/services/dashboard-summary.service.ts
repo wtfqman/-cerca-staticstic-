@@ -25,7 +25,10 @@ export class DashboardSummaryService {
       this.creatorDisciplineService.getMonthlyVideoStatuses(creators, monthKey),
       this.documentStatusService.getSummariesForCreators(creators, monthKey),
       mapInBatches(creators, 10, async (creator) =>
-        this.paymentCalculationService.calculateForCreatorMonth(creator.id, monthKey)
+        this.paymentCalculationService.calculateForCreatorMonth(creator.id, monthKey, {
+          submittedOnly: true,
+          persistSnapshot: false
+        })
       )
     ]);
 

@@ -34,8 +34,11 @@ export class AdminReportService {
   async getCreatorReport(creatorUserId: string, monthKey: string) {
     const [creator, aggregation, payment] = await Promise.all([
       this.userRepository.findById(creatorUserId),
-      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey),
-      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey)
+      this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey, { submittedOnly: true }),
+      this.paymentService.calculateForCreatorMonth(creatorUserId, monthKey, {
+        submittedOnly: true,
+        persistSnapshot: false
+      })
     ]);
 
     if (!creator) {
@@ -56,8 +59,11 @@ export class AdminReportService {
     const items = await Promise.all(
       creators.map(async (creator) => {
         const [aggregation, payment] = await Promise.all([
-          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey),
-          this.paymentService.calculateForCreatorMonth(creator.id, monthKey)
+          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey, { submittedOnly: true }),
+          this.paymentService.calculateForCreatorMonth(creator.id, monthKey, {
+            submittedOnly: true,
+            persistSnapshot: false
+          })
         ]);
 
         return {
@@ -89,8 +95,11 @@ export class AdminReportService {
     const creatorSummaries = await Promise.all(
       creators.map(async (creator) => {
         const [aggregation, payment] = await Promise.all([
-          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey),
-          this.paymentService.calculateForCreatorMonth(creator.id, monthKey)
+          this.aggregationService.aggregateCreatorMonth(creator.id, monthKey, { submittedOnly: true }),
+          this.paymentService.calculateForCreatorMonth(creator.id, monthKey, {
+            submittedOnly: true,
+            persistSnapshot: false
+          })
         ]);
 
         return {
