@@ -18,6 +18,101 @@ const getReportVideoCount = (report: {
   items: Array<{ videoCount: number }>;
 }) => report.totalVideoCount ?? report.items.reduce((sum, item) => sum + item.videoCount, 0);
 
+type AggregationReport = Awaited<ReturnType<WeeklyStatsRepository['listReportsByCreatorAndMonth']>>[number];
+type AggregationItem = AggregationReport['items'][number];
+
+const maxDate = (dates: Array<Date | null | undefined>) =>
+  dates.reduce<Date | null>((latest, date) => (date && (!latest || date > latest) ? date : latest), null);
+
+const getReportLatestDate = (report: AggregationReport) =>
+  maxDate([report.updatedAt, ...report.items.map((item) => item.updatedAt)]);
+
+const getItemLatestDate = (report: AggregationReport, item: AggregationItem) =>
+  maxDate([report.updatedAt, item.updatedAt]);
+
+const normalizeReportStart = (
+  report: { weekStart: Date },
+  monthRange: { dateFrom: string; dateTo: string }
+) => {
+  const monthStart = toDateOnly(monthRange.dateFrom);
+
+  return report.weekStart < monthStart ? monthStart : report.weekStart;
+};
+
+const normalizeReportEnd = (
+  report: { weekEnd: Date },
+  monthRange: { dateFrom: string; dateTo: string }
+) => {
+  const monthEnd = toDateOnly(monthRange.dateTo);
+
+  return report.weekEnd > monthEnd ? monthEnd : report.weekEnd;
+};
+
+const getNormalizedReportPeriodKey = (
+  report: { weekStart: Date; weekEnd: Date },
+  monthRange: { dateFrom: string; dateTo: string }
+) => `${toDateKey(normalizeReportStart(report, monthRange))}:${toDateKey(normalizeReportEnd(report, monthRange))}`;
+
+const selectLatestReportsByPeriod = (
+  reports: AggregationReport[],
+  monthRange: { dateFrom: string; dateTo: string }
+) => {
+  const latestByPeriod = new Map<string, AggregationReport>();
+
+  for (const report of reports) {
+    const periodKey = getNormalizedReportPeriodKey(report, monthRange);
+    const current = latestByPeriod.get(periodKey);
+
+    if (!current) {
+      latestByPeriod.set(periodKey, report);
+      continue;
+    }
+
+    const reportLatestDate = getReportLatestDate(report);
+    const currentLatestDate = getReportLatestDate(current);
+
+    if (reportLatestDate && (!currentLatestDate || reportLatestDate > currentLatestDate)) {
+      latestByPeriod.set(periodKey, report);
+    }
+  }
+
+  return Array.from(latestByPeriod.values()).sort(
+    (left, right) => normalizeReportStart(left, monthRange).getTime() - normalizeReportStart(right, monthRange).getTime()
+  );
+};
+
+const selectLatestItemsByPeriodAndPlatform = (
+  reports: AggregationReport[],
+  monthRange: { dateFrom: string; dateTo: string }
+) => {
+  const latestItems = new Map<string, { report: AggregationReport; item: AggregationItem; updatedAt: Date | null }>();
+
+  for (const report of reports) {
+    const periodKey = getNormalizedReportPeriodKey(report, monthRange);
+
+    for (const item of report.items) {
+      const itemKey = `${periodKey}:${item.platform}`;
+      const updatedAt = getItemLatestDate(report, item);
+      const current = latestItems.get(itemKey);
+
+      if (!current || (updatedAt && (!current.updatedAt || updatedAt > current.updatedAt))) {
+        latestItems.set(itemKey, { report, item, updatedAt });
+      }
+    }
+  }
+
+  return Array.from(latestItems.values()).sort((left, right) => {
+    const periodCompare =
+      normalizeReportStart(left.report, monthRange).getTime() - normalizeReportStart(right.report, monthRange).getTime();
+
+    if (periodCompare !== 0) {
+      return periodCompare;
+    }
+
+    return left.item.platform.localeCompare(right.item.platform);
+  });
+};
+
 const isTemporaryReachBackfillReport = (
   report: {
     weekStart: Date;
@@ -33,8 +128,8 @@ const isTemporaryReachBackfillReport = (
   },
   monthRange: { dateFrom: string; dateTo: string }
 ) =>
-  toDateKey(report.weekStart) === monthRange.dateFrom &&
-  toDateKey(report.weekEnd) === monthRange.dateTo &&
+  toDateKey(normalizeReportStart(report, monthRange)) === monthRange.dateFrom &&
+  toDateKey(normalizeReportEnd(report, monthRange)) === monthRange.dateTo &&
   report.items.some((item) => item.views > 0) &&
   report.items.every(
     (item) =>
@@ -67,29 +162,29 @@ export class MonthlyAggregationService {
     const fullMonthReports = reportsWithData.filter(
       (report) => toDateKey(report.weekStart) === monthRange.dateFrom && toDateKey(report.weekEnd) === monthRange.dateTo
     );
-    const reportsForAggregation = fullMonthReports.length > 0 ? fullMonthReports : reportsWithData;
+    const reportsForAggregationBase = fullMonthReports.length > 0 ? fullMonthReports : reportsWithData;
+    const reportsForAggregation = selectLatestReportsByPeriod(reportsForAggregationBase, monthRange);
+    const itemsForAggregation = selectLatestItemsByPeriodAndPlatform(reportsForAggregationBase, monthRange);
     const isTemporaryReachBackfill =
       reportsForAggregation.length > 0 &&
       reportsForAggregation.every((report) => isTemporaryReachBackfillReport(report, monthRange));
 
     const platformMap = new Map<string, PlatformStatSummary>();
 
-    for (const report of reportsForAggregation) {
-      for (const item of report.items) {
-        const current = platformMap.get(item.platform) ?? {
-          platform: item.platform,
-          ...EMPTY_TOTALS
-        };
+    for (const { item } of itemsForAggregation) {
+      const current = platformMap.get(item.platform) ?? {
+        platform: item.platform,
+        ...EMPTY_TOTALS
+      };
 
-        current.videoCount += item.videoCount;
-        current.views += item.views;
-        current.likes += item.likes;
-        current.comments += item.comments;
-        current.reposts += item.reposts;
-        current.saves += item.saves;
+      current.videoCount += item.videoCount;
+      current.views += item.views;
+      current.likes += item.likes;
+      current.comments += item.comments;
+      current.reposts += item.reposts;
+      current.saves += item.saves;
 
-        platformMap.set(item.platform, current);
-      }
+      platformMap.set(item.platform, current);
     }
 
     const platformBreakdown = Array.from(platformMap.values()).sort((a, b) => a.platform.localeCompare(b.platform));
