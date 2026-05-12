@@ -8,6 +8,7 @@ import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import type { BotContext } from '../types/bot-context';
 import { formatIntegerRu } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
+import { isSocialMetricSupported } from '../utils/social-platform-metrics';
 import { getMessageText } from '../utils/telegram';
 import { formatValidationError } from '../utils/user-errors';
 import { kpiViewsSchema, nonNegativeIntSchema, videoCountSchema } from '../validators/stats.schemas';
@@ -130,6 +131,15 @@ const saveZeroPlatformStats = async (ctx: BotContext) => {
   });
 };
 
+const buildCompleteItem = (item: CurrentWeeklyItem): CompleteWeeklyItem => ({
+  platform: item.platform,
+  views: item.views ?? 0,
+  likes: item.likes ?? 0,
+  comments: item.comments ?? 0,
+  reposts: item.reposts ?? 0,
+  saves: item.saves ?? 0
+});
+
 const submitAndLeave = async (ctx: BotContext) => {
   const state = getState(ctx);
   const summary = await container.services.weeklyStatsService.submitReport(state.reportId!);
@@ -239,7 +249,16 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
   },
   async (ctx) => {
     try {
-      ensureCurrentItem(getState(ctx)).comments = parseMetricValue(ctx);
+      const item = ensureCurrentItem(getState(ctx));
+      item.comments = parseMetricValue(ctx);
+
+      if (!isSocialMetricSupported(item.platform, 'reposts')) {
+        item.reposts = 0;
+        item.saves = 0;
+        await saveCurrentPlatformStats(ctx, buildCompleteItem(item));
+        return finishOrAskNextPlatform(ctx, `${PLATFORM_LABELS[item.platform]}: статистика сохранена.`);
+      }
+
       await askCurrentPlatformMetric(ctx, 'reposts');
       return ctx.wizard.next();
     } catch (error) {
@@ -248,7 +267,15 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
   },
   async (ctx) => {
     try {
-      ensureCurrentItem(getState(ctx)).reposts = parseMetricValue(ctx);
+      const item = ensureCurrentItem(getState(ctx));
+      item.reposts = parseMetricValue(ctx);
+
+      if (!isSocialMetricSupported(item.platform, 'saves')) {
+        item.saves = 0;
+        await saveCurrentPlatformStats(ctx, buildCompleteItem(item));
+        return finishOrAskNextPlatform(ctx, `${PLATFORM_LABELS[item.platform]}: статистика сохранена.`);
+      }
+
       await askCurrentPlatformMetric(ctx, 'saves');
       return ctx.wizard.next();
     } catch (error) {
@@ -261,7 +288,7 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
       const item = ensureCurrentItem(state);
       item.saves = parseMetricValue(ctx);
 
-      await saveCurrentPlatformStats(ctx, item as CompleteWeeklyItem);
+      await saveCurrentPlatformStats(ctx, buildCompleteItem(item));
       return finishOrAskNextPlatform(ctx, `${PLATFORM_LABELS[item.platform]}: статистика сохранена.`);
     } catch (error) {
       await ctx.reply(formatValidationError(error, METRIC_ERROR_MESSAGES.saves));

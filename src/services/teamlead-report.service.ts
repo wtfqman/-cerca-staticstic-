@@ -1,9 +1,10 @@
-import type { TeamLeadGroupReportSummary } from '../types/report.types';
+import type { TeamLeadGroupReportSummary, TeamLeadWeeklyReachSummary } from '../types/report.types';
 import { TeamLeadRepository } from '../repositories/teamlead.repository';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
 import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 import { formatFullName, formatTeamLeadDisplayName } from '../utils/formatters';
+import { getWeeklyReportPeriod, toDateOnly } from '../utils/periods';
 import { hasWeeklyReportData } from '../utils/weekly-report-data';
 
 const EMPTY_TOTALS = {
@@ -64,6 +65,11 @@ const buildWeeklyReviewSummary = (
     items
   };
 };
+
+const submittedWeeklyStatuses = new Set(['SUBMITTED', 'CONFIRMED']);
+
+const getCreatorName = (creator: Awaited<ReturnType<TeamLeadReportService['listGroupCreators']>>[number]) =>
+  creator.creatorProfile?.fullName ?? formatFullName(creator.firstName, creator.lastName, 'Креатор');
 
 export class TeamLeadReportService {
   constructor(
@@ -156,6 +162,47 @@ export class TeamLeadReportService {
       totalPayment: creatorEntries.reduce((sum, item) => sum + item.totalPayment, 0),
       creators: creatorEntries,
       weeklyReports
+    };
+  }
+
+  async getWeeklyReachReport(
+    teamLeadUserId: string,
+    period = getWeeklyReportPeriod()
+  ): Promise<TeamLeadWeeklyReachSummary> {
+    const creators = await this.listGroupCreators(teamLeadUserId);
+    const reports = await this.weeklyStatsRepository.listReportsForCreatorsInPeriod(
+      creators.map((creator) => creator.id),
+      toDateOnly(period.weekStart),
+      toDateOnly(period.weekEnd)
+    );
+    const viewsByCreator = new Map<string, number>();
+
+    for (const report of reports) {
+      if (!submittedWeeklyStatuses.has(report.status)) {
+        continue;
+      }
+
+      viewsByCreator.set(
+        report.creatorUserId,
+        (viewsByCreator.get(report.creatorUserId) ?? 0) +
+          report.items.reduce((sum, item) => sum + item.views, 0)
+      );
+    }
+
+    const creatorRows = creators
+      .map((creator) => ({
+        creatorUserId: creator.id,
+        creatorName: getCreatorName(creator),
+        views: viewsByCreator.get(creator.id) ?? 0
+      }))
+      .sort((a, b) => b.views - a.views || a.creatorName.localeCompare(b.creatorName, 'ru'));
+
+    return {
+      teamLeadUserId,
+      weekStart: period.weekStart,
+      weekEnd: period.weekEnd,
+      totalViews: creatorRows.reduce((sum, creator) => sum + creator.views, 0),
+      creators: creatorRows
     };
   }
 }

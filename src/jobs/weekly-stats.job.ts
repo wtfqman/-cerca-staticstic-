@@ -7,6 +7,7 @@ import type { BotContext } from '../types/bot-context';
 import { normalizeErrorForLog } from '../utils/error-logging';
 import { formatCreatorDisplayName, formatIntegerRu } from '../utils/formatters';
 import { formatPeriodLabel, getNow, getWeeklyReportPeriod, toDateOnly } from '../utils/periods';
+import { formatPlatformStatMetrics } from '../utils/social-platform-metrics';
 
 const SUBMITTED_WEEKLY_STATUSES = new Set<WeeklyReportStatus>([
   WeeklyReportStatus.SUBMITTED,
@@ -85,11 +86,7 @@ const buildReminderMessage = (slot: string, periodLabel: string) =>
   ].join('\n');
 
 const formatPlatformLine = (item: WeeklyReportForTeamLead['items'][number]) =>
-  `  ${PLATFORM_LABELS[item.platform]}: охваты ${formatIntegerRu(item.views)}, лайки ${formatIntegerRu(
-    item.likes
-  )}, комментарии ${formatIntegerRu(item.comments)}, репосты ${formatIntegerRu(
-    item.reposts
-  )}, сохранения ${formatIntegerRu(item.saves)}`;
+  `  ${PLATFORM_LABELS[item.platform]}: ${formatPlatformStatMetrics(item)}`;
 
 const formatSubmittedCreatorBlock = (
   creatorName: string,

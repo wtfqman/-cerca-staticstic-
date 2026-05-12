@@ -135,6 +135,18 @@ export interface TeamLeadGroupReportSummary {
   weeklyReports: WeeklyReportReviewSummary[];
 }
 
+export interface TeamLeadWeeklyReachSummary {
+  teamLeadUserId: string;
+  weekStart: string;
+  weekEnd: string;
+  totalViews: number;
+  creators: Array<{
+    creatorUserId: string;
+    creatorName: string;
+    views: number;
+  }>;
+}
+
 export interface AdminReportSummary {
   monthKey: string;
   totals: Omit<PlatformStatSummary, 'platform'>;

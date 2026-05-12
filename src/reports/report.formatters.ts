@@ -11,11 +11,13 @@ import type {
   MonthlyAggregationSummary,
   TeamLeadAttentionSummary,
   TeamLeadGroupReportSummary,
+  TeamLeadWeeklyReachSummary,
   WeeklyReportReviewSummary
 } from '../types/report.types';
 import { getDocumentTitle } from '../documents/document.constants';
 import { formatIntegerRu, formatMoneyRu, formatRussianDate } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
+import { formatPlatformStatMetrics } from '../utils/social-platform-metrics';
 
 const TEMPORARY_REACH_BACKFILL_NOTICE =
   'Детализация по платформам, лайкам, комментариям, репостам и сохранениям в этом временном сценарии не собиралась';
@@ -30,10 +32,7 @@ const formatPlatforms = (aggregation: MonthlyAggregationSummary) => {
 
   return aggregation.platformBreakdown.length
     ? aggregation.platformBreakdown
-        .map(
-          (item) =>
-            `• ${item.platform}: просмотры ${formatIntegerRu(item.views)}, лайки ${formatIntegerRu(item.likes)}, комментарии ${formatIntegerRu(item.comments)}, репосты ${formatIntegerRu(item.reposts)}, сохранения ${formatIntegerRu(item.saves)}`
-        )
+        .map((item) => `• ${item.platform}: ${formatPlatformStatMetrics(item)}`)
         .join('\n')
     : '• Платформенные данные пока не внесены';
 };
@@ -182,11 +181,7 @@ const noticeLines = (notice: string) => (notice ? [notice, ''] : []);
 const submittedReviewStatuses = new Set(['SUBMITTED', 'CONFIRMED']);
 
 const formatWeeklyReportPlatformLine = (item: WeeklyReportReviewSummary['items'][number]) =>
-  `  ${item.platform}: просмотры ${formatIntegerRu(item.views)}, лайки ${formatIntegerRu(
-    item.likes
-  )}, комментарии ${formatIntegerRu(item.comments)}, репосты ${formatIntegerRu(
-    item.reposts
-  )}, сохранения ${formatIntegerRu(item.saves)}`;
+  `  ${item.platform}: ${formatPlatformStatMetrics(item)}`;
 
 const formatWeeklyReportMetrics = (report: WeeklyReportReviewSummary) =>
   report.isTemporaryReachBackfill
@@ -306,6 +301,20 @@ export const formatTeamLeadGroupReport = (report: TeamLeadGroupReportSummary): s
   ]
     .filter((line) => line !== null)
     .join('\n');
+
+export const formatTeamLeadWeeklyReachReport = (report: TeamLeadWeeklyReachSummary): string =>
+  [
+    `Охват команды за период ${formatPeriodLabel(report.weekStart, report.weekEnd)}`,
+    '',
+    `Общий охват: ${formatIntegerRu(report.totalViews)}`,
+    '',
+    'Креаторы:',
+    report.creators.length
+      ? report.creators
+          .map((creator, index) => `${index + 1}. ${creator.creatorName}: ${formatIntegerRu(creator.views)}`)
+          .join('\n')
+      : 'Нет креаторов в группе.'
+  ].join('\n');
 
 export const formatAdminReport = (report: AdminReportSummary): string =>
   [

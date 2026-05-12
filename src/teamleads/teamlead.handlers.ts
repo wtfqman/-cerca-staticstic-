@@ -21,6 +21,7 @@ import {
   formatMissingWeeklyStats,
   formatTeamLeadAttentionSummary,
   formatTeamLeadGroupReport,
+  formatTeamLeadWeeklyReachReport,
   formatWeeklyReviewActionResult
 } from '../reports/report.formatters';
 import { formatCreatorDisplayName, formatTeamLeadDisplayName } from '../utils/formatters';
@@ -215,6 +216,18 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
       'За какой месяц показать групповой отчет?',
       reportMonthKeyboard(getCurrentMonthKey(), getPreviousMonthKey(), 'teamlead_group_report')
     );
+  });
+
+  bot.hears(TEAMLEAD_MENU.weeklyReach, roleGuard(UserRole.TEAMLEAD), async (ctx) => {
+    const creators = await container.services.teamLeadReportService.listGroupCreators(ctx.state.currentUser!.id);
+
+    if (!creators.length) {
+      await replyEmptyGroup(ctx);
+      return;
+    }
+
+    const report = await container.services.teamLeadReportService.getWeeklyReachReport(ctx.state.currentUser!.id);
+    await ctx.reply(formatTeamLeadWeeklyReachReport(report));
   });
 
   bot.hears(TEAMLEAD_MENU.creatorReport, roleGuard(UserRole.TEAMLEAD), async (ctx) => {

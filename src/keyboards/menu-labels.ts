@@ -16,6 +16,7 @@ export const CREATOR_MENU = {
 export const TEAMLEAD_MENU = {
   group: 'Моя группа',
   groupReport: 'Отчеты по группе',
+  weeklyReach: 'Охваты за неделю',
   creatorReport: 'Отчет по креатору',
   closeCreator: 'Запросить закрытие',
   missedChecks: 'Кто не подтвердил выкладку',
