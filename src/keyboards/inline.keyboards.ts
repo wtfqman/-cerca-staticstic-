@@ -41,6 +41,12 @@ export const weeklyPlatformsKeyboard = (includeFinish = false) =>
 export const weeklyPlatformSkipKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('Пропустить платформу', 'weekly_platform_skip')]]);
 
+export const weeklyStatsAttachmentsKeyboard = () =>
+  Markup.inlineKeyboard([[Markup.button.callback('Отправить отчет', 'weekly_submit_report')]]);
+
+export const weeklyEditReportKeyboard = (reportId: string) =>
+  Markup.inlineKeyboard([[Markup.button.callback('Исправить отчет', `weekly_edit_report:${reportId}`)]]);
+
 export const reportMonthKeyboard = (currentMonthKey: string, previousMonthKey: string, prefix: string) =>
   Markup.inlineKeyboard([
     [Markup.button.callback(`Текущий месяц (${currentMonthKey})`, `${prefix}:${currentMonthKey}`)],
@@ -59,9 +65,10 @@ const reviewableWeeklyReportStatuses = new Set(['SUBMITTED', 'CONFIRMED']);
 
 export const weeklyReportReviewKeyboard = (
   reports: WeeklyReportReviewSummary[],
-  options: { includeReviewButtons?: boolean } = {}
+  options: { includeReviewButtons?: boolean; includeReturnButtons?: boolean } = {}
 ) => {
   const includeReviewButtons = options.includeReviewButtons ?? true;
+  const includeReturnButtons = options.includeReturnButtons ?? includeReviewButtons;
   const reviewableReports = reports.filter(
     (report) => reviewableWeeklyReportStatuses.has(report.status) && !report.isReviewedByTeamLead
   );
@@ -75,6 +82,19 @@ export const weeklyReportReviewKeyboard = (
           `teamlead_weekly_review:${report.reportId}`
         )
       ])
+    );
+  }
+
+  if (includeReturnButtons) {
+    rows.push(
+      ...reports
+        .filter((report) => reviewableWeeklyReportStatuses.has(report.status))
+        .map((report) => [
+          Markup.button.callback(
+            `Вернуть на исправление: ${report.weekStart} - ${report.weekEnd}`,
+            `teamlead_weekly_return:${report.reportId}`
+          )
+        ])
     );
   }
 

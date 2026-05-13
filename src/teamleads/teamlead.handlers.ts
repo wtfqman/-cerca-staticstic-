@@ -12,6 +12,7 @@ import {
   entitySelectionKeyboard,
   reportMonthKeyboard,
   teamLeadGroupReviewKeyboard,
+  weeklyEditReportKeyboard,
   weeklyReportReviewKeyboard
 } from '../keyboards/inline.keyboards';
 import { getCurrentMonthKey, getPreviousMonthKey, toDateKey } from '../utils/periods';
@@ -529,6 +530,57 @@ export const registerTeamLeadHandlers = (bot: Telegraf<BotContext>) => {
       });
       await ctx.reply(
         formatUserError(error, 'Сейчас не удалось отметить статистику проверенной. Попробуй еще раз.')
+      );
+    }
+  });
+
+  bot.action(/^teamlead_weekly_return:(.+)$/, roleGuard(UserRole.ADMIN, UserRole.TEAMLEAD), async (ctx) => {
+    const reportId = ctx.match[1];
+    await ctx.answerCbQuery('Возвращаю отчет...');
+
+    try {
+      const result = await container.services.weeklyStatsService.returnReportForCorrection(
+        reportId,
+        ctx.state.currentUser!.id,
+        { isAdmin: ctx.state.currentUser!.role === UserRole.ADMIN }
+      );
+      const creatorName = formatCreatorDisplayName(result.report.creator);
+      const periodLabel = `${toDateKey(result.report.weekStart)} - ${toDateKey(result.report.weekEnd)}`;
+
+      await ctx.reply(
+        [
+          result.alreadyDraft
+            ? 'Этот недельный отчет уже был в режиме исправления.'
+            : 'Недельный отчет возвращен на исправление.',
+          `Креатор: ${creatorName}`,
+          `Период: ${periodLabel}`,
+          'Креатору отправил кнопку для повторного заполнения статистики и дозагрузки скринов.'
+        ].join('\n')
+      );
+
+      await ctx.telegram
+        .sendMessage(
+          result.report.creator.telegramId,
+          [
+            `Тимлид вернул недельную статистику за ${periodLabel} на исправление.`,
+            'Нажми «Исправить отчет», заново внеси цифры и приложи скрины.',
+            'После отправки отчет снова попадет тимлиду на проверку.',
+            result.summary.attachmentCount > 0
+              ? `Сейчас у отчета уже есть скрины: ${result.summary.attachmentCount}. Можно приложить новые.`
+              : null
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          weeklyEditReportKeyboard(reportId)
+        )
+        .catch(() => undefined);
+    } catch (error) {
+      logUserError(error, 'Teamlead weekly report return failed', {
+        userId: ctx.state.currentUser?.id,
+        reportId
+      });
+      await ctx.reply(
+        formatUserError(error, 'Сейчас не удалось вернуть статистику на исправление. Попробуй еще раз.')
       );
     }
   });

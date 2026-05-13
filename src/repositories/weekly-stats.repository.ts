@@ -202,6 +202,19 @@ export class WeeklyStatsRepository {
     });
   }
 
+  async returnReportForCorrection(reportId: string) {
+    return prisma.weeklyStatReport.update({
+      where: { id: reportId },
+      data: {
+        status: WeeklyReportStatus.DRAFT,
+        submittedAt: null,
+        reviewedByTeamLeadId: null,
+        reviewedAt: null
+      },
+      include: reportWithRelationsInclude
+    });
+  }
+
   async markReportReviewedByTeamLead(reportId: string, teamLeadUserId: string, reviewedAt = new Date()) {
     return prisma.weeklyStatReport.update({
       where: { id: reportId },

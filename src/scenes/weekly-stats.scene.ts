@@ -3,7 +3,7 @@ import { Scenes } from 'telegraf';
 
 import { container } from '../container';
 import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statistics-next-step';
-import { weeklyPlatformSkipKeyboard } from '../keyboards/inline.keyboards';
+import { weeklyPlatformSkipKeyboard, weeklyStatsAttachmentsKeyboard } from '../keyboards/inline.keyboards';
 import { mainMenuKeyboardForUser } from '../keyboards/menu.keyboards';
 import type { BotContext } from '../types/bot-context';
 import { formatIntegerRu } from '../utils/formatters';
@@ -34,6 +34,17 @@ type WeeklyWizardState = {
   platformIndex?: number;
   attachmentCount?: number;
   currentItem?: CurrentWeeklyItem;
+};
+
+type WeeklySceneEnterState = {
+  reportId?: string;
+};
+
+type TelegramScreenshotDocument = {
+  file_id: string;
+  file_unique_id?: string;
+  file_name?: string;
+  mime_type?: string;
 };
 
 const PLATFORM_ORDER = [
@@ -67,10 +78,47 @@ const METRIC_ERROR_MESSAGES: Record<WeeklyMetric, string> = {
 };
 
 const getState = (ctx: BotContext) => ctx.wizard.state as WeeklyWizardState;
+const getEnterState = (ctx: BotContext) => ctx.scene.state as WeeklySceneEnterState;
 
 const parseMetricValue = (ctx: BotContext) => nonNegativeIntSchema.parse(getMessageText(ctx.message));
 const parseKpiViewsValue = (ctx: BotContext) => kpiViewsSchema.parse(getMessageText(ctx.message));
 const parseVideoCount = (ctx: BotContext) => videoCountSchema.parse(getMessageText(ctx.message));
+
+const isImageDocument = (document: TelegramScreenshotDocument) => {
+  const mimeType = document.mime_type?.toLowerCase() ?? '';
+  const fileName = document.file_name?.toLowerCase() ?? '';
+
+  return (
+    mimeType.startsWith('image/') ||
+    ['.jpg', '.jpeg', '.png', '.webp'].some((extension) => fileName.endsWith(extension))
+  );
+};
+
+const getScreenshotFile = (ctx: BotContext) => {
+  const message = ctx.message;
+
+  if (!message) {
+    return null;
+  }
+
+  if ('photo' in message && message.photo.length > 0) {
+    const photo = message.photo[message.photo.length - 1];
+
+    return {
+      telegramFileId: photo.file_id,
+      telegramFileUniqueId: photo.file_unique_id
+    };
+  }
+
+  if ('document' in message && message.document && isImageDocument(message.document)) {
+    return {
+      telegramFileId: message.document.file_id,
+      telegramFileUniqueId: message.document.file_unique_id
+    };
+  }
+
+  return null;
+};
 
 const getCurrentPlatform = (state: WeeklyWizardState) =>
   PLATFORM_ORDER[state.platformIndex ?? 0] ?? PLATFORM_ORDER[PLATFORM_ORDER.length - 1];
@@ -163,6 +211,22 @@ const submitAndLeave = async (ctx: BotContext) => {
   await ctx.scene.leave();
 };
 
+const askWeeklyScreenshots = async (ctx: BotContext) => {
+  const state = getState(ctx);
+
+  await ctx.reply(
+    [
+      'Теперь отправь скрины статистики за неделю.',
+      'Можно отправить несколько фото или PNG/JPG/WebP файлов.',
+      state.attachmentCount
+        ? `Сейчас сохранено скринов: ${formatIntegerRu(state.attachmentCount)}.`
+        : 'Если скринов нет, сразу нажми «Отправить отчет».',
+      'Когда закончишь, нажми «Отправить отчет».'
+    ].join('\n'),
+    weeklyStatsAttachmentsKeyboard()
+  );
+};
+
 const finishOrAskNextPlatform = async (ctx: BotContext, savedMessage: string) => {
   const state = getState(ctx);
   state.currentItem = undefined;
@@ -175,13 +239,20 @@ const finishOrAskNextPlatform = async (ctx: BotContext, savedMessage: string) =>
   }
 
   await ctx.reply(savedMessage);
-  return submitAndLeave(ctx);
+  await askWeeklyScreenshots(ctx);
+  return ctx.wizard.selectStep(7);
 };
 
 export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
   SCENE_IDS.weeklyStats,
   async (ctx) => {
-    const report = await container.services.weeklyStatsService.getOrCreateCurrentReport(ctx.state.currentUser!.id);
+    const enterState = getEnterState(ctx);
+    const report = enterState.reportId
+      ? await container.services.weeklyStatsService.getEditableReport(
+          enterState.reportId,
+          ctx.state.currentUser!.id
+        )
+      : await container.services.weeklyStatsService.getOrCreateCurrentReport(ctx.state.currentUser!.id);
     const state = getState(ctx);
     state.reportId = report.id;
     state.periodLabel = formatPeriodLabel(
@@ -292,6 +363,51 @@ export const weeklyStatsScene = new Scenes.WizardScene<BotContext>(
       return finishOrAskNextPlatform(ctx, `${PLATFORM_LABELS[item.platform]}: статистика сохранена.`);
     } catch (error) {
       await ctx.reply(formatValidationError(error, METRIC_ERROR_MESSAGES.saves));
+    }
+  },
+  async (ctx) => {
+    const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : null;
+
+    if (callbackData === 'weekly_submit_report') {
+      await ctx.answerCbQuery('Отправляю отчет...');
+      return submitAndLeave(ctx);
+    }
+
+    const screenshot = getScreenshotFile(ctx);
+
+    if (!screenshot) {
+      await ctx.reply(
+        [
+          'Отправь скрин статистики фото или PNG/JPG/WebP файлом.',
+          'Когда скрины будут приложены, нажми «Отправить отчет».'
+        ].join('\n'),
+        weeklyStatsAttachmentsKeyboard()
+      );
+      return;
+    }
+
+    try {
+      const state = getState(ctx);
+      await container.services.weeklyStatsService.saveAttachment({
+        telegram: ctx.telegram,
+        reportId: state.reportId!,
+        creatorUserId: ctx.state.currentUser!.id,
+        ...screenshot
+      });
+      state.attachmentCount = await container.services.weeklyStatsService.countAttachments(state.reportId!);
+
+      await ctx.reply(
+        [
+          `Скрин сохранен. Всего скринов: ${formatIntegerRu(state.attachmentCount)}.`,
+          'Можно отправить следующий скрин или нажать «Отправить отчет».'
+        ].join('\n'),
+        weeklyStatsAttachmentsKeyboard()
+      );
+    } catch (error) {
+      await ctx.reply(
+        formatValidationError(error, 'Не удалось сохранить скрин. Попробуй отправить его еще раз фото или PNG/JPG/WebP файлом.'),
+        weeklyStatsAttachmentsKeyboard()
+      );
     }
   }
 );

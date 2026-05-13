@@ -16,6 +16,7 @@ import { registerAdminCreatorTestHandlers } from '../creators/admin-creator-test
 import { registerCreatorHandlers } from '../creators/creator.handlers';
 import { registerDocumentHandlers } from '../documents/document.handlers';
 import { registerTeamLeadHandlers } from '../teamleads/teamlead.handlers';
+import { SCENE_IDS } from '../scenes/scene-ids';
 import {
   handleCancel,
   handleDocumentReplyUpload,
@@ -118,6 +119,17 @@ export const createBot = () => {
     roleGuard(UserRole.ADMIN, UserRole.TEAMLEAD),
     async (ctx) => handleWeeklyStatAttachments(ctx, ctx.match[1])
   );
+
+  bot.action(/^weekly_edit_report:(.+)$/, async (ctx) => {
+    if (!canUseCreatorScenario(ctx.state.currentUser)) {
+      await ctx.answerCbQuery('Недоступно');
+      await ctx.reply('Исправление недельной статистики доступно только креатору этого отчета.');
+      return;
+    }
+
+    await ctx.answerCbQuery('Открываю отчет на исправление...');
+    await ctx.scene.enter(SCENE_IDS.weeklyStats, { reportId: ctx.match[1] });
+  });
 
   bot.on('photo', async (ctx, next) => {
     const handled = await handleMonthlyReachScreenshotUpload(ctx);

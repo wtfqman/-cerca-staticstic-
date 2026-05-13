@@ -650,7 +650,10 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     const report = await container.services.creatorReportService.getMonthlyReport(creatorUserId, monthKey);
-    const keyboard = weeklyReportReviewKeyboard(report.weeklyReports, { includeReviewButtons: false });
+    const keyboard = weeklyReportReviewKeyboard(report.weeklyReports, {
+      includeReviewButtons: false,
+      includeReturnButtons: true
+    });
     await ctx.answerCbQuery();
     if (keyboard) {
       await ctx.reply(formatCreatorMonthlyReport(report), keyboard);

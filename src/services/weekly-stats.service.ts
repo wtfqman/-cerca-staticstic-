@@ -64,6 +64,12 @@ export interface WeeklyReportReviewResult {
   report: WeeklyReportReviewSummary;
 }
 
+export interface WeeklyReportCorrectionResult {
+  alreadyDraft: boolean;
+  report: WeeklyReportWithRelations;
+  summary: WeeklyReportReviewSummary;
+}
+
 export class WeeklyStatsService {
   private readonly attachmentSaveLocks = new Map<string, Promise<void>>();
 
@@ -81,6 +87,16 @@ export class WeeklyStatsService {
       toDateOnly(period.weekStart),
       toDateOnly(period.weekEnd)
     );
+  }
+
+  async getEditableReport(reportId: string, creatorUserId: string) {
+    const report = await this.repository.getReportById(reportId);
+
+    if (!report || report.creatorUserId !== creatorUserId) {
+      throw new Error('Недельный отчет для исправления не найден.');
+    }
+
+    return report;
   }
 
   async savePlatformStats(reportId: string, input: WeeklyStatItemInput) {
@@ -220,6 +236,42 @@ export class WeeklyStatsService {
     return {
       alreadyReviewed: false,
       report: this.toReviewSummary(updated)
+    };
+  }
+
+  async returnReportForCorrection(
+    reportId: string,
+    actorUserId: string,
+    options: { isAdmin?: boolean } = {}
+  ): Promise<WeeklyReportCorrectionResult> {
+    const report = await this.repository.getReportByIdWithRelations(reportId);
+
+    if (!report) {
+      throw new Error('Недельный отчет не найден.');
+    }
+
+    const hasAccess =
+      options.isAdmin ||
+      report.creator.creatorAssignments.some((assignment) => assignment.teamLeadUserId === actorUserId);
+
+    if (!hasAccess) {
+      throw new Error('У тебя нет доступа к этой статистике.');
+    }
+
+    const alreadyDraft =
+      report.status === WeeklyReportStatus.DRAFT && !report.submittedAt && !report.reviewedAt;
+    const updated = alreadyDraft ? report : await this.repository.returnReportForCorrection(report.id);
+
+    await this.googleSheetsSyncService?.safeSyncWeeklyReport(
+      updated.id,
+      updated.creatorUserId,
+      updated.monthKey
+    );
+
+    return {
+      alreadyDraft,
+      report: updated,
+      summary: this.toReviewSummary(updated)
     };
   }
 
