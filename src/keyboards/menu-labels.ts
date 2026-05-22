@@ -30,6 +30,7 @@ export const ADMIN_MENU = {
   creators: 'Креаторы',
   teamLeads: 'Тимлиды',
   groups: 'Группы',
+  socialLinks: 'Соцсети',
   stats: 'Статистика',
   payments: 'Выплаты',
   documents: 'Документы',

@@ -61,7 +61,8 @@ export const creatorTeamLeadMenuKeyboard = (user?: AccessUser | null) =>
 export const adminMenuKeyboard = () =>
   Markup.keyboard([
     [ADMIN_MENU.creators, ADMIN_MENU.teamLeads],
-    [ADMIN_MENU.groups, ADMIN_MENU.stats],
+    [ADMIN_MENU.groups, ADMIN_MENU.socialLinks],
+    [ADMIN_MENU.stats],
     [ADMIN_MENU.payments, ADMIN_MENU.documents],
     [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
     [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
@@ -71,7 +72,8 @@ export const adminMenuKeyboard = () =>
 export const adminTeamLeadMenuKeyboard = () =>
   Markup.keyboard([
     [ADMIN_MENU.creators, ADMIN_MENU.teamLeads],
-    [ADMIN_MENU.groups, ADMIN_MENU.stats],
+    [ADMIN_MENU.groups, ADMIN_MENU.socialLinks],
+    [ADMIN_MENU.stats],
     [ADMIN_MENU.payments, ADMIN_MENU.documents],
     [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
     [ADMIN_MENU.service, ADMIN_MENU.creatorTest],

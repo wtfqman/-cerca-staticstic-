@@ -264,6 +264,18 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(formatActiveGroups(groups), adminGroupActionsKeyboard());
   });
 
+  bot.hears(ADMIN_MENU.socialLinks, roleGuard(UserRole.ADMIN), async (ctx) => {
+    const creators = await container.services.userService.listCreators();
+    const text = await container.services.creatorSocialAccountService.formatCreatorsLinksList(creators, {
+      title: 'Соцсети всех креаторов',
+      includeTeamLead: true
+    });
+
+    for (const chunk of splitTelegramMessage(text)) {
+      await ctx.reply(chunk);
+    }
+  });
+
   bot.hears(ADMIN_MENU.stats, roleGuard(UserRole.ADMIN), async (ctx) => {
     const creators = await buildCreatorItems();
 

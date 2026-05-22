@@ -11,6 +11,7 @@ import {
 } from '../utils/formatters';
 import { toDateKey } from '../utils/periods';
 import { GoogleSheetsService, type SheetRow, type SheetUpsertResult } from './google-sheets.service';
+import { formatCreatorSocialAccountUrl } from './creator-social-account.service';
 import { SpreadsheetFormatterService, type SocialsSheetWeekInput } from './spreadsheet-formatter.service';
 import type { StatsSheetSyncFilters } from './stats-sheet-sync.service';
 
@@ -161,7 +162,10 @@ export class SocialsSheetSyncService {
     });
 
     for (const account of await this.creatorSocialAccountRepository.listByCreatorUserIds(creatorUserIds)) {
-      socialLinks.set(`${account.creatorUserId}:${account.platform}`, account.handleOrUrl);
+      socialLinks.set(
+        `${account.creatorUserId}:${account.platform}`,
+        formatCreatorSocialAccountUrl(account.platform, account.handleOrUrl)
+      );
     }
 
     const monthPeriods = new Map<string, Set<string>>();
