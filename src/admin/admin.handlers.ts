@@ -266,12 +266,12 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.hears(ADMIN_MENU.socialLinks, roleGuard(UserRole.ADMIN), async (ctx) => {
     const creators = await container.services.userService.listCreators();
-    const text = await container.services.creatorSocialAccountService.formatCreatorsLinksList(creators, {
+    const chunks = await container.services.creatorSocialAccountService.formatCreatorsLinksListChunks(creators, {
       title: 'Соцсети всех креаторов',
       includeTeamLead: true
     });
 
-    for (const chunk of splitTelegramMessage(text)) {
+    for (const chunk of chunks) {
       await ctx.reply(chunk);
     }
   });

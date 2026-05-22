@@ -8,6 +8,7 @@ import {
   formatAssignedTeamLeadName,
   formatCreatorDisplayName
 } from '../utils/formatters';
+import { TELEGRAM_MESSAGE_SAFE_LIMIT } from '../utils/telegram';
 
 export const creatorSocialPlatformOrder = [
   SocialPlatform.INSTAGRAM,
@@ -52,7 +53,15 @@ type CreatorSocialLinksListItem = {
 };
 
 const hasUrlScheme = (value: string) => /^https?:\/\//i.test(value);
-const hasDomainLikePrefix = (value: string) => /^(?:www\.)?[\w.-]+\.[a-z]{2,}(?:\/|$)/i.test(value);
+
+const knownPlatformUrlPatterns: Record<SocialPlatform, RegExp> = {
+  [SocialPlatform.INSTAGRAM]: /^(?:www\.)?(?:instagram\.com|instagr\.am)\//i,
+  [SocialPlatform.TIKTOK]: /^(?:(?:www|vm|m)\.)?tiktok\.com\//i,
+  [SocialPlatform.VK]: /^(?:www\.)?(?:vk\.com|vk\.ru)\//i,
+  [SocialPlatform.YOUTUBE]: /^(?:(?:www|m)\.)?(?:youtube\.com|youtu\.be)\//i
+};
+
+const getMessageSize = (text: string) => Buffer.byteLength(text, 'utf8');
 
 const ensureHttpsUrl = (value: string) => {
   if (hasUrlScheme(value)) {
@@ -76,7 +85,7 @@ export const formatCreatorSocialAccountUrl = (platform: SocialPlatform, rawValue
     return '';
   }
 
-  if (hasUrlScheme(value) || value.startsWith('//') || hasDomainLikePrefix(value)) {
+  if (hasUrlScheme(value) || value.startsWith('//') || knownPlatformUrlPatterns[platform].test(value)) {
     return ensureHttpsUrl(value);
   }
 
@@ -183,8 +192,18 @@ export class CreatorSocialAccountService {
       includeTeamLead?: boolean;
     } = {}
   ) {
+    return (await this.formatCreatorsLinksListChunks(creators, options)).join('\n\n');
+  }
+
+  async formatCreatorsLinksListChunks(
+    creators: CreatorSocialLinksListItem[],
+    options: {
+      title?: string;
+      includeTeamLead?: boolean;
+    } = {}
+  ) {
     if (!creators.length) {
-      return 'Креаторов пока нет.';
+      return ['Креаторов пока нет.'];
     }
 
     const accounts = await this.listByCreatorUserIds(creators.map((creator) => creator.id));
@@ -216,11 +235,31 @@ export class CreatorSocialAccountService {
         .join('\n');
     });
 
-    return [
+    const chunks: string[] = [];
+    let current = [
       options.title ?? 'Соцсети креаторов',
-      `Всего: ${creators.length.toLocaleString('ru-RU')}`,
-      '',
-      ...blocks
-    ].join('\n\n');
+      `Всего: ${creators.length.toLocaleString('ru-RU')}`
+    ].join('\n');
+
+    for (const block of blocks) {
+      const next = current ? `${current}\n\n${block}` : block;
+
+      if (getMessageSize(next) > TELEGRAM_MESSAGE_SAFE_LIMIT) {
+        if (current) {
+          chunks.push(current);
+        }
+
+        current = block;
+        continue;
+      }
+
+      current = next;
+    }
+
+    if (current) {
+      chunks.push(current);
+    }
+
+    return chunks;
   }
 }
