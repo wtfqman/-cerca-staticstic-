@@ -357,6 +357,14 @@ export const entitySelectionKeyboard = (
   ]);
 };
 
+export const adminCreatorLookupKeyboard = (purpose: 'profile' | 'revoke' | 'restore') =>
+  Markup.inlineKeyboard([
+    [Markup.button.callback('По Telegram ID', `admin_creator_lookup:${purpose}:telegram_id`)],
+    [Markup.button.callback('По username', `admin_creator_lookup:${purpose}:username`)],
+    [Markup.button.callback('Из списка', `admin_creator_lookup:${purpose}:list`)],
+    [Markup.button.callback('Назад', `admin_creator_lookup:${purpose}:back`)]
+  ]);
+
 export const creatorReportsKeyboard = (currentMonthKey: string, previousMonthKey: string) =>
   Markup.inlineKeyboard([
     [Markup.button.callback(`Отчет за ${currentMonthKey}`, `creator_month_report:${currentMonthKey}`)],

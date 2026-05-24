@@ -7,6 +7,8 @@ export interface BotSessionData extends Scenes.WizardSessionData {
   pendingDocumentId?: string;
   adminGroupAssignCreatorId?: string;
   adminGroupAssignTeamLeadId?: string;
+  adminCreatorLookupPurpose?: 'profile' | 'revoke' | 'restore';
+  adminCreatorLookupMode?: 'telegramId' | 'username';
   teamLeadGroupAssignCreatorId?: string;
   adminFileInfoMode?: boolean;
 }

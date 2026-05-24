@@ -5,6 +5,7 @@ import type { BotContext } from '../types/bot-context';
 import { container } from '../container';
 import {
   adminBulkActionsKeyboard,
+  adminCreatorLookupKeyboard,
   adminCreatorsActionsKeyboard,
   adminMissingMonthlyVideosKeyboard,
   adminStatsMonthKeyboard,
@@ -38,7 +39,7 @@ import {
   formatTeamLeadDisplayName
 } from '../utils/formatters';
 import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
-import { splitTelegramMessage } from '../utils/telegram';
+import { getMessageText, splitTelegramMessage } from '../utils/telegram';
 import { SCENE_IDS } from '../scenes/scene-ids';
 import {
   formatActiveRosterFirstQueueStatus,
@@ -49,6 +50,7 @@ import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.consta
 import { config } from '../config';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
+import type { AppUser } from '../types/domain';
 
 const formatSheetSyncMessage = (result: {
   sheetName: string;
@@ -156,6 +158,143 @@ const buildRevokableCreatorItems = async () =>
     label: formatCreatorDisplayName(creator)
   }));
 
+type AdminCreatorLookupPurpose = 'profile' | 'revoke' | 'restore';
+type AdminCreatorLookupMode = 'telegramId' | 'username';
+
+const adminCreatorLookupListPrefixes: Record<AdminCreatorLookupPurpose, string> = {
+  profile: 'admin_creator_pick',
+  revoke: 'admin_creator_access_revoke',
+  restore: 'admin_creator_access_restore'
+};
+
+const adminCreatorLookupPrompts: Record<AdminCreatorLookupPurpose, string> = {
+  profile: 'Как найти креатора?',
+  revoke: 'Как найти креатора для блокировки?',
+  restore: 'Как найти креатора для возврата доступа?'
+};
+
+const adminCreatorLookupEmptyMessages: Record<AdminCreatorLookupPurpose, string> = {
+  profile: 'Креаторов пока нет.',
+  revoke: 'Активных креаторов для запрета доступа сейчас нет.',
+  restore: 'Отключенных креаторов для возврата доступа сейчас нет.'
+};
+
+const adminCreatorLookupInputPrompts: Record<AdminCreatorLookupMode, string> = {
+  telegramId: 'Пришли Telegram ID креатора.',
+  username: 'Пришли username креатора, можно с @ или ссылкой t.me.'
+};
+
+const clearAdminCreatorLookupSession = (ctx: BotContext) => {
+  ctx.scene.session.adminCreatorLookupPurpose = undefined;
+  ctx.scene.session.adminCreatorLookupMode = undefined;
+};
+
+const normalizeTelegramIdInput = (input: string) => input.trim().replace(/[^\d]/g, '');
+
+const normalizeUsernameInput = (input: string) => {
+  const trimmed = input.trim();
+  const withoutTelegramUrl = trimmed
+    .replace(/^https?:\/\/t\.me\//i, '')
+    .replace(/^https?:\/\/telegram\.me\//i, '')
+    .replace(/^tg:\/\/resolve\?domain=/i, '');
+
+  return withoutTelegramUrl
+    .split(/[/?#\s]/)[0]
+    .replace(/^@/, '')
+    .trim()
+    .toLowerCase();
+};
+
+const buildCreatorLookupItems = async (purpose: AdminCreatorLookupPurpose) => {
+  if (purpose === 'revoke') {
+    return buildRevokableCreatorItems();
+  }
+
+  if (purpose === 'restore') {
+    return buildInactiveCreatorItems();
+  }
+
+  return buildCreatorItems();
+};
+
+const listCreatorLookupUsers = async (purpose: AdminCreatorLookupPurpose) => {
+  if (purpose === 'revoke') {
+    return container.services.userService.listRevokableCreators();
+  }
+
+  if (purpose === 'restore') {
+    return container.services.userService.listInactiveCreators();
+  }
+
+  return container.services.userService.listCreators();
+};
+
+const isCreatorValidForLookupPurpose = (purpose: AdminCreatorLookupPurpose, user: AppUser | null | undefined) => {
+  if (!user) {
+    return false;
+  }
+
+  if (purpose === 'revoke') {
+    return canUseCreatorScenario(user) && user.role === UserRole.CREATOR;
+  }
+
+  if (purpose === 'restore') {
+    return !user.isActive && (user.role === UserRole.CREATOR || Boolean(user.creatorProfile));
+  }
+
+  return canUseCreatorScenario(user);
+};
+
+const findCreatorByAdminLookup = async (
+  purpose: AdminCreatorLookupPurpose,
+  mode: AdminCreatorLookupMode,
+  input: string
+) => {
+  if (mode === 'telegramId') {
+    const telegramId = normalizeTelegramIdInput(input);
+
+    if (!telegramId) {
+      return null;
+    }
+
+    const user = await container.services.userService.getByTelegramId(telegramId);
+    return isCreatorValidForLookupPurpose(purpose, user) ? user : null;
+  }
+
+  const username = normalizeUsernameInput(input);
+
+  if (!username) {
+    return null;
+  }
+
+  const creators = await listCreatorLookupUsers(purpose);
+  return (
+    creators.find((creator) => creator.username?.trim().toLowerCase() === username) ?? null
+  );
+};
+
+const replyAdminCreatorLookupMenu = async (ctx: BotContext, purpose: AdminCreatorLookupPurpose) => {
+  clearAdminCreatorLookupSession(ctx);
+
+  if (!(await buildCreatorLookupItems(purpose)).length) {
+    await ctx.reply(adminCreatorLookupEmptyMessages[purpose]);
+    return;
+  }
+
+  await ctx.reply(adminCreatorLookupPrompts[purpose], adminCreatorLookupKeyboard(purpose));
+};
+
+const replyAdminCreatorLookupList = async (ctx: BotContext, purpose: AdminCreatorLookupPurpose) => {
+  const items = await buildCreatorLookupItems(purpose);
+
+  if (!items.length) {
+    await ctx.reply(adminCreatorLookupEmptyMessages[purpose]);
+    return;
+  }
+
+  await ctx.reply('Выбери креатора.', entitySelectionKeyboard(adminCreatorLookupListPrefixes[purpose], items));
+};
+
 const buildTeamLeadItems = async () =>
   (await container.services.userService.listTeamLeads()).map((lead) => ({
     id: lead.id,
@@ -212,6 +351,70 @@ const formatCreatorProfileCard = async (creatorUserId: string) => {
   ].join('\n');
 };
 
+const replyCreatorProfileCard = async (ctx: BotContext, creatorUserId: string) => {
+  const card = await formatCreatorProfileCard(creatorUserId);
+
+  if (!card) {
+    await ctx.reply('Креатор не найден. Открой раздел "Креаторы" и попробуй другой способ поиска.');
+    return;
+  }
+
+  await ctx.reply(
+    card,
+    creatorProfileActionsKeyboard({
+      reportCallbackData: `admin_creator_report_menu:${creatorUserId}`,
+      editCallbackData: `admin_creator_profile_edit:${creatorUserId}`,
+      assignTeamLeadCallbackData: `admin_group_assign_creator:pick:${creatorUserId}`
+    })
+  );
+};
+
+const replyCreatorAccessRevokeConfirmation = async (ctx: BotContext, userId: string) => {
+  const user = await container.services.userService.getById(userId);
+
+  if (!user || !canUseCreatorScenario(user) || user.role !== UserRole.CREATOR) {
+    await ctx.reply('Креатор не найден или доступ уже не активен.');
+    return;
+  }
+
+  await ctx.reply(
+    ['Запретить доступ креатора?', '', `Креатор: ${formatCreatorDisplayName(user)}`].join('\n'),
+    approvalInlineKeyboard(`admin_creator_access_revoke_confirm:${user.id}`)
+  );
+};
+
+const replyCreatorAccessRestoreConfirmation = async (ctx: BotContext, userId: string) => {
+  const user = await container.services.userService.getById(userId);
+
+  if (!user || user.isActive) {
+    await ctx.reply('Креатор не найден или доступ уже активен.');
+    return;
+  }
+
+  await ctx.reply(
+    ['Вернуть доступ креатора?', '', `Креатор: ${formatCreatorDisplayName(user)}`].join('\n'),
+    approvalInlineKeyboard(`admin_creator_access_restore_confirm:${user.id}`)
+  );
+};
+
+const replyAdminCreatorLookupResult = async (
+  ctx: BotContext,
+  purpose: AdminCreatorLookupPurpose,
+  creatorUserId: string
+) => {
+  if (purpose === 'revoke') {
+    await replyCreatorAccessRevokeConfirmation(ctx, creatorUserId);
+    return;
+  }
+
+  if (purpose === 'restore') {
+    await replyCreatorAccessRestoreConfirmation(ctx, creatorUserId);
+    return;
+  }
+
+  await replyCreatorProfileCard(ctx, creatorUserId);
+};
+
 const knownBulkActions = new Set([
   'remind_weekly_stats',
   'remind_monthly_videos',
@@ -239,7 +442,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    await ctx.reply('Выбери креатора.', entitySelectionKeyboard('admin_creator_pick', creators));
+    clearAdminCreatorLookupSession(ctx);
+    await ctx.reply('Как найти креатора?', adminCreatorLookupKeyboard('profile'));
     await ctx.reply(
       'Если нужно подключить нового тестового креатора, сначала он должен открыть /start, затем выдай ему доступ здесь.',
       adminCreatorsActionsKeyboard()
@@ -387,6 +591,33 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       await ctx.reply(chunk);
     }
   });
+
+  bot.action(
+    /^admin_creator_lookup:(profile|revoke|restore):(telegram_id|username|list|back)$/,
+    roleGuard(UserRole.ADMIN),
+    async (ctx) => {
+      const purpose = ctx.match[1] as AdminCreatorLookupPurpose;
+      const action = ctx.match[2];
+      await ctx.answerCbQuery();
+
+      if (action === 'back') {
+        clearAdminCreatorLookupSession(ctx);
+        await ctx.reply('Ок, вернулась назад. Можно выбрать другой раздел через меню.');
+        return;
+      }
+
+      if (action === 'list') {
+        clearAdminCreatorLookupSession(ctx);
+        await replyAdminCreatorLookupList(ctx, purpose);
+        return;
+      }
+
+      ctx.scene.session.adminCreatorLookupPurpose = purpose;
+      ctx.scene.session.adminCreatorLookupMode = action === 'telegram_id' ? 'telegramId' : 'username';
+
+      await ctx.reply(adminCreatorLookupInputPrompts[ctx.scene.session.adminCreatorLookupMode]);
+    }
+  );
 
   bot.action('admin_group_assign_start', roleGuard(UserRole.ADMIN), async (ctx) => {
     const creators = await buildCreatorItems();
@@ -616,22 +847,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.action(/^admin_creator_pick:pick:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const creatorUserId = ctx.match[1];
-    const card = await formatCreatorProfileCard(creatorUserId);
     await ctx.answerCbQuery();
-
-    if (!card) {
-      await ctx.reply('Креатор не найден. Открой раздел "Креаторы" и выбери из актуального списка.');
-      return;
-    }
-
-    await ctx.reply(
-      card,
-      creatorProfileActionsKeyboard({
-        reportCallbackData: `admin_creator_report_menu:${creatorUserId}`,
-        editCallbackData: `admin_creator_profile_edit:${creatorUserId}`,
-        assignTeamLeadCallbackData: `admin_group_assign_creator:pick:${creatorUserId}`
-      })
-    );
+    await replyCreatorProfileCard(ctx, creatorUserId);
   });
 
   bot.action(/^admin_creator_report_menu:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
@@ -758,10 +975,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    await ctx.reply(
-      'Выбери креатора, которому нужно запретить доступ.',
-      entitySelectionKeyboard('admin_creator_access_revoke', creators)
-    );
+    clearAdminCreatorLookupSession(ctx);
+    await ctx.reply('Как найти креатора для блокировки?', adminCreatorLookupKeyboard('revoke'));
   });
 
   bot.action(/^admin_creator_access_revoke:page:(\d+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
@@ -774,18 +989,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.action(/^admin_creator_access_revoke:pick:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const userId = ctx.match[1];
-    const user = await container.services.userService.getById(userId);
     await ctx.answerCbQuery();
-
-    if (!user || !canUseCreatorScenario(user) || user.role !== UserRole.CREATOR) {
-      await ctx.reply('Креатор не найден или доступ уже не активен.');
-      return;
-    }
-
-    await ctx.reply(
-      ['Запретить доступ креатора?', '', `Креатор: ${formatCreatorDisplayName(user)}`].join('\n'),
-      approvalInlineKeyboard(`admin_creator_access_revoke_confirm:${user.id}`)
-    );
+    await replyCreatorAccessRevokeConfirmation(ctx, userId);
   });
 
   bot.action(/^admin_creator_access_revoke_confirm:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
@@ -808,10 +1013,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    await ctx.reply(
-      'Выбери креатора, которому нужно вернуть доступ.',
-      entitySelectionKeyboard('admin_creator_access_restore', creators)
-    );
+    clearAdminCreatorLookupSession(ctx);
+    await ctx.reply('Как найти креатора для возврата доступа?', adminCreatorLookupKeyboard('restore'));
   });
 
   bot.action(/^admin_creator_access_restore:page:(\d+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
@@ -824,18 +1027,8 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
 
   bot.action(/^admin_creator_access_restore:pick:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
     const userId = ctx.match[1];
-    const user = await container.services.userService.getById(userId);
     await ctx.answerCbQuery();
-
-    if (!user || user.isActive) {
-      await ctx.reply('Креатор не найден или доступ уже активен.');
-      return;
-    }
-
-    await ctx.reply(
-      ['Вернуть доступ креатора?', '', `Креатор: ${formatCreatorDisplayName(user)}`].join('\n'),
-      approvalInlineKeyboard(`admin_creator_access_restore_confirm:${user.id}`)
-    );
+    await replyCreatorAccessRestoreConfirmation(ctx, userId);
   });
 
   bot.action(/^admin_creator_access_restore_confirm:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
@@ -1379,9 +1572,42 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(formatBulkOperationResult(result));
   });
 
+  bot.on('text', roleGuard(UserRole.ADMIN), async (ctx, next) => {
+    const purpose = ctx.scene.session.adminCreatorLookupPurpose;
+    const mode = ctx.scene.session.adminCreatorLookupMode;
+
+    if (!purpose || !mode) {
+      await next();
+      return;
+    }
+
+    const text = getMessageText(ctx.message)?.trim();
+
+    if (!text) {
+      await ctx.reply(adminCreatorLookupInputPrompts[mode]);
+      return;
+    }
+
+    const creator = await findCreatorByAdminLookup(purpose, mode, text);
+
+    if (!creator) {
+      await ctx.reply(
+        mode === 'telegramId'
+          ? 'Не нашла креатора с таким Telegram ID. Проверь цифры или выбери из списка.'
+          : 'Не нашла креатора с таким username. Проверь написание или выбери из списка.',
+        adminCreatorLookupKeyboard(purpose)
+      );
+      return;
+    }
+
+    clearAdminCreatorLookupSession(ctx);
+    await replyAdminCreatorLookupResult(ctx, purpose, creator.id);
+  });
+
   bot.action('action_cancel', roleGuard(UserRole.ADMIN), async (ctx) => {
     ctx.scene.session.adminGroupAssignCreatorId = undefined;
     ctx.scene.session.adminGroupAssignTeamLeadId = undefined;
+    clearAdminCreatorLookupSession(ctx);
     await ctx.answerCbQuery('Действие отменено');
     await ctx.reply('Действие отменено. Можно вернуться в нужный раздел через меню.');
   });
