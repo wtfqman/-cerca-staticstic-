@@ -49,7 +49,7 @@ import {
 import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
 import { config } from '../config';
 import { formatUserError, logUserError } from '../utils/user-errors';
-import { canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
+import { canUseAdminScenario, canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
 import type { AppUser } from '../types/domain';
 
 const formatSheetSyncMessage = (result: {
@@ -1572,11 +1572,16 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(formatBulkOperationResult(result));
   });
 
-  bot.on('text', roleGuard(UserRole.ADMIN), async (ctx, next) => {
+  bot.on('text', async (ctx, next) => {
     const purpose = ctx.scene.session.adminCreatorLookupPurpose;
     const mode = ctx.scene.session.adminCreatorLookupMode;
 
     if (!purpose || !mode) {
+      await next();
+      return;
+    }
+
+    if (!canUseAdminScenario(ctx.state.currentUser)) {
       await next();
       return;
     }

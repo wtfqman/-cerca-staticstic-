@@ -4,6 +4,8 @@ import { UserRole } from '@prisma/client';
 import type { BotContext } from '../types/bot-context';
 import { canUseScenario } from '../utils/access';
 
+const isPrivateChat = (ctx: BotContext) => ctx.chat?.type === 'private';
+
 export const roleGuard = (...roles: UserRole[]): MiddlewareFn<BotContext> => {
   return async (ctx, next) => {
     const currentUser = ctx.state.currentUser;
@@ -13,9 +15,12 @@ export const roleGuard = (...roles: UserRole[]): MiddlewareFn<BotContext> => {
         await ctx.answerCbQuery('Недоступно');
       }
 
-      await ctx.reply(
-        'Этот раздел сейчас для тебя недоступен. Если роль уже должна быть выдана, напиши администратору.'
-      );
+      if (isPrivateChat(ctx)) {
+        await ctx.reply(
+          'Этот раздел сейчас для тебя недоступен. Если роль уже должна быть выдана, напиши администратору.'
+        );
+      }
+
       return;
     }
 
