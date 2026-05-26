@@ -70,6 +70,13 @@ export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
     firstName: null,
     lastName: null,
     displayName: '709509558'
+  },
+  {
+    telegramId: '661899304',
+    username: 'burgonskaya',
+    firstName: null,
+    lastName: null,
+    displayName: '@burgonskaya'
   }
 ];
 
