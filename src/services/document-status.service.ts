@@ -7,6 +7,7 @@ import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
 
 type CreatorReference = {
   id: string;
+  isActive?: boolean | null;
   firstName?: string | null;
   lastName?: string | null;
   telegramId?: string | null;
@@ -26,6 +27,8 @@ type CreatorReference = {
     };
   }>;
 };
+
+const isActiveCreator = (creator: CreatorReference) => creator.isActive !== false;
 
 const ONE_OFF_DOCUMENT_TYPES = [DocumentType.CONTRACT, DocumentType.NDA];
 const MONTHLY_DOCUMENT_TYPES = [DocumentType.ASSIGNMENT, DocumentType.ACT, DocumentType.RIGHTS_TRANSFER];
@@ -50,8 +53,9 @@ export class DocumentStatusService {
     creators: CreatorReference[],
     monthKey: string
   ): Promise<CreatorDocumentStatusSummary[]> {
+    const activeCreators = creators.filter(isActiveCreator);
     const documents = await this.documentRepository.listForSheetSync({
-      creatorIds: creators.map((creator) => creator.id)
+      creatorIds: activeCreators.map((creator) => creator.id)
     });
     const documentsByCreator = new Map<string, typeof documents>();
 
@@ -61,7 +65,7 @@ export class DocumentStatusService {
       documentsByCreator.set(document.creatorUserId, bucket);
     }
 
-    return creators.map((creator) =>
+    return activeCreators.map((creator) =>
       this.buildCreatorSummary(creator, documentsByCreator.get(creator.id) ?? [], monthKey)
     );
   }

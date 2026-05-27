@@ -12,6 +12,7 @@ import { getNow, getWeeklyReportPeriod, getWeeklyReportPeriodsForMonth, toDateOn
 
 type CreatorReference = {
   id: string;
+  isActive?: boolean | null;
   firstName?: string | null;
   lastName?: string | null;
   telegramId?: string | null;
@@ -29,6 +30,8 @@ type CreatorReference = {
     };
   }>;
 };
+
+const isActiveCreator = (creator: CreatorReference) => creator.isActive !== false;
 
 const SUBMITTED_STATUSES = new Set<WeeklyReportStatus>([
   WeeklyReportStatus.SUBMITTED,
@@ -50,6 +53,7 @@ export class CreatorDisciplineService {
       historical?: boolean;
     } = {}
   ): Promise<CreatorWeeklyDisciplineSummary[]> {
+    const activeCreators = creators.filter(isActiveCreator);
     const period =
       options.weekStart && options.weekEnd
         ? {
@@ -59,13 +63,13 @@ export class CreatorDisciplineService {
           }
         : getWeeklyReportPeriod(getNow());
     const reports = await this.weeklyStatsRepository.listReportsForCreatorsInPeriod(
-      creators.map((creator) => creator.id),
+      activeCreators.map((creator) => creator.id),
       toDateOnly(period.weekStart),
       toDateOnly(period.weekEnd)
     );
     const reportsMap = new Map(reports.map((report) => [report.creatorUserId, report]));
 
-    return creators.map((creator) => {
+    return activeCreators.map((creator) => {
       const report = reportsMap.get(creator.id);
       const status = this.resolveWeeklyStatus(report, Boolean(options.historical));
 
@@ -94,13 +98,14 @@ export class CreatorDisciplineService {
     creators: CreatorReference[],
     monthKey: string
   ): Promise<CreatorMonthlyVideoStatusSummary[]> {
+    const activeCreators = creators.filter(isActiveCreator);
     const records = await this.monthlyVideoRepository.listByCreatorsAndMonth(
-      creators.map((creator) => creator.id),
+      activeCreators.map((creator) => creator.id),
       monthKey
     );
     const recordsMap = new Map(records.map((record) => [record.creatorUserId, record]));
 
-    return creators.map((creator) => {
+    return activeCreators.map((creator) => {
       const record = recordsMap.get(creator.id);
 
       return {
@@ -117,9 +122,10 @@ export class CreatorDisciplineService {
   }
 
   async getMonthWeeklySubmissionStats(creators: CreatorReference[], monthKey: string) {
+    const activeCreators = creators.filter(isActiveCreator);
     const periods = getWeeklyReportPeriodsForMonth(monthKey);
     const reports = await this.weeklyStatsRepository.listReportsForCreatorsByMonth(
-      creators.map((creator) => creator.id),
+      activeCreators.map((creator) => creator.id),
       monthKey
     );
     const submittedCount = reports.filter((report) => SUBMITTED_STATUSES.has(report.status)).length;
@@ -127,7 +133,7 @@ export class CreatorDisciplineService {
     return {
       periods,
       submitted: submittedCount,
-      absent: Math.max(creators.length * periods.length - submittedCount, 0)
+      absent: Math.max(activeCreators.length * periods.length - submittedCount, 0)
     };
   }
 

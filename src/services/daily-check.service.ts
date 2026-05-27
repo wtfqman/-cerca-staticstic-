@@ -96,6 +96,10 @@ export class DailyCheckService {
     const grouped = new Map<string, typeof checks>();
 
     for (const check of checks) {
+      if (!check.creator.isActive) {
+        continue;
+      }
+
       const link = check.creator.creatorAssignments[0];
 
       if (!link?.teamLead) {
