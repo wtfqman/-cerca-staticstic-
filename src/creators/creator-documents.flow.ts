@@ -221,8 +221,9 @@ export const openCreatorDocumentsFlow = async (ctx: BotContext) => {
 
 export const openCreatorFirstQueueEntryFlow = async (
   ctx: BotContext,
-  options: { profileJustSaved?: boolean; showMenu?: boolean } = {}
+  options: { autoGenerate?: boolean; profileJustSaved?: boolean; showMenu?: boolean } = {}
 ) => {
+  const autoGenerate = options.autoGenerate ?? false;
   const showMenu = options.showMenu ?? true;
   const creatorUserId = ctx.state.currentUser!.id;
   const profile = await container.services.creatorProfileService.getProfile(creatorUserId);
@@ -258,7 +259,7 @@ export const openCreatorFirstQueueEntryFlow = async (
     return;
   }
 
-  if (entryStatus === 'READY_TO_GENERATE_FIRST_QUEUE' || !hasAllFirstQueueDocumentsGenerated(summary)) {
+  if (autoGenerate && (entryStatus === 'READY_TO_GENERATE_FIRST_QUEUE' || !hasAllFirstQueueDocumentsGenerated(summary))) {
     try {
       const documents = await container.services.documentService.generateActiveRosterResigningFirstQueueDocuments(
         creatorUserId,

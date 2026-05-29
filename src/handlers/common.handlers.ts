@@ -19,8 +19,7 @@ import {
   parseStartPayload
 } from '../utils/temporary-creator-invite';
 import {
-  ensureCreatorProfileCompletedForDocuments,
-  openCreatorFirstQueueEntryFlow
+  ensureCreatorProfileCompletedForDocuments
 } from '../creators/creator-documents.flow';
 import {
   canUseAdminScenario,
@@ -45,35 +44,6 @@ export const showMainMenu = async (ctx: BotContext) => {
   }
 
   await ctx.reply(ACCESS_PENDING_TEXT);
-};
-
-const openCreatorFirstQueueEntryFlowInBackground = (ctx: BotContext) => {
-  const userId = ctx.state.currentUser?.id;
-  const telegramUserId = ctx.from?.id;
-  const updateId = ctx.update.update_id;
-
-  void openCreatorFirstQueueEntryFlow(ctx, { showMenu: false }).catch(async (error) => {
-    logUserError(error, 'Creator start document flow failed', {
-      userId,
-      telegramUserId,
-      updateId
-    });
-
-    try {
-      await ctx.reply(
-        formatUserError(
-          error,
-          'Главное меню открыто, но сейчас не удалось проверить документы. Открой документы из меню или попробуй позже.'
-        )
-      );
-    } catch (replyError) {
-      logUserError(replyError, 'Creator start document flow failure reply failed', {
-        userId,
-        telegramUserId,
-        updateId
-      });
-    }
-  });
 };
 
 export const handleStart = async (ctx: BotContext) => {
@@ -120,7 +90,6 @@ export const handleStart = async (ctx: BotContext) => {
     }
 
     await showMainMenu(ctx);
-    openCreatorFirstQueueEntryFlowInBackground(ctx);
     return;
   }
 

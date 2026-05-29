@@ -365,7 +365,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
 
     void (async () => {
       try {
-        await openCreatorFirstQueueEntryFlow(ctx, { showMenu: false });
+        await openCreatorFirstQueueEntryFlow(ctx, { autoGenerate: true, showMenu: false });
       } catch (error) {
         logUserError(error, 'Active roster first queue generation failed', {
           userId: ctx.state.currentUser?.id

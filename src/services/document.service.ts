@@ -721,8 +721,6 @@ export class DocumentService {
     creatorUserId: string,
     options: DocumentBatchOptions = {}
   ) {
-    await this.ensureIncompleteFirstQueueGenerated(creatorUserId, options);
-
     const documents = [...await this.listCreatorResendableDocuments(creatorUserId)].sort(sortCreatorBatchDocuments);
     const sentDocuments: SentCreatorDocumentBatchInfo[] = [];
     const skippedDocuments: SkippedCreatorDocumentBatchInfo[] = [];
@@ -822,44 +820,6 @@ export class DocumentService {
 
   async resendDocument(telegram: Telegram, documentId: string) {
     return this.sendDocumentToCreator(telegram, documentId);
-  }
-
-  private async ensureIncompleteFirstQueueGenerated(
-    creatorUserId: string,
-    options: DocumentBatchOptions
-  ) {
-    if (!this.documentWorkflowService) {
-      return;
-    }
-
-    const summary = await this.documentWorkflowService.getActiveRosterFirstQueueSummary(creatorUserId);
-
-    if (summary.isCompleted) {
-      return;
-    }
-
-    const missingDocuments = summary.documents
-      .filter((document) => document.status === 'NOT_GENERATED' || !document.documentId)
-      .map((document) => ({
-        type: document.type,
-        monthKey: document.monthKey,
-        status: document.status,
-        documentId: document.documentId ?? null
-      }));
-
-    if (!missingDocuments.length) {
-      return;
-    }
-
-    logger.info(
-      {
-        creatorUserId,
-        missingDocuments
-      },
-      'Regenerating incomplete first queue before creator document resend'
-    );
-
-    await this.generateActiveRosterResigningFirstQueueDocuments(creatorUserId, undefined, options);
   }
 
   async findDocumentByReplyContext(creatorUserId: string, telegramMessageId: number) {

@@ -82,15 +82,9 @@ export const registerDocumentHandlers = (bot: Telegraf<BotContext>) => {
           userId: currentUser.id,
           existingDocuments
         },
-        'First queue manual resend requested; regenerating package before send'
+        'First queue manual resend requested; sending existing package'
       );
-      await ctx.reply('Собираю свежий пакет первой очереди и сразу отправлю PDF. Это может занять немного времени.');
-      await container.services.documentService.generateActiveRosterResigningFirstQueueDocuments(
-        currentUser.id,
-        undefined,
-        { syncSheets: false }
-      );
-
+      await ctx.reply('Отправляю уже сформированные PDF первой очереди. Новые документы не создаю.');
       const sentDocuments = await container.services.documentService.sendActiveRosterResigningFirstQueueDocuments(
         currentUser.id,
         ctx.telegram,
