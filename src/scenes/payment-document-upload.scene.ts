@@ -14,9 +14,9 @@ import {
   getRequiredSecondQueueStatisticsStatus
 } from '../creators/creator-statistics-requirements';
 import {
-  CREATOR_INVOICE_MONTH_KEY,
-  NO_CONTRACT_PAYMENT_CAMPAIGN_KEY,
-  filterCreatorInvoiceMonths
+  filterCreatorInvoiceMonths,
+  getCreatorInvoiceMonthKey,
+  getNoContractPaymentCampaignKey
 } from '../documents/document-workflow.constants';
 import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
 
@@ -40,7 +40,7 @@ const getUploadType = (ctx: BotContext): PaymentUploadType => getState(ctx).type
 const getAvailablePaymentMonths = (monthKeys: string[]) => {
   const filtered = filterCreatorInvoiceMonths(monthKeys);
 
-  return filtered.length > 0 ? filtered : [CREATOR_INVOICE_MONTH_KEY];
+  return filtered.length > 0 ? filtered : [getCreatorInvoiceMonthKey()];
 };
 
 const getReceiptUploadFile = (ctx: BotContext, monthKey: string): PaymentTelegramFile | null => {
@@ -76,7 +76,9 @@ const getReceiptUploadFile = (ctx: BotContext, monthKey: string): PaymentTelegra
 };
 
 const ensureNoContractInvoiceStatisticsReady = async (ctx: BotContext, monthKey: string) => {
-  if (monthKey !== CREATOR_INVOICE_MONTH_KEY) {
+  const invoiceMonthKey = getCreatorInvoiceMonthKey();
+
+  if (monthKey !== invoiceMonthKey) {
     return true;
   }
 
@@ -90,7 +92,7 @@ const ensureNoContractInvoiceStatisticsReady = async (ctx: BotContext, monthKey:
 
   await ctx.reply(
     [
-      'Сначала нужно закрыть обязательную статистику за апрель, потом можно выставлять счет.',
+      `Сначала нужно закрыть обязательную статистику за ${invoiceMonthKey}, потом можно выставлять счет.`,
       ...missingLines,
       '',
       'После заполнения снова открой «Мои документы» и нажми «Выставить счет».'
@@ -119,10 +121,10 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
       const monthKeys = state.campaign.periodMonths as unknown;
       const periodMonths = Array.isArray(monthKeys)
         ? monthKeys.filter((monthKey): monthKey is string => typeof monthKey === 'string')
-        : ['2026-04'];
+        : [getCreatorInvoiceMonthKey()];
       const availablePaymentMonths = getAvailablePaymentMonths(periodMonths);
 
-      getState(ctx).campaignKey = NO_CONTRACT_PAYMENT_CAMPAIGN_KEY;
+      getState(ctx).campaignKey = getNoContractPaymentCampaignKey();
 
       await ctx.reply(
         uploadType === 'INVOICE'
@@ -182,7 +184,7 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
 
       if (
         uploadType === 'INVOICE' &&
-        getState(ctx).campaignKey === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY &&
+        getState(ctx).campaignKey === getNoContractPaymentCampaignKey() &&
         !(await ensureNoContractInvoiceStatisticsReady(ctx, monthKey))
       ) {
         return;
@@ -209,7 +211,7 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
 
       const invoiceAmountHint = uploadType === 'INVOICE'
         ? formatCreatorInvoiceAmountHint(
-            getState(ctx).campaignKey === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY
+            getState(ctx).campaignKey === getNoContractPaymentCampaignKey()
               ? {
                   monthKey,
                   secondQueueSigned: true,

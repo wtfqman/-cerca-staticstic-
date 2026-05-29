@@ -11,10 +11,10 @@ import {
 
 import { config } from '../config';
 import {
-  ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
-  CREATOR_INVOICE_MONTH_KEY,
-  NO_CONTRACT_PAYMENT_CAMPAIGN_KEY,
   SECOND_QUEUE_DOCUMENT_TYPES,
+  getActiveRosterResigningCampaignKey,
+  getCreatorInvoiceMonthKey,
+  getNoContractPaymentCampaignKey,
   isCreatorInvoiceMonth
 } from '../documents/document-workflow.constants';
 import { prisma } from '../lib/prisma';
@@ -41,7 +41,7 @@ const getArgValue = (name: string) => {
   return index >= 0 ? process.argv[index + 1] : undefined;
 };
 
-const monthKey = getArgValue('--month') ?? CREATOR_INVOICE_MONTH_KEY;
+const monthKey = getArgValue('--month') ?? getCreatorInvoiceMonthKey();
 const jsonOutput = process.argv.includes('--json');
 
 const maskDbUrl = (url: string) => url.replace(/:\/\/[^@]+@/, '://***@');
@@ -187,9 +187,9 @@ async function main() {
 
   for (const user of users) {
     const activeRosterState =
-      user.documentWorkflowStates.find((state) => state.campaign.key === ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY) ?? null;
+      user.documentWorkflowStates.find((state) => state.campaign.key === getActiveRosterResigningCampaignKey(monthKey)) ?? null;
     const noContractState =
-      user.documentWorkflowStates.find((state) => state.campaign.key === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY) ?? null;
+      user.documentWorkflowStates.find((state) => state.campaign.key === getNoContractPaymentCampaignKey(monthKey)) ?? null;
     const isNoContract =
       user.creatorProfile?.profileCompleted === true && user.creatorProfile.legalType === null;
     const workflowState = isNoContract ? noContractState : activeRosterState;

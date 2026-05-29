@@ -1,5 +1,5 @@
 import { container } from '../container';
-import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
+import { getCreatorInvoiceMonthKey } from '../documents/document-workflow.constants';
 import { formatCreatorSecondQueueScreen } from '../documents/document.formatters';
 import {
   creatorFirstQueueActionsKeyboard,
@@ -26,15 +26,16 @@ const hasAvailableSecondQueueDocuments = (summary: ActiveRosterSecondQueueSummar
   );
 
 const getInvoicePayment = (summary: ActiveRosterSecondQueueSummary) =>
-  summary.payments.find((payment) => payment.monthKey === CREATOR_INVOICE_MONTH_KEY);
+  summary.payments.find((payment) => payment.monthKey === getCreatorInvoiceMonthKey());
 
 const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSummary) => {
   const invoicePayment = getInvoicePayment(summary);
+  const monthKey = getCreatorInvoiceMonthKey();
 
   if (invoicePayment?.receiptUploadedAt) {
     return [
       'Статистика сохранена.',
-      'Апрельский счет и чек уже загружены.',
+      `Счет и чек за ${monthKey} уже загружены.`,
       '',
       formatCreatorSecondQueueScreen(summary)
     ].join('\n');
@@ -43,7 +44,7 @@ const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSumm
   if (invoicePayment?.invoiceUploadedAt) {
     return [
       'Статистика сохранена.',
-      'Счет за апрель уже загружен. После оплаты загрузи чек в бот.',
+      `Счет за ${monthKey} уже загружен. После оплаты загрузи чек в бот.`,
       '',
       formatCreatorSecondQueueScreen(summary)
     ].join('\n');
@@ -51,7 +52,7 @@ const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSumm
 
   return [
     'Статистика сохранена.',
-    'Следующий шаг: выставить счет за апрель. Счет за март не нужен.',
+    `Следующий шаг: выставить счет за ${monthKey}.`,
     'После оплаты загрузи чек в бот.',
     '',
     formatCreatorSecondQueueScreen(summary)
@@ -68,7 +69,9 @@ export const replyCreatorPostStatisticsNextStep = async (
     return;
   }
 
-  if (options.statisticsMonthKey && options.statisticsMonthKey !== CREATOR_INVOICE_MONTH_KEY) {
+  const invoiceMonthKey = getCreatorInvoiceMonthKey();
+
+  if (options.statisticsMonthKey && options.statisticsMonthKey !== invoiceMonthKey) {
     return;
   }
 
@@ -78,7 +81,7 @@ export const replyCreatorPostStatisticsNextStep = async (
     await ctx.reply(
       [
         'Статистика сохранена.',
-        'Теперь выставь счет за апрель. Счет за март не нужен.',
+        `Теперь выставь счет за ${invoiceMonthKey}.`,
         'После оплаты загрузи чек в бот.'
       ].join('\n'),
       noContractCreatorPaymentKeyboard()
@@ -112,12 +115,12 @@ export const replyCreatorPostStatisticsNextStep = async (
       await ctx.reply(
         [
           'Статистика сохранена.',
-          'Перед второй очередью нужно закрыть обязательную статистику за апрель.',
+          `Перед второй очередью нужно закрыть обязательную статистику за ${statisticsStatus.monthKey}.`,
           ...formatRequiredSecondQueueStatisticsMissingLines(statisticsStatus),
           '',
           statisticsStatus.monthlyVideoSubmitted
             ? 'После этого снова нажми «Сформировать вторую очередь».'
-            : 'Нажми «Сформировать вторую очередь», и бот сразу попросит ввести количество видео за апрель.'
+            : `Нажми «Сформировать вторую очередь», и бот сразу попросит ввести количество видео за ${statisticsStatus.monthKey}.`
         ].join('\n'),
         secondQueueKeyboard
       );
@@ -128,7 +131,7 @@ export const replyCreatorPostStatisticsNextStep = async (
       [
         'Статистика сохранена.',
         'Дальше нужно закрыть вторую очередь документов: акты и передачу прав.',
-        'После подписания второй очереди бот предложит выставить счет только за апрель.'
+        `После подписания второй очереди бот предложит выставить счет за ${invoiceMonthKey}.`
       ].join('\n'),
       secondQueueKeyboard
     );
@@ -146,7 +149,7 @@ export const replyCreatorPostStatisticsNextStep = async (
   await ctx.reply(
     [
       'Статистика сохранена.',
-      'Счет будет только за апрель, но сначала нужно закрыть документы по договору.',
+      `Счет будет за ${invoiceMonthKey}, но сначала нужно закрыть документы по договору.`,
       'Следующий шаг - первая очередь: договор, NDA и задания.'
     ].join('\n'),
     creatorFirstQueueActionsKeyboard({

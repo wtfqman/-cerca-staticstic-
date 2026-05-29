@@ -1,9 +1,9 @@
 import { SocialPlatform } from '@prisma/client';
 
 import { container } from '../container';
-import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
+import { getCreatorInvoiceMonthKey } from '../documents/document-workflow.constants';
 
-export const REQUIRED_SECOND_QUEUE_MONTH_KEY = CREATOR_INVOICE_MONTH_KEY;
+export const getRequiredSecondQueueMonthKey = () => getCreatorInvoiceMonthKey();
 export const REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
 
 export interface RequiredSecondQueueStatisticsStatus {
@@ -18,11 +18,12 @@ export interface RequiredSecondQueueStatisticsStatus {
 export const getRequiredSecondQueueStatisticsStatus = async (
   creatorUserId: string
 ): Promise<RequiredSecondQueueStatisticsStatus> => {
+  const monthKey = getRequiredSecondQueueMonthKey();
   const [monthlyVideo, reports] = await Promise.all([
-    container.services.monthlyVideoService.getMonthCount(creatorUserId, REQUIRED_SECOND_QUEUE_MONTH_KEY),
+    container.services.monthlyVideoService.getMonthCount(creatorUserId, monthKey),
     container.repositories.weeklyStatsRepository.listReportsByCreatorAndMonth(
       creatorUserId,
-      REQUIRED_SECOND_QUEUE_MONTH_KEY,
+      monthKey,
       { submittedOnly: true }
     )
   ]);
@@ -33,7 +34,7 @@ export const getRequiredSecondQueueStatisticsStatus = async (
   const monthlyVideoSubmitted = Boolean(monthlyVideo);
 
   return {
-    monthKey: REQUIRED_SECOND_QUEUE_MONTH_KEY,
+    monthKey,
     monthlyVideoSubmitted,
     hasReach,
     screenshotCount,
@@ -46,9 +47,9 @@ export const formatRequiredSecondQueueStatisticsMissingLines = (
   status: RequiredSecondQueueStatisticsStatus
 ) =>
   [
-    status.monthlyVideoSubmitted ? null : '- укажи количество видео за апрель',
-    status.hasReach ? null : '- внеси охваты за апрель',
+    status.monthlyVideoSubmitted ? null : `- укажи количество видео за ${status.monthKey}`,
+    status.hasReach ? null : `- внеси охваты за ${status.monthKey}`,
     status.screenshotCount >= status.requiredScreenshotCount
       ? null
-      : `- отправь ${status.requiredScreenshotCount} скрина статистики за апрель (${status.screenshotCount}/${status.requiredScreenshotCount})`
+      : `- отправь ${status.requiredScreenshotCount} скрина статистики за ${status.monthKey} (${status.screenshotCount}/${status.requiredScreenshotCount})`
   ].filter((line): line is string => Boolean(line));

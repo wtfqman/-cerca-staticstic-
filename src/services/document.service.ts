@@ -20,11 +20,11 @@ import type { DocumentWorkflowService } from './document-workflow.service';
 import { logger } from '../lib/logger';
 import { getCurrentDocumentLayoutRevision } from '../documents/document-layout-revisions';
 import {
-  ACTIVE_ROSTER_CONTRACT_DATE,
-  ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
   FIRST_QUEUE_DOCUMENT_TYPES,
   SECOND_QUEUE_DOCUMENT_TYPES,
+  getActiveRosterContractDate,
   getWorkflowDocumentScopeKey,
+  isCurrentDocumentWorkflowScopeKey,
   normalizeCampaignPeriodMonths
 } from '../documents/document-workflow.constants';
 
@@ -185,6 +185,9 @@ const sortCreatorBatchDocuments = (left: CreatorBatchDocument, right: CreatorBat
   return left.generatedAt.getTime() - right.generatedAt.getTime();
 };
 
+const isCurrentWorkflowDocument = (document: { scopeKey?: string | null }) =>
+  isCurrentDocumentWorkflowScopeKey(document.scopeKey);
+
 const formatCreatorDocumentBatchHeader = (input: {
   creatorName: string;
   documents: CreatorBatchDocument[];
@@ -289,9 +292,7 @@ export class DocumentService {
     const state = await this.documentWorkflowService.prepareActiveRosterResigningWorkflow(creatorUserId);
     const campaign = state.campaign;
     const periodMonths = normalizeCampaignPeriodMonths(campaign.periodMonths);
-    const contractDate = campaign.key === ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY
-      ? ACTIVE_ROSTER_CONTRACT_DATE
-      : campaign.contractDate ?? ACTIVE_ROSTER_CONTRACT_DATE;
+    const contractDate = campaign.contractDate ?? getActiveRosterContractDate();
     const workflowPayload = {
       campaignKey: campaign.key,
       campaignTitle: campaign.title,
@@ -367,9 +368,7 @@ export class DocumentService {
     }
 
     const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
-    const contractDate = state.campaign.key === ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY
-      ? ACTIVE_ROSTER_CONTRACT_DATE
-      : state.campaign.contractDate ?? ACTIVE_ROSTER_CONTRACT_DATE;
+    const contractDate = state.campaign.contractDate ?? getActiveRosterContractDate();
     const documents = [];
     this.assertTemplatesAvailableForLegalType(legalType, [...SECOND_QUEUE_DOCUMENT_TYPES]);
 
@@ -602,7 +601,7 @@ export class DocumentService {
   }
 
   async listCreatorDocuments(creatorUserId: string) {
-    return this.documentRepository.listByCreator(creatorUserId);
+    return (await this.documentRepository.listByCreator(creatorUserId)).filter(isCurrentWorkflowDocument);
   }
 
   async sendCreatorDocumentsBatchToChat(
@@ -804,15 +803,21 @@ export class DocumentService {
   async listCreatorResendableDocuments(creatorUserId: string) {
     const documents = await this.documentRepository.listByCreator(creatorUserId);
 
-    return documents.filter((document) => isApprovedTemplateDocumentPayload(document.payloadJson, document.type));
+    return documents.filter(
+      (document) =>
+        isCurrentWorkflowDocument(document) &&
+        isApprovedTemplateDocumentPayload(document.payloadJson, document.type)
+    );
   }
 
   async listPendingSignatureDocuments(creatorUserId: string) {
-    return this.documentRepository.listPendingSignatureByCreator(creatorUserId);
+    return (await this.documentRepository.listPendingSignatureByCreator(creatorUserId)).filter(isCurrentWorkflowDocument);
   }
 
   async listSignatureUploadDocuments(creatorUserId: string) {
-    return this.documentRepository.listSignatureUploadCandidatesByCreator(creatorUserId);
+    return (await this.documentRepository.listSignatureUploadCandidatesByCreator(creatorUserId)).filter(
+      isCurrentWorkflowDocument
+    );
   }
 
   async resendDocument(telegram: Telegram, documentId: string) {

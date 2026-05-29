@@ -12,16 +12,17 @@ import {
 } from '@prisma/client';
 
 import {
-  ACTIVE_ROSTER_CONTRACT_DATE,
-  ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
-  ACTIVE_ROSTER_RESIGNING_PERIOD_MONTHS,
-  ACTIVE_ROSTER_RESIGNING_TITLE,
-  NO_CONTRACT_PAYMENT_CAMPAIGN_KEY,
-  NO_CONTRACT_PAYMENT_PERIOD_MONTHS,
-  NO_CONTRACT_PAYMENT_TITLE,
   SECOND_QUEUE_DOCUMENT_TYPES,
   addReceiptReminderDelay,
+  getActiveRosterContractDate,
+  getActiveRosterResigningCampaignKey,
+  getActiveRosterResigningPeriodMonths,
+  getActiveRosterResigningTitle,
   getDefaultDocumentWorkflowQueue,
+  getCreatorInvoiceMonthKey,
+  getNoContractPaymentCampaignKey,
+  getNoContractPaymentPeriodMonths,
+  getNoContractPaymentTitle,
   isCreatorInvoiceMonth,
   normalizeCampaignPeriodMonths
 } from '../documents/document-workflow.constants';
@@ -77,7 +78,7 @@ const isActivePaymentUpload = (upload: Pick<PaymentDocumentUpload, 'status'>) =>
   upload.status !== PaymentDocumentStatus.REJECTED;
 
 const isNoContractPaymentState = (state: DocumentWorkflowStateWithRelations) =>
-  state.campaign.key === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY &&
+  state.campaign.key === getNoContractPaymentCampaignKey() &&
   state.creator.creatorProfile?.profileCompleted === true &&
   state.creator.creatorProfile.legalType === null;
 
@@ -312,17 +313,20 @@ export class DocumentWorkflowService {
   ) {}
 
   async ensureActiveRosterResigningCampaign(createdByUserId?: string) {
-    const existingCampaign = await this.workflowRepository.findCampaignByKey(ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY);
+    const monthKey = getCreatorInvoiceMonthKey();
+    const campaignKey = getActiveRosterResigningCampaignKey(monthKey);
+    const existingCampaign = await this.workflowRepository.findCampaignByKey(campaignKey);
+    const contractDate = getActiveRosterContractDate(monthKey);
 
     return this.workflowRepository.upsertCampaign({
-      key: ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
+      key: campaignKey,
       type: DocumentWorkflowCampaignType.ACTIVE_ROSTER_RESIGNING,
       status: DocumentWorkflowCampaignStatus.ACTIVE,
-      title: ACTIVE_ROSTER_RESIGNING_TITLE,
+      title: getActiveRosterResigningTitle(monthKey),
       description:
-        'Управляемый сценарий переподписания действующего состава: договор датой марта, периодические документы за март и апрель.',
-      contractDate: ACTIVE_ROSTER_CONTRACT_DATE,
-      periodMonths: [...ACTIVE_ROSTER_RESIGNING_PERIOD_MONTHS],
+        'Управляемый сценарий переподписания действующего состава: договор и задание на актуальный месяц, акт на дату закрытия месяца.',
+      contractDate,
+      periodMonths: getActiveRosterResigningPeriodMonths(monthKey),
       createdByUserId: existingCampaign?.createdByUserId ?? createdByUserId,
       activatedAt: existingCampaign?.activatedAt ?? new Date()
     });
@@ -339,15 +343,17 @@ export class DocumentWorkflowService {
   }
 
   async ensureNoContractPaymentCampaign(createdByUserId?: string) {
-    const existingCampaign = await this.workflowRepository.findCampaignByKey(NO_CONTRACT_PAYMENT_CAMPAIGN_KEY);
+    const monthKey = getCreatorInvoiceMonthKey();
+    const campaignKey = getNoContractPaymentCampaignKey(monthKey);
+    const existingCampaign = await this.workflowRepository.findCampaignByKey(campaignKey);
 
     return this.workflowRepository.upsertCampaign({
-      key: NO_CONTRACT_PAYMENT_CAMPAIGN_KEY,
+      key: campaignKey,
       type: DocumentWorkflowCampaignType.REGULAR,
       status: DocumentWorkflowCampaignStatus.ACTIVE,
-      title: NO_CONTRACT_PAYMENT_TITLE,
+      title: getNoContractPaymentTitle(monthKey),
       description: 'Сценарий без договора: статистика и загрузка счета без очередей документов.',
-      periodMonths: [...NO_CONTRACT_PAYMENT_PERIOD_MONTHS],
+      periodMonths: getNoContractPaymentPeriodMonths(monthKey),
       createdByUserId: existingCampaign?.createdByUserId ?? createdByUserId,
       activatedAt: existingCampaign?.activatedAt ?? new Date()
     });
@@ -364,13 +370,14 @@ export class DocumentWorkflowService {
   }
 
   async getActiveRosterFirstQueueSummary(creatorUserId: string): Promise<ActiveRosterFirstQueueSummary> {
-    const campaign = await this.workflowRepository.findCampaignByKey(ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY);
+    const campaignKey = getActiveRosterResigningCampaignKey();
+    const campaign = await this.workflowRepository.findCampaignByKey(campaignKey);
     const state = campaign
       ? await this.workflowRepository.findState(campaign.id, creatorUserId)
       : null;
     const refreshedState = state ? await this.refreshWorkflowState(state.id) : null;
     const periodMonths = normalizeCampaignPeriodMonths(
-      refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? [...ACTIVE_ROSTER_RESIGNING_PERIOD_MONTHS]
+      refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? getActiveRosterResigningPeriodMonths()
     );
     const expectedDocuments: Array<{ type: DocumentType; monthKey: string | null }> = [
       { type: DocumentType.CONTRACT, monthKey: null },
@@ -382,9 +389,9 @@ export class DocumentWorkflowService {
     ];
 
     return {
-      campaignKey: refreshedState?.campaign.key ?? campaign?.key ?? ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
-      campaignTitle: refreshedState?.campaign.title ?? campaign?.title ?? ACTIVE_ROSTER_RESIGNING_TITLE,
-      contractDate: refreshedState?.campaign.contractDate ?? campaign?.contractDate ?? ACTIVE_ROSTER_CONTRACT_DATE,
+      campaignKey: refreshedState?.campaign.key ?? campaign?.key ?? campaignKey,
+      campaignTitle: refreshedState?.campaign.title ?? campaign?.title ?? getActiveRosterResigningTitle(),
+      contractDate: refreshedState?.campaign.contractDate ?? campaign?.contractDate ?? getActiveRosterContractDate(),
       periodMonths,
       isPrepared: Boolean(refreshedState),
       isCompleted: Boolean(refreshedState?.firstQueueCompletedAt),
@@ -419,13 +426,14 @@ export class DocumentWorkflowService {
   }
 
   async getActiveRosterSecondQueueSummary(creatorUserId: string): Promise<ActiveRosterSecondQueueSummary> {
-    const campaign = await this.workflowRepository.findCampaignByKey(ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY);
+    const campaignKey = getActiveRosterResigningCampaignKey();
+    const campaign = await this.workflowRepository.findCampaignByKey(campaignKey);
     const state = campaign
       ? await this.workflowRepository.findState(campaign.id, creatorUserId)
       : null;
     const refreshedState = state ? await this.refreshWorkflowState(state.id) : null;
     const periodMonths = normalizeCampaignPeriodMonths(
-      refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? [...ACTIVE_ROSTER_RESIGNING_PERIOD_MONTHS]
+      refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? getActiveRosterResigningPeriodMonths()
     );
     const firstQueueCompleted = Boolean(refreshedState?.firstQueueCompletedAt);
     const expectedSecondQueueDocuments = periodMonths.flatMap((monthKey) =>
@@ -487,8 +495,8 @@ export class DocumentWorkflowService {
     }));
 
     return {
-      campaignKey: refreshedState?.campaign.key ?? campaign?.key ?? ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY,
-      campaignTitle: refreshedState?.campaign.title ?? campaign?.title ?? ACTIVE_ROSTER_RESIGNING_TITLE,
+      campaignKey: refreshedState?.campaign.key ?? campaign?.key ?? campaignKey,
+      campaignTitle: refreshedState?.campaign.title ?? campaign?.title ?? getActiveRosterResigningTitle(),
       periodMonths,
       isPrepared: Boolean(refreshedState),
       isFirstQueueCompleted: firstQueueCompleted,
@@ -618,17 +626,17 @@ export class DocumentWorkflowService {
   async canUploadInvoice(
     creatorUserId: string,
     monthKey?: string,
-    campaignKey = ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY
+    campaignKey = getActiveRosterResigningCampaignKey()
   ) {
     if (monthKey && !isCreatorInvoiceMonth(monthKey)) {
       return {
         allowed: false as const,
-        reason: 'Счет сейчас нужен только за апрель 2026. Мартовский счет не нужен.'
+        reason: `Счет сейчас нужен только за ${getCreatorInvoiceMonthKey()}.`
       };
     }
 
     const state =
-      campaignKey === NO_CONTRACT_PAYMENT_CAMPAIGN_KEY
+      campaignKey === getNoContractPaymentCampaignKey()
         ? await this.prepareNoContractPaymentWorkflow(creatorUserId)
         : await this.workflowRepository.findStateByCampaignKey(campaignKey, creatorUserId);
 
@@ -679,12 +687,12 @@ export class DocumentWorkflowService {
   async canUploadReceipt(
     creatorUserId: string,
     monthKey: string,
-    campaignKey = ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY
+    campaignKey = getActiveRosterResigningCampaignKey()
   ) {
     if (!isCreatorInvoiceMonth(monthKey)) {
       return {
         allowed: false as const,
-        reason: 'Чек сейчас нужен только за апрель 2026. Мартовский чек не нужен.'
+        reason: `Чек сейчас нужен только за ${getCreatorInvoiceMonthKey()}.`
       };
     }
 
@@ -788,7 +796,7 @@ export class DocumentWorkflowService {
     creatorUserId: string,
     monthKey: string,
     startedAt = new Date(),
-    campaignKey = ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY
+    campaignKey = getActiveRosterResigningCampaignKey()
   ): Promise<ReceiptExpectationMarkResult> {
     const state = await this.workflowRepository.findStateByCampaignKey(campaignKey, creatorUserId);
 

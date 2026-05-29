@@ -7,7 +7,7 @@ import { MonthlyAggregationService } from './monthly-aggregation.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 import { formatMonthLabelRu, formatMoneyRu, formatPassportSeriesNumber, formatRussianDate } from '../utils/formatters';
 import { moneyToWordsRu } from '../utils/money-words';
-import { getMonthRange, toDateOnly } from '../utils/periods';
+import { getCurrentMonthKey, getMonthRange, toDateOnly } from '../utils/periods';
 import { resolveDocumentPersonGrammar } from '../documents/document-person-grammar';
 import { assertCreatorDocumentProfileValid } from '../documents/document-payload.validation';
 
@@ -44,6 +44,24 @@ const resolveWorkflowDate = (workflow: Record<string, unknown> | undefined, key:
 };
 
 const hasText = (value: string | null | undefined) => typeof value === 'string' && value.trim().length > 0;
+
+const getMonthStartDate = (monthKey: string) => toDateOnly(getMonthRange(monthKey).dateFrom);
+
+const getMonthEndDate = (monthKey: string) => toDateOnly(getMonthRange(monthKey).dateTo);
+
+const getDefaultOneOffDocumentDate = () => getMonthStartDate(getCurrentMonthKey());
+
+const getDefaultMonthlyDocumentDate = (monthKey: string, type: DocumentType) => {
+  if (type === DocumentType.ASSIGNMENT) {
+    return getMonthStartDate(monthKey);
+  }
+
+  if (type === DocumentType.ACT || type === DocumentType.RIGHTS_TRANSFER) {
+    return getMonthEndDate(monthKey);
+  }
+
+  return new Date();
+};
 
 export class DocumentPayloadBuilderService {
   constructor(
@@ -82,7 +100,7 @@ export class DocumentPayloadBuilderService {
 
     const basePayload = this.buildBasePayload(creator);
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
-    const documentDate = options.generatedDate ?? workflowContractDate ?? new Date();
+    const documentDate = options.generatedDate ?? workflowContractDate ?? getDefaultOneOffDocumentDate();
     const contractDate = workflowContractDate ?? documentDate;
 
     return {
@@ -111,7 +129,7 @@ export class DocumentPayloadBuilderService {
     const creator = await this.assertCreatorProfileCompleted(creatorUserId);
 
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
-    const documentDate = options.generatedDate ?? new Date();
+    const documentDate = options.generatedDate ?? getDefaultMonthlyDocumentDate(monthKey, type);
     const monthRange = getMonthRange(monthKey);
     const [aggregation, payment] = await Promise.all([
       this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey, { submittedOnly: true }),

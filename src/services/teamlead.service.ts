@@ -7,7 +7,7 @@ import { formatCreatorDisplayName } from '../utils/formatters';
 import { CreatorDisciplineService } from './creator-discipline.service';
 import { DocumentStatusService } from './document-status.service';
 import { getCurrentMonthKey, getWeeklyReportPeriod, toDateKey, toDateOnly } from '../utils/periods';
-import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
+import { getCreatorInvoiceMonthKey } from '../documents/document-workflow.constants';
 
 type AttentionCreatorReference = {
   id: string;
@@ -81,7 +81,7 @@ export class TeamLeadService {
     teamLeadUserId = 'all'
   ): Promise<TeamLeadAttentionSummary> {
     const weekPeriod = getWeeklyReportPeriod();
-    const documentMonthKey = CREATOR_INVOICE_MONTH_KEY;
+    const documentMonthKey = getCreatorInvoiceMonthKey();
     const [missingPublicationConfirmations, weeklyStatsAttention, monthlyVideoStatuses, documentsMissing] =
       await Promise.all([
         this.dailyCheckRepository.listPendingForCreators(

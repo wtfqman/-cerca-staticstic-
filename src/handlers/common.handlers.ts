@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 
-import { SocialPlatform } from '@prisma/client';
 import { Input } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
@@ -8,9 +7,8 @@ import { container } from '../container';
 import { ACCESS_PENDING_TEXT, CREATOR_SELF_EDIT_DISABLED_TEXT, HELP_TEXTS } from '../texts/messages';
 import { mainMenuKeyboardForUser, mainMenuTextForUser } from '../keyboards/menu.keyboards';
 import { creatorProfileSelfEditKeyboard, reportMonthKeyboard } from '../keyboards/inline.keyboards';
-import { getCurrentMonthKey, getMonthRange, getPreviousMonthKey, toDateOnly } from '../utils/periods';
+import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
 import { getMessageText, splitTelegramMessage } from '../utils/telegram';
-import { formatIntegerRu } from '../utils/formatters';
 import { formatAggregationSnapshot, formatCreatorMonthlyReport } from '../reports/report.formatters';
 import { formatSignedUploadResultMessage } from '../documents/document.formatters';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
@@ -24,16 +22,12 @@ import {
   ensureCreatorProfileCompletedForDocuments,
   openCreatorFirstQueueEntryFlow
 } from '../creators/creator-documents.flow';
-import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statistics-next-step';
 import {
   canUseAdminScenario,
   canUseAnyScenario,
   canUseCreatorScenario,
   canUseTeamLeadScenario
 } from '../utils/access';
-
-const REQUIRED_APRIL_REACH_MONTH_KEY = '2026-04';
-const REQUIRED_APRIL_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
 
 export const showMainMenu = async (ctx: BotContext) => {
   const currentUser = ctx.state.currentUser;
@@ -206,105 +200,7 @@ export const handleCreatorWeekReport = async (ctx: BotContext) => {
   await ctx.reply(formatAggregationSnapshot('Сводка за последние 7 дней', summary));
 };
 
-const isImageTelegramDocument = (document: { file_name?: string; mime_type?: string }) => {
-  const fileName = document.file_name?.toLowerCase() ?? '';
-
-  return (
-    document.mime_type?.startsWith('image/') === true ||
-    /\.(png|jpe?g|webp)$/i.test(fileName)
-  );
-};
-
-const getMonthlyReachScreenshotFile = (ctx: BotContext) => {
-  if (!ctx.message) {
-    return null;
-  }
-
-  if ('photo' in ctx.message && ctx.message.photo.length > 0) {
-    return ctx.message.photo[ctx.message.photo.length - 1];
-  }
-
-  if (
-    'document' in ctx.message &&
-    !isPdfTelegramDocument(ctx.message.document) &&
-    isImageTelegramDocument(ctx.message.document)
-  ) {
-    return ctx.message.document;
-  }
-
-  return null;
-};
-
-export const handleMonthlyReachScreenshotUpload = async (ctx: BotContext) => {
-  const currentUser = ctx.state.currentUser;
-  const file = getMonthlyReachScreenshotFile(ctx);
-
-  if (!currentUser || !canUseCreatorScenario(currentUser) || !file) {
-    return false;
-  }
-
-  const range = getMonthRange(REQUIRED_APRIL_REACH_MONTH_KEY);
-  const report = await container.repositories.weeklyStatsRepository.getReportForPeriod(
-    currentUser.id,
-    toDateOnly(range.dateFrom),
-    toDateOnly(range.dateTo)
-  );
-
-  if (!report) {
-    await ctx.reply(
-      [
-        'Скрин не привязан к статистике.',
-        'Сначала открой «Охваты март/апрель», внеси охваты за апрель, а потом отправь 4 скрина статистики за апрель.'
-      ].join('\n')
-    );
-    return true;
-  }
-
-  const currentCount = await container.services.weeklyStatsService.countAttachments(report.id);
-
-  if (currentCount >= REQUIRED_APRIL_SCREENSHOT_COUNT) {
-    await ctx.reply(
-      `Скрины за апрель уже сохранены: ${formatIntegerRu(currentCount)}/${formatIntegerRu(
-        REQUIRED_APRIL_SCREENSHOT_COUNT
-      )}. Можно снова нажать «Сформировать вторую очередь».`
-    );
-    return true;
-  }
-
-  try {
-    await container.services.weeklyStatsService.saveAttachment({
-      telegram: ctx.telegram,
-      reportId: report.id,
-      creatorUserId: currentUser.id,
-      telegramFileId: file.file_id,
-      telegramFileUniqueId: file.file_unique_id
-    });
-
-    const updatedCount = await container.services.weeklyStatsService.countAttachments(report.id);
-
-    if (updatedCount < REQUIRED_APRIL_SCREENSHOT_COUNT) {
-      await ctx.reply(
-        `Скрин сохранен: ${formatIntegerRu(updatedCount)}/${formatIntegerRu(
-          REQUIRED_APRIL_SCREENSHOT_COUNT
-        )}. Отправь следующий скрин за апрель.`
-      );
-      return true;
-    }
-
-    await ctx.reply(
-      'Все 4 скрина за апрель сохранены. Спасибо.',
-      mainMenuKeyboardForUser(currentUser)
-    );
-    await replyCreatorPostStatisticsNextStep(ctx);
-  } catch (error) {
-    logUserError(error, 'April monthly screenshot save failed outside scene', {
-      userId: currentUser.id
-    });
-    await ctx.reply('Не удалось сохранить скрин за апрель. Отправь файл еще раз или нажми /cancel.');
-  }
-
-  return true;
-};
+export const handleMonthlyReachScreenshotUpload = async (_ctx: BotContext) => false;
 
 export const handleDocumentReplyUpload = async (ctx: BotContext) => {
     const currentUser = ctx.state.currentUser;

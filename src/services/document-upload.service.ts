@@ -10,6 +10,7 @@ import { FileStorageService } from './file-storage.service';
 import type { SignedDocumentForwardingResult } from '../documents/document.formatters';
 import { getDocumentTitle } from '../documents/document.constants';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
+import { isCurrentDocumentWorkflowScopeKey } from '../documents/document-workflow.constants';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import type { DocumentWorkflowService } from './document-workflow.service';
 import { formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
@@ -321,7 +322,9 @@ export class DocumentUploadService {
     input: { includeAlreadyForwarded?: boolean } = {}
   ) {
     return this.chatSendQueue.enqueue(chatId, async () => {
-      const rawUploads = (await this.documentRepository.listUnforwardedSignatureUploads(input)).sort(sortPendingSignatureUploads);
+      const rawUploads = (await this.documentRepository.listUnforwardedSignatureUploads(input))
+        .filter((upload) => isCurrentDocumentWorkflowScopeKey(upload.document.scopeKey))
+        .sort(sortPendingSignatureUploads);
       const { uploads, supersededUploads } = compactPendingSignatureUploads(rawUploads);
 
       if (!input.includeAlreadyForwarded && supersededUploads.length) {

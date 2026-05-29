@@ -3,7 +3,7 @@ import type { Document, DocumentSignatureUpload, User } from '@prisma/client';
 import { DocumentStatus, DocumentType } from '@prisma/client';
 
 import { getDocumentTitle } from './document.constants';
-import { ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY, isCreatorInvoiceMonth } from './document-workflow.constants';
+import { isActiveRosterResigningScopeKey, isCreatorInvoiceMonth } from './document-workflow.constants';
 import { getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
 import { formatFullName, formatRussianDate, formatRussianDateTime } from '../utils/formatters';
 import type {
@@ -41,7 +41,7 @@ type DocumentStatusLineInput = Pick<
 };
 
 const formatDocumentScopeSuffix = (scopeKey?: string | null) =>
-  scopeKey?.startsWith(ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY) ? ' - переподписание' : '';
+  isActiveRosterResigningScopeKey(scopeKey) ? ' - переподписание' : '';
 
 export const formatDocumentStatusLine = (document: DocumentStatusLineInput) => {
   const latestUpload = document.signatureUploads?.[0];
@@ -384,7 +384,7 @@ export const formatCreatorSecondQueueScreen = (summary: ActiveRosterSecondQueueS
     ...summary.documents.map(formatCreatorDocumentLine),
     '',
     'Счет и чек:',
-    ...(billablePayments.length ? billablePayments.map(formatCreatorPaymentLine) : ['- апрельский период не задан'])
+    ...(billablePayments.length ? billablePayments.map(formatCreatorPaymentLine) : ['- актуальный период не задан'])
   ]
     .filter(Boolean)
     .join('\n');
@@ -411,10 +411,10 @@ export const formatActiveRosterSecondQueueStatus = (summary: ActiveRosterSecondQ
     ...summary.documents.map(formatSecondQueueDocumentLine),
     '',
     'Счет:',
-    ...(billablePayments.length ? billablePayments.map(formatInvoiceQueueLine) : ['апрельский период не задан']),
+    ...(billablePayments.length ? billablePayments.map(formatInvoiceQueueLine) : ['актуальный период не задан']),
     '',
     'Чек:',
-    ...(billablePayments.length ? billablePayments.map(formatReceiptQueueLine) : ['апрельский период не задан']),
+    ...(billablePayments.length ? billablePayments.map(formatReceiptQueueLine) : ['актуальный период не задан']),
     '',
     summary.isFirstQueueCompleted
       ? 'Акты и передачу прав можно сформировать отдельной кнопкой. После подписи отправь PDF обратно в бот.'

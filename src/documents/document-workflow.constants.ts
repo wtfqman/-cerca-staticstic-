@@ -1,15 +1,36 @@
 import { DocumentType, DocumentWorkflowQueue } from '@prisma/client';
 
-export const ACTIVE_ROSTER_RESIGNING_CAMPAIGN_KEY = 'active_roster_resigning_2026_march';
-export const ACTIVE_ROSTER_RESIGNING_TITLE = 'Переподписание действующего состава: март 2026';
-export const ACTIVE_ROSTER_RESIGNING_PERIOD_MONTHS = ['2026-03', '2026-04'] as const;
-export const NO_CONTRACT_PAYMENT_CAMPAIGN_KEY = 'no_contract_payment_2026_april';
-export const NO_CONTRACT_PAYMENT_TITLE = 'Без договора: выплаты за апрель 2026';
-export const NO_CONTRACT_PAYMENT_PERIOD_MONTHS = ['2026-04'] as const;
-export const CREATOR_INVOICE_MONTH_KEY = '2026-04';
-export const CREATOR_INVOICE_MONTHS = [CREATOR_INVOICE_MONTH_KEY] as const;
+import { formatMonthLabelRu } from '../utils/formatters';
+import { getCurrentMonthKey, getMonthRange, toDateOnly } from '../utils/periods';
 
-export const ACTIVE_ROSTER_CONTRACT_DATE = new Date(Date.UTC(2026, 2, 1));
+const ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX = 'active_roster_resigning';
+const NO_CONTRACT_PAYMENT_CAMPAIGN_PREFIX = 'no_contract_payment';
+
+const formatCampaignMonthSuffix = (monthKey: string) => monthKey.replace('-', '_');
+
+export const getDocumentWorkflowMonthKey = () => getCurrentMonthKey();
+
+export const getActiveRosterContractDate = (monthKey = getDocumentWorkflowMonthKey()) =>
+  toDateOnly(getMonthRange(monthKey).dateFrom);
+
+export const getActiveRosterResigningCampaignKey = (monthKey = getDocumentWorkflowMonthKey()) =>
+  `${ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX}_${formatCampaignMonthSuffix(monthKey)}`;
+
+export const getActiveRosterResigningTitle = (monthKey = getDocumentWorkflowMonthKey()) =>
+  `Переподписание действующего состава: ${formatMonthLabelRu(monthKey)}`;
+
+export const getActiveRosterResigningPeriodMonths = (monthKey = getDocumentWorkflowMonthKey()) => [monthKey];
+
+export const getNoContractPaymentCampaignKey = (monthKey = getDocumentWorkflowMonthKey()) =>
+  `${NO_CONTRACT_PAYMENT_CAMPAIGN_PREFIX}_${formatCampaignMonthSuffix(monthKey)}`;
+
+export const getNoContractPaymentTitle = (monthKey = getDocumentWorkflowMonthKey()) =>
+  `Без договора: выплаты за ${formatMonthLabelRu(monthKey)}`;
+
+export const getNoContractPaymentPeriodMonths = (monthKey = getDocumentWorkflowMonthKey()) => [monthKey];
+
+export const getCreatorInvoiceMonthKey = () => getDocumentWorkflowMonthKey();
+
 export const RECEIPT_REMINDER_DELAY_HOURS = 36;
 
 export const FIRST_QUEUE_DOCUMENT_TYPES = [
@@ -43,8 +64,25 @@ export const normalizeCampaignPeriodMonths = (value: unknown): string[] => {
   return value.filter((item): item is string => typeof item === 'string' && /^\d{4}-\d{2}$/.test(item));
 };
 
-export const isCreatorInvoiceMonth = (monthKey: string) =>
-  (CREATOR_INVOICE_MONTHS as readonly string[]).includes(monthKey);
+export const isActiveRosterResigningCampaignKey = (key?: string | null) =>
+  Boolean(key?.startsWith(`${ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX}_`));
+
+export const isActiveRosterResigningScopeKey = (scopeKey?: string | null) =>
+  Boolean(scopeKey?.startsWith(`${ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX}_`));
+
+export const isCurrentActiveRosterResigningScopeKey = (
+  scopeKey?: string | null,
+  monthKey = getDocumentWorkflowMonthKey()
+) => {
+  const campaignKey = getActiveRosterResigningCampaignKey(monthKey);
+
+  return Boolean(scopeKey === campaignKey || scopeKey?.startsWith(`${campaignKey}:`));
+};
+
+export const isCurrentDocumentWorkflowScopeKey = (scopeKey?: string | null) =>
+  !isActiveRosterResigningScopeKey(scopeKey) || isCurrentActiveRosterResigningScopeKey(scopeKey);
+
+export const isCreatorInvoiceMonth = (monthKey: string) => monthKey === getCreatorInvoiceMonthKey();
 
 export const filterCreatorInvoiceMonths = (monthKeys: string[]) =>
   monthKeys.filter(isCreatorInvoiceMonth);

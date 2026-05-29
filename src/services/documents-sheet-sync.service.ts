@@ -1,4 +1,5 @@
 import { DocumentRepository } from '../repositories/document.repository';
+import { isCurrentDocumentWorkflowScopeKey } from '../documents/document-workflow.constants';
 import { formatAssignedTeamLeadName, formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
 import { GoogleSheetsService, type SheetUpsertResult } from './google-sheets.service';
 import { SpreadsheetFormatterService } from './spreadsheet-formatter.service';
@@ -26,7 +27,7 @@ export class DocumentsSheetSyncService {
 
     return this.googleSheetsService.upsertRows(
       this.formatter.getDocumentsSheetDefinition(),
-      documents.map((document) =>
+      documents.filter((document) => isCurrentDocumentWorkflowScopeKey(document.scopeKey)).map((document) =>
         this.formatter.buildDocumentsRow({
           documentId: document.id,
           creatorUserId: document.creatorUserId,
@@ -53,7 +54,7 @@ export class DocumentsSheetSyncService {
 
     return this.googleSheetsService.rebuildSheet(
       this.formatter.getDocumentsSheetDefinition(),
-      documents.map((document) =>
+      documents.filter((document) => isCurrentDocumentWorkflowScopeKey(document.scopeKey)).map((document) =>
         this.formatter.buildDocumentsRow({
           documentId: document.id,
           creatorUserId: document.creatorUserId,

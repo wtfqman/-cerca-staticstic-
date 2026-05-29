@@ -46,7 +46,7 @@ import {
   formatActiveRosterSecondQueueStatus,
   formatDocumentStatusLine
 } from '../documents/document.formatters';
-import { CREATOR_INVOICE_MONTH_KEY } from '../documents/document-workflow.constants';
+import { getCreatorInvoiceMonthKey } from '../documents/document-workflow.constants';
 import { config } from '../config';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import { canUseAdminScenario, canUseCreatorScenario, canUseTeamLeadScenario } from '../utils/access';
@@ -1133,6 +1133,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     const type = ctx.match[2] as PaymentDocumentType;
     const label = type === PaymentDocumentType.INVOICE ? 'счета' : 'чеки';
     const scopeLabel = exportMode === 'all' ? `все ${label}` : `новые ${label}`;
+    const invoiceMonthKey = getCreatorInvoiceMonthKey();
 
     await ctx.answerCbQuery(`Выгружаю ${scopeLabel}...`);
 
@@ -1142,20 +1143,20 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
         config.documents.chatId,
         {
           type,
-          monthKey: CREATOR_INVOICE_MONTH_KEY,
+          monthKey: invoiceMonthKey,
           includeAlreadyForwarded: exportMode === 'all',
           includeRelatedSignedDocuments: type === PaymentDocumentType.INVOICE
         }
       );
 
       if (!result.uploadCount) {
-        await ctx.reply(`Файлов для выгрузки нет: ${scopeLabel} за ${CREATOR_INVOICE_MONTH_KEY}.`);
+        await ctx.reply(`Файлов для выгрузки нет: ${scopeLabel} за ${invoiceMonthKey}.`);
         return;
       }
 
       await ctx.reply(
         [
-          `Выгрузка завершена: ${scopeLabel} за ${CREATOR_INVOICE_MONTH_KEY}.`,
+          `Выгрузка завершена: ${scopeLabel} за ${invoiceMonthKey}.`,
           `Отправлено файлов: ${formatIntegerRu(result.sentUploads.length)} из ${formatIntegerRu(result.uploadCount)}`,
           type === PaymentDocumentType.INVOICE && result.relatedDocumentCount
             ? `Документов рядом со счетами: ${formatIntegerRu(result.sentRelatedDocuments.length)} из ${formatIntegerRu(result.relatedDocumentCount)}`
@@ -1178,7 +1179,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
         adminUserId: ctx.state.currentUser?.id,
         documentsChatId: config.documents.chatId,
         type,
-        monthKey: CREATOR_INVOICE_MONTH_KEY
+        monthKey: invoiceMonthKey
       });
       await ctx.reply(`Не удалось выгрузить ${label} в рабочий чат. Подробности записаны в лог.`);
     }

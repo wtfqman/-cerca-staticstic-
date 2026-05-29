@@ -4,6 +4,7 @@ import type { CreatorDocumentStatusSummary, RequiredDocumentStatusSummary } from
 import { DocumentRepository } from '../repositories/document.repository';
 import { formatAssignedTeamLeadName, formatCreatorDisplayName } from '../utils/formatters';
 import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
+import { isCurrentDocumentWorkflowScopeKey } from '../documents/document-workflow.constants';
 
 type CreatorReference = {
   id: string;
@@ -94,13 +95,14 @@ export class DocumentStatusService {
       };
     }
 
+    const currentDocuments = documents.filter((document) => isCurrentDocumentWorkflowScopeKey(document.scopeKey));
     const permanentDocuments = new Map(
-      documents
+      currentDocuments
         .filter((document) => !document.monthKey)
         .map((document) => [document.type, document] as const)
     );
     const monthlyDocuments = new Map(
-      documents
+      currentDocuments
         .filter((document) => document.monthKey === monthKey)
         .map((document) => [document.type, document] as const)
     );

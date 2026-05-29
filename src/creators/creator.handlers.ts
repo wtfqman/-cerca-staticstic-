@@ -25,8 +25,8 @@ import { isMarchAprilStatisticsScenario } from '../utils/creator-statistics-scen
 import { safeAnswerCbQuery } from '../utils/telegram-callback';
 import {
   formatRequiredSecondQueueStatisticsMissingLines,
+  getRequiredSecondQueueMonthKey,
   getRequiredSecondQueueStatisticsStatus,
-  REQUIRED_SECOND_QUEUE_MONTH_KEY
 } from './creator-statistics-requirements';
 
 const DOCUMENT_GENERATION_DEDUPE_MS = 15_000;
@@ -76,9 +76,10 @@ const formatWeeklyReviewText = (summary: { status: string; isReviewedByTeamLead:
 const creatorStatsActionKeyboard = () =>
   Markup.inlineKeyboard([[Markup.button.callback('Внести статистику за 7 дней', 'creator_weekly_stats_start')]]);
 
-const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
+const ensureRequiredStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
   const creatorUserId = ctx.state.currentUser!.id;
   const status = await getRequiredSecondQueueStatisticsStatus(creatorUserId);
+  const monthKey = getRequiredSecondQueueMonthKey();
 
   if (status.isReady) {
     return true;
@@ -88,12 +89,12 @@ const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
 
   await ctx.reply(
     [
-      'Перед второй очередью нужно закрыть обязательную статистику за апрель.',
+      `Перед второй очередью нужно закрыть обязательную статистику за ${monthKey}.`,
       ...missingLines,
       '',
       status.monthlyVideoSubmitted
         ? 'После этого снова нажми «Сформировать вторую очередь».'
-        : 'Сейчас открою ввод количества видео за апрель. После сохранения снова нажми «Сформировать вторую очередь».'
+        : `Сейчас открою ввод количества видео за ${monthKey}. После сохранения снова нажми «Сформировать вторую очередь».`
     ]
       .filter(Boolean)
       .join('\n')
@@ -101,7 +102,7 @@ const ensureAprilStatisticsReadyForSecondQueue = async (ctx: BotContext) => {
 
   if (!status.monthlyVideoSubmitted) {
     await ctx.scene.enter(SCENE_IDS.monthlyVideo, {
-      monthKey: REQUIRED_SECOND_QUEUE_MONTH_KEY,
+      monthKey,
       force: true
     });
   }
@@ -386,7 +387,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    if (!(await ensureAprilStatisticsReadyForSecondQueue(ctx))) {
+    if (!(await ensureRequiredStatisticsReadyForSecondQueue(ctx))) {
       await safeAnswerCbQuery(ctx);
       return;
     }
