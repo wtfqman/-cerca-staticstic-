@@ -139,6 +139,10 @@ export class CreatorProfileChangeRequestService {
   async approve(actor: AppUser, requestId: string) {
     const request = await this.loadRequestForDecision(actor, requestId);
 
+    if (request.status === CreatorProfileChangeRequestStatus.APPROVED) {
+      return request;
+    }
+
     if (request.status !== CreatorProfileChangeRequestStatus.PENDING_TEAMLEAD) {
       throw new Error(`Этот запрос уже не ожидает решения. Текущий статус: ${this.formatStatus(request.status)}.`);
     }
