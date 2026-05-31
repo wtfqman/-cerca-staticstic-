@@ -10,6 +10,7 @@ import { canUseAdminScenario, canUseCreatorScenario, canUseTeamLeadScenario } fr
 import { isNoContractLegalType } from '../utils/creator-registration-mode';
 
 export type CreatorProfileEditableField =
+  | 'legalType'
   | 'fullName'
   | 'contractDeadlineDate'
   | 'passportSeries'
@@ -28,6 +29,7 @@ export type CreatorProfileEditableField =
   | 'email';
 
 export const creatorProfileFieldLabels: Record<CreatorProfileEditableField, string> = {
+  legalType: 'Юридический тип',
   fullName: 'ФИО',
   contractDeadlineDate: 'Срок выполнения договора',
   passportSeries: 'Серия паспорта',
@@ -79,6 +81,13 @@ const ipEditableFields: CreatorProfileEditableField[] = [
 ];
 
 const noContractEditableFields: CreatorProfileEditableField[] = [
+  'legalType',
+  'fullName',
+  'phone',
+  'email'
+];
+
+const noContractRequiredFields: CreatorProfileEditableField[] = [
   'fullName',
   'phone',
   'email'
@@ -190,7 +199,7 @@ export class CreatorProfileService {
     actor: AppUser,
     creatorUserId: string,
     field: CreatorProfileEditableField,
-    value: string | Date
+    value: string | Date | LegalType | null
   ) {
     const creator = await this.getManageableCreatorProfile(actor, creatorUserId);
     const profile = creator.creatorProfile;
@@ -205,7 +214,13 @@ export class CreatorProfileService {
       throw new Error('Это поле недоступно для типа анкеты креатора');
     }
 
-    const data = { [field]: value } as CreatorProfileUpsertInput;
+    const data =
+      field === 'legalType'
+        ? ({
+            legalType: value as LegalType,
+            profileCompleted: false
+          } satisfies CreatorProfileUpsertInput)
+        : ({ [field]: value } as CreatorProfileUpsertInput);
     const oldValue = formatAuditValue(profile[field]);
     const newValue = formatAuditValue(value);
 
@@ -220,6 +235,10 @@ export class CreatorProfileService {
   }
 
   formatFieldValue(field: CreatorProfileEditableField, value: unknown) {
+    if (field === 'legalType') {
+      return value === LegalType.SELF_EMPLOYED ? 'Самозанятый / СЗ' : value === LegalType.IP ? 'ИП' : 'Без договора';
+    }
+
     return isDateField(field) ? formatRussianDate(value as Date | string | null | undefined) : formatDisplayValue(value);
   }
 
@@ -293,7 +312,7 @@ export class CreatorProfileService {
     }
 
     const requiredFields = isNoContractLegalType(input.legalType)
-      ? noContractEditableFields
+      ? noContractRequiredFields
       : input.legalType === LegalType.IP
         ? ipEditableFields
         : selfEmployedEditableFields;

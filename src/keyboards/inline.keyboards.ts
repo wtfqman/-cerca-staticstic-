@@ -232,6 +232,7 @@ export const approvalInlineKeyboard = (confirmData: string, cancelData = 'action
   ]);
 
 const profileEditLabels: Record<CreatorProfileEditableField, string> = {
+  legalType: 'Юр. тип',
   fullName: 'ФИО',
   contractDeadlineDate: 'Срок договора',
   registrationAddress: 'Адрес регистрации',
@@ -265,6 +266,14 @@ export const profileEditFieldKeyboard = (fields: CreatorProfileEditableField[]) 
 export const creatorProfileSelfEditKeyboard = () =>
   Markup.inlineKeyboard([
     [Markup.button.callback('Запросить изменение данных', 'profile_change_request_start')]
+  ]);
+
+export const profileLegalTypeKeyboard = () =>
+  Markup.inlineKeyboard([
+    [
+      Markup.button.callback('Самозанятый', 'profile_edit_legal:SELF_EMPLOYED'),
+      Markup.button.callback('ИП', 'profile_edit_legal:IP')
+    ]
   ]);
 
 export const profileChangeRequestFieldKeyboard = (fields: CreatorProfileEditableField[]) =>

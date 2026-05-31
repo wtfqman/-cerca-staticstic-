@@ -39,7 +39,7 @@ export const profileChangeRequestScene = new Scenes.WizardScene<BotContext>(
   async (ctx) => {
     const currentUser = ctx.state.currentUser;
 
-    if (!currentUser?.creatorProfile?.legalType) {
+    if (!currentUser?.creatorProfile?.profileCompleted) {
       await ctx.reply('Сначала нужно завершить анкету. После этого можно запросить изменение данных.');
       await ctx.scene.leave();
       return;

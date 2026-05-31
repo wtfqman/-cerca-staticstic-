@@ -1,8 +1,9 @@
+import { LegalType } from '@prisma/client';
 import { Scenes } from 'telegraf';
 
 import type { BotContext } from '../types/bot-context';
 import { container } from '../container';
-import { approvalInlineKeyboard, profileEditFieldKeyboard } from '../keyboards/inline.keyboards';
+import { approvalInlineKeyboard, profileEditFieldKeyboard, profileLegalTypeKeyboard } from '../keyboards/inline.keyboards';
 import { SCENE_IDS } from './scene-ids';
 import {
   bankAccountSchema,
@@ -12,6 +13,7 @@ import {
   emailSchema,
   fullNameSchema,
   innSchema,
+  legalTypeSchema,
   ogrnipSchema,
   parseRuDateToDate,
   passportDepartmentCodeSchema,
@@ -36,7 +38,7 @@ type ProfileEditState = {
   changeRequestId?: string;
   allowedFields?: CreatorProfileEditableField[];
   field?: CreatorProfileEditableField;
-  newValue?: string | Date;
+  newValue?: string | Date | LegalType;
   newValueDisplay?: string;
 };
 
@@ -52,6 +54,7 @@ const parseDateInput = (value: string) => {
 };
 
 const fieldPrompts: Record<CreatorProfileEditableField, string> = {
+  legalType: 'Выбери новый юридический тип для анкеты. После смены креатор дозаполнит договорные данные в профиле.',
   fullName: 'Введи новое ФИО полностью.',
   contractDeadlineDate: CONTRACT_DEADLINE_EDIT_PROMPT,
   registrationAddress: 'Введи новый адрес регистрации.',
@@ -71,6 +74,22 @@ const fieldPrompts: Record<CreatorProfileEditableField, string> = {
 };
 
 const parseFieldValue = (field: CreatorProfileEditableField, input: string) => {
+  if (field === 'legalType') {
+    const normalized = input.trim().toUpperCase();
+    const alias =
+      normalized === 'САМОЗАНЯТЫЙ' || normalized === 'СЗ'
+        ? LegalType.SELF_EMPLOYED
+        : normalized === 'ИП'
+          ? LegalType.IP
+          : undefined;
+    const value = alias ?? legalTypeSchema.parse(normalized);
+
+    return {
+      value,
+      display: value === LegalType.SELF_EMPLOYED ? 'Самозанятый / СЗ' : 'ИП'
+    };
+  }
+
   if (dateFields.has(field)) {
     return parseDateInput(input);
   }
@@ -196,7 +215,7 @@ export const profileEditScene = new Scenes.WizardScene<BotContext>(
 
         getState(ctx).field = field;
         await ctx.answerCbQuery();
-        await ctx.reply(fieldPrompts[field]);
+        await ctx.reply(fieldPrompts[field], field === 'legalType' ? profileLegalTypeKeyboard() : undefined);
         return ctx.wizard.next();
       }
 
@@ -213,17 +232,35 @@ export const profileEditScene = new Scenes.WizardScene<BotContext>(
   async (ctx) => {
     const state = getState(ctx);
     const field = state.field;
+    const legalTypeCallback =
+      field === 'legalType' &&
+      ctx.callbackQuery &&
+      'data' in ctx.callbackQuery &&
+      ctx.callbackQuery.data.startsWith('profile_edit_legal:')
+        ? ctx.callbackQuery.data.split(':')[1]
+        : undefined;
 
-    if (!field || !('text' in (ctx.message ?? {}))) {
-      await ctx.reply('Жду текстовое значение для выбранного поля.');
+    if (!field || (!legalTypeCallback && !('text' in (ctx.message ?? {})))) {
+      await ctx.reply(
+        field === 'legalType'
+          ? 'Выбери новый юридический тип кнопкой ниже.'
+          : 'Жду текстовое значение для выбранного поля.',
+        field === 'legalType' ? profileLegalTypeKeyboard() : undefined
+      );
       return;
     }
 
     try {
       const creator = await loadEditableCreator(ctx);
-      const parsed = parseFieldValue(field, getMessageText(ctx.message));
+      const message = ctx.message;
+      const textInput = message && 'text' in message ? getMessageText(message) : '';
+      const parsed = parseFieldValue(field, legalTypeCallback ?? textInput);
       state.newValue = parsed.value;
       state.newValueDisplay = parsed.display;
+
+      if (legalTypeCallback) {
+        await ctx.answerCbQuery();
+      }
 
       const currentValue = creator.creatorProfile?.[field];
       const currentDisplay = container.services.creatorProfileService.formatFieldValue(field, currentValue);
@@ -295,19 +332,28 @@ export const profileEditScene = new Scenes.WizardScene<BotContext>(
           actor,
           state.changeRequestId
         );
+        const creatorMessage =
+          state.field === 'legalType'
+            ? [
+                'Юридический тип анкеты обновлен.',
+                'Теперь открой "Мой профиль" или /start и дозаполни договорные данные.',
+                'После завершения анкеты бот сможет сформировать документы на подпись.'
+              ].join('\n')
+            : [
+                'Данные обновлены.',
+                `Тимлид изменил поле: ${creatorProfileFieldLabels[state.field]}.`,
+                'Новые данные будут использоваться в профиле и следующих документах.'
+              ].join('\n');
 
-        await ctx.telegram.sendMessage(
-          request.creator.telegramId,
-          [
-            'Данные обновлены.',
-            `Тимлид изменил поле: ${creatorProfileFieldLabels[state.field]}.`,
-            'Новые данные будут использоваться в профиле и следующих документах.'
-          ].join('\n')
-        );
+        await ctx.telegram.sendMessage(request.creator.telegramId, creatorMessage);
       }
 
       await ctx.answerCbQuery();
-      await ctx.reply('Данные сохранены. Новое значение будет использоваться в профиле и документах креатора.');
+      await ctx.reply(
+        state.field === 'legalType'
+          ? 'Юридический тип сохранен. Анкета креатора снова открыта для дозаполнения договорных данных.'
+          : 'Данные сохранены. Новое значение будет использоваться в профиле и документах креатора.'
+      );
       await ctx.scene.leave();
     } catch (error) {
       logUserError(error, 'Profile edit save failed', {

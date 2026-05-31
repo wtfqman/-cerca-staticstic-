@@ -24,6 +24,13 @@ const commonCreatorRequestedFields: CreatorProfileEditableField[] = [
   'email'
 ];
 
+const noContractCreatorRequestedFields: CreatorProfileEditableField[] = [
+  'legalType',
+  'fullName',
+  'phone',
+  'email'
+];
+
 const selfEmployedCreatorRequestedFields: CreatorProfileEditableField[] = [
   ...commonCreatorRequestedFields,
   'passportSeries',
@@ -46,7 +53,7 @@ export const getCreatorProfileChangeRequestFields = (
       ? selfEmployedCreatorRequestedFields
       : legalType === LegalType.IP
         ? ipCreatorRequestedFields
-        : [];
+        : noContractCreatorRequestedFields;
   const editableFields = new Set(getCreatorProfileEditableFields(legalType));
 
   return baseFields.filter((field) => editableFields.has(field));
@@ -87,7 +94,7 @@ export class CreatorProfileChangeRequestService {
       throw new Error('Запрос на изменение данных доступен только креатору.');
     }
 
-    if (!creator.creatorProfile?.profileCompleted || !creator.creatorProfile.legalType) {
+    if (!creator.creatorProfile?.profileCompleted) {
       throw new Error('Сначала нужно завершить анкету. После этого можно запросить изменение данных.');
     }
 
