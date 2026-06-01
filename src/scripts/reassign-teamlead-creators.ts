@@ -121,6 +121,12 @@ const run = async () => {
       creator: {
         is: {
           isActive: true,
+          creatorAssignments: {
+            none: {
+              teamLeadUserId: toTeamLead.id,
+              isActive: true
+            }
+          },
           OR: [
             {
               role: UserRole.CREATOR
