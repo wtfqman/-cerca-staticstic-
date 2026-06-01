@@ -23,6 +23,7 @@ const normalizeLocator = (value?: string) => value?.trim().replace(/^@/, '');
 const fromLocator = normalizeLocator(getArgValue('--from') ?? getArgValue('--from-username'));
 const toLocator = normalizeLocator(getArgValue('--to') ?? getArgValue('--to-username'));
 const apply = hasFlag('--apply');
+const includeInactiveSourceLinks = hasFlag('--include-inactive-source-links');
 
 const teamLeadUserInclude = Prisma.validator<Prisma.UserInclude>()({
   teamLeadProfile: true
@@ -30,8 +31,13 @@ const teamLeadUserInclude = Prisma.validator<Prisma.UserInclude>()({
 
 type TeamLeadUser = Prisma.UserGetPayload<{ include: typeof teamLeadUserInclude }>;
 
-const findTeamLead = async (locator: string, options: { requireActive: boolean }): Promise<TeamLeadUser | null> =>
-  prisma.user.findFirst({
+const formatTeamLead = (teamLead: TeamLeadUser) =>
+  `${formatTeamLeadDisplayName(teamLead)} (telegramId=${teamLead.telegramId}, username=${
+    teamLead.username ? `@${teamLead.username}` : 'none'
+  }, active=${teamLead.isActive})`;
+
+const findTeamLead = async (locator: string, options: { requireActive: boolean }): Promise<TeamLeadUser | null> => {
+  const matches = await prisma.user.findMany({
     where: {
       AND: [
         {
@@ -63,15 +69,28 @@ const findTeamLead = async (locator: string, options: { requireActive: boolean }
         }
       ]
     },
-    include: teamLeadUserInclude
+    include: teamLeadUserInclude,
+    orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }]
   });
 
-const formatTeamLead = (teamLead: TeamLeadUser) =>
-  `${formatTeamLeadDisplayName(teamLead)} (telegramId=${teamLead.telegramId})`;
+  if (matches.length > 1) {
+    throw new Error(
+      [
+        `Teamlead locator is ambiguous: ${locator}`,
+        ...matches.map((teamLead) => `- ${formatTeamLead(teamLead)}`),
+        'Use telegramId instead of username, or run npm run reconcile:known-users first.'
+      ].join('\n')
+    );
+  }
+
+  return matches[0] ?? null;
+};
 
 const run = async () => {
   if (!fromLocator || !toLocator) {
-    throw new Error('Usage: npm run teamleads:reassign -- --from=@old --to=@new [--apply]');
+    throw new Error(
+      'Usage: npm run teamleads:reassign -- --from=@old --to=@new [--include-inactive-source-links] [--apply]'
+    );
   }
 
   if (fromLocator === toLocator) {
@@ -94,7 +113,11 @@ const run = async () => {
   const links = await prisma.creatorTeamLeadLink.findMany({
     where: {
       teamLeadUserId: fromTeamLead.id,
-      isActive: true,
+      ...(includeInactiveSourceLinks
+        ? {}
+        : {
+            isActive: true
+          }),
       creator: {
         is: {
           isActive: true,
@@ -126,11 +149,14 @@ const run = async () => {
   console.log(`Teamlead reassignment. Mode=${apply ? 'APPLY' : 'DRY RUN'}`);
   console.log(`From: ${formatTeamLead(fromTeamLead)}`);
   console.log(`To:   ${formatTeamLead(toTeamLead)}`);
-  console.log(`Active creators to move: ${links.length}`);
+  console.log(`Include inactive source links: ${includeInactiveSourceLinks ? 'yes' : 'no'}`);
+  console.log(`Creators to move: ${links.length}`);
 
   for (const link of links) {
     console.log(
-      `- ${formatCreatorDisplayName(link.creator)} (telegramId=${link.creator.telegramId}); activeUpdatedAt=${link.updatedAt.toISOString()}`
+      `- ${formatCreatorDisplayName(link.creator)} (telegramId=${link.creator.telegramId}); sourceActive=${
+        link.isActive
+      }; sourceUpdatedAt=${link.updatedAt.toISOString()}`
     );
   }
 
