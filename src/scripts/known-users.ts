@@ -3,6 +3,7 @@ export interface KnownUserInput {
   username?: string | null;
   firstName?: string | null;
   lastName?: string | null;
+  isActive?: boolean;
 }
 
 export interface KnownTeamLeadInput extends KnownUserInput {
@@ -48,7 +49,8 @@ export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
     username: 'danila1255',
     firstName: 'Danila',
     lastName: null,
-    displayName: '@danila1255'
+    displayName: '@danila1255',
+    isActive: false
   },
   {
     telegramId: '7025455607',

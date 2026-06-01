@@ -122,6 +122,7 @@ npm start
 - `STORAGE_ROOT=./storage`
 - `PDF_*`
 - `MAX_MONTHLY_VIDEO_EDIT_DAY`
+- `DOCUMENT_WORKFLOW_MONTH_KEY` - optional `YYYY-MM` override for documents/invoices
 - `COMPANY_*`
 
 ## Как заполнить .env
@@ -279,6 +280,7 @@ GOOGLE_SHEETS_NIGHTLY_SYNC_CRON=0 3 * * *
 - `GOOGLE_SHEETS_SYNC_ENABLED` и `PDF_HEADLESS` превращаются в boolean
 - `ADMIN_TELEGRAM_IDS` превращается в массив строк
 - `PDF_BROWSER_TIMEOUT_MS`, `GOOGLE_SHEETS_BATCH_SIZE`, `MAX_MONTHLY_VIDEO_EDIT_DAY` превращаются в number
+- `DOCUMENT_WORKFLOW_MONTH_KEY` проверяется как `YYYY-MM` и переопределяет месяц документов/счетов
 - `STORAGE_ROOT` и `GOOGLE_APPLICATION_CREDENTIALS` приводятся к абсолютным путям
 - пустые optional env обрабатываются как `undefined/null` на уровне `config`
 

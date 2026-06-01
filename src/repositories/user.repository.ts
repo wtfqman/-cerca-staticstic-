@@ -14,6 +14,7 @@ interface TelegramUserInput {
 interface TeamLeadUpsertInput extends TelegramUserInput {
   displayName: string;
   grantCreatorAccess?: boolean;
+  isActive?: boolean;
 }
 
 const activeCreatorWhere = {
@@ -138,8 +139,9 @@ export class UserRepository {
     const role = existing?.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.TEAMLEAD;
     const grantCreatorAccess =
       input.grantCreatorAccess ?? shouldGrantCreatorAccessToTeamLead(input.telegramId);
+    const isActive = input.isActive ?? true;
 
-    return prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { telegramId: input.telegramId },
       create: {
         telegramId: input.telegramId,
@@ -147,7 +149,7 @@ export class UserRepository {
         firstName: input.firstName ?? null,
         lastName: input.lastName ?? null,
         role,
-        isActive: true,
+        isActive,
         teamLeadProfile: {
           create: {
             displayName: input.displayName
@@ -168,7 +170,7 @@ export class UserRepository {
         firstName: input.firstName ?? null,
         lastName: input.lastName ?? null,
         role,
-        isActive: true,
+        isActive,
         teamLeadProfile: {
           upsert: {
             create: {
@@ -194,6 +196,20 @@ export class UserRepository {
       },
       include: userWithRelationsInclude
     });
+
+    if (!isActive) {
+      await prisma.creatorTeamLeadLink.updateMany({
+        where: {
+          teamLeadUserId: user.id,
+          isActive: true
+        },
+        data: {
+          isActive: false
+        }
+      });
+    }
+
+    return user;
   }
 
   async listByRole(role: UserRole) {

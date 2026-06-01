@@ -26,6 +26,7 @@ export const config = Object.freeze({
   }),
   documents: Object.freeze({
     chatId: env.DOCUMENTS_CHAT_ID,
+    workflowMonthKey: env.DOCUMENT_WORKFLOW_MONTH_KEY ?? null,
     company: Object.freeze({
       name: env.COMPANY_NAME,
       shortName: env.COMPANY_SHORT_NAME,

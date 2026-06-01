@@ -10,6 +10,10 @@ const NO_CONTRACT_PAYMENT_CAMPAIGN_PREFIX = 'no_contract_payment';
 const formatCampaignMonthSuffix = (monthKey: string) => monthKey.replace('-', '_');
 
 export const getDocumentWorkflowMonthKey = () => {
+  if (config.documents.workflowMonthKey) {
+    return config.documents.workflowMonthKey;
+  }
+
   const now = getNow();
 
   // During the monthly close window, documents and invoices still belong to the previous month.

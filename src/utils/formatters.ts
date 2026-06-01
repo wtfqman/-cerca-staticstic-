@@ -50,6 +50,7 @@ type CreatorLike = PersonLike & {
 };
 
 type TeamLeadLike = PersonLike & {
+  isActive?: boolean | null;
   teamLeadProfile?: {
     displayName?: string | null;
   } | null;
@@ -72,7 +73,7 @@ export const formatAssignedTeamLeadName = (
   creator: CreatorAssignmentLike,
   fallback = 'Без тимлида'
 ): string => {
-  const teamLead = creator.creatorAssignments?.[0]?.teamLead;
+  const teamLead = creator.creatorAssignments?.find((assignment) => assignment.teamLead.isActive !== false)?.teamLead;
   return teamLead ? formatTeamLeadDisplayName(teamLead, fallback) : fallback;
 };
 

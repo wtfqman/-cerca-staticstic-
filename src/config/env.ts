@@ -28,6 +28,10 @@ const parseOptionalString = (value: unknown) => {
 
 const optionalStringSchema = z.preprocess(parseOptionalString, z.string().optional());
 const optionalEmailSchema = z.preprocess(parseOptionalString, z.string().email().optional());
+const optionalMonthKeySchema = z.preprocess(
+  parseOptionalString,
+  z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Month key must use YYYY-MM format').optional()
+);
 
 const normalizeSpreadsheetId = (value: unknown) => {
   if (typeof value !== 'string') {
@@ -237,6 +241,7 @@ const rawEnvSchema = z
     LIBREOFFICE_EXECUTABLE_PATH: optionalStringSchema,
     DOCX_PDF_HTML_FALLBACK_ENABLED: optionalBooleanFromEnv,
     MAX_MONTHLY_VIDEO_EDIT_DAY: intFromEnv(10, { min: 1, max: 31 }),
+    DOCUMENT_WORKFLOW_MONTH_KEY: optionalMonthKeySchema,
     GOOGLE_SHEETS_SYNC_ENABLED: booleanFromEnv(false),
     GOOGLE_SHEETS_SPREADSHEET_ID: optionalSpreadsheetIdSchema,
     GOOGLE_SHEETS_SOCIALS_SHEET_NAME: z.string().trim().min(1).default('Соцсети'),
@@ -374,6 +379,7 @@ export const env = Object.freeze({
   DOCX_PDF_HTML_FALLBACK_ENABLED:
     rawEnv.DOCX_PDF_HTML_FALLBACK_ENABLED ?? false,
   MAX_MONTHLY_VIDEO_EDIT_DAY: rawEnv.MAX_MONTHLY_VIDEO_EDIT_DAY,
+  DOCUMENT_WORKFLOW_MONTH_KEY: rawEnv.DOCUMENT_WORKFLOW_MONTH_KEY,
   GOOGLE_SHEETS_SYNC_ENABLED: rawEnv.GOOGLE_SHEETS_SYNC_ENABLED,
   GOOGLE_SHEETS_SPREADSHEET_ID: rawEnv.GOOGLE_SHEETS_SPREADSHEET_ID,
   GOOGLE_SHEETS_SOCIALS_SHEET_NAME: rawEnv.GOOGLE_SHEETS_SOCIALS_SHEET_NAME,

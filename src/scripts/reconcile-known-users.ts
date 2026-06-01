@@ -21,6 +21,7 @@ interface KnownUserPlan {
   firstName: KnownText;
   lastName: KnownText;
   baseRole: UserRole;
+  isActive: boolean;
   requiresCreatorProfile: boolean;
   requiresTeamLeadProfile: boolean;
   displayName?: string;
@@ -32,8 +33,11 @@ interface ReconcileResult {
   userId: string;
   previousRole: UserRole | null;
   currentRole: UserRole | null;
+  previousIsActive: boolean | null;
+  currentIsActive: boolean;
   username: string | null;
   firstName: string | null;
+  deactivatedTeamLeadLinks: number;
   teamLeadProfile: 'created' | 'updated' | 'unchanged' | 'skipped';
   creatorProfile: 'created' | 'exists' | 'skipped';
 }
@@ -179,6 +183,7 @@ const addOrMergePlan = (plans: Map<string, KnownUserPlan>, next: KnownUserPlan) 
     firstName: preferKnownValue(current.firstName, next.firstName),
     lastName: preferKnownValue(current.lastName, next.lastName),
     baseRole: chooseBaseRole(current.baseRole, next.baseRole),
+    isActive: current.isActive || next.isActive,
     requiresCreatorProfile: current.requiresCreatorProfile || next.requiresCreatorProfile,
     requiresTeamLeadProfile: current.requiresTeamLeadProfile || next.requiresTeamLeadProfile,
     displayName: current.displayName ?? next.displayName
@@ -194,6 +199,7 @@ const buildKnownUserPlans = () => {
     addOrMergePlan(plans, {
       ...normalized,
       baseRole: UserRole.ADMIN,
+      isActive: input.isActive ?? true,
       requiresCreatorProfile: false,
       requiresTeamLeadProfile: false
     });
@@ -205,6 +211,7 @@ const buildKnownUserPlans = () => {
     addOrMergePlan(plans, {
       ...normalized,
       baseRole: UserRole.TEAMLEAD,
+      isActive: input.isActive ?? true,
       requiresCreatorProfile: shouldGrantCreatorAccessToTeamLead(normalized.telegramId),
       requiresTeamLeadProfile: true,
       displayName: buildDisplayName(input)
@@ -217,6 +224,7 @@ const buildKnownUserPlans = () => {
     addOrMergePlan(plans, {
       ...normalized,
       baseRole: UserRole.CREATOR,
+      isActive: input.isActive ?? true,
       requiresCreatorProfile: true,
       requiresTeamLeadProfile: false
     });
@@ -228,7 +236,7 @@ const buildKnownUserPlans = () => {
 const buildUserUpdateData = (plan: KnownUserPlan): Prisma.UserUpdateInput => {
   const data: Prisma.UserUpdateInput = {
     role: plan.baseRole,
-    isActive: true
+    isActive: plan.isActive
   };
 
   if (plan.username !== undefined) {
@@ -253,7 +261,7 @@ const shouldUpdateUser = (existing: ReconcileUser | null, plan: KnownUserPlan) =
 
   return (
     existing.role !== plan.baseRole ||
-    existing.isActive !== true ||
+    existing.isActive !== plan.isActive ||
     (plan.username !== undefined && existing.username !== plan.username) ||
     (plan.firstName !== undefined && existing.firstName !== plan.firstName) ||
     (plan.lastName !== undefined && existing.lastName !== plan.lastName)
@@ -320,7 +328,7 @@ const reconcileKnownUser = async (
       firstName: valueForCreate(plan.firstName),
       lastName: valueForCreate(plan.lastName),
       role: plan.baseRole,
-      isActive: true
+      isActive: plan.isActive
     },
     update: buildUserUpdateData(plan),
     select: userSelect
@@ -330,6 +338,19 @@ const reconcileKnownUser = async (
     ? await ensureTeamLeadProfile(tx, user, plan.displayName ?? plan.telegramId)
     : 'skipped';
   const creatorProfile = plan.requiresCreatorProfile ? await ensureCreatorProfile(tx, user) : 'skipped';
+  const deactivatedTeamLeadLinks = plan.isActive
+    ? 0
+    : (
+        await tx.creatorTeamLeadLink.updateMany({
+          where: {
+            teamLeadUserId: user.id,
+            isActive: true
+          },
+          data: {
+            isActive: false
+          }
+        })
+      ).count;
 
   return {
     action: existing ? (willUpdate ? 'updated' : 'unchanged') : 'created',
@@ -337,8 +358,11 @@ const reconcileKnownUser = async (
     userId: user.id,
     previousRole: existing?.role ?? null,
     currentRole: user.role,
+    previousIsActive: existing?.isActive ?? null,
+    currentIsActive: user.isActive,
     username: user.username,
     firstName: user.firstName,
+    deactivatedTeamLeadLinks,
     teamLeadProfile,
     creatorProfile
   };
@@ -367,8 +391,10 @@ const run = async () => {
         `- ${result.action}: telegramId=${result.telegramId}`,
         `userId=${result.userId}`,
         `role=${result.previousRole ?? 'null'}->${result.currentRole ?? 'null'}`,
+        `active=${String(result.previousIsActive)}->${String(result.currentIsActive)}`,
         `name=${firstName}`,
         username,
+        `deactivatedTeamLeadLinks=${result.deactivatedTeamLeadLinks}`,
         `teamLeadProfile=${result.teamLeadProfile}`,
         `creatorProfile=${result.creatorProfile}`
       ].join(', ')

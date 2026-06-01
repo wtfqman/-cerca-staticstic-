@@ -8,6 +8,7 @@ export interface TeamLeadBootstrapInput {
   firstName?: string | null;
   lastName?: string | null;
   displayName?: string | null;
+  isActive?: boolean;
 }
 
 export interface TeamLeadBootstrapResult {
@@ -65,7 +66,8 @@ export class TeamLeadBootstrapService {
         firstName: normalizeNullableText(input.firstName),
         lastName: normalizeNullableText(input.lastName),
         displayName,
-        grantCreatorAccess
+        grantCreatorAccess,
+        isActive: input.isActive
       });
 
       results.push({
