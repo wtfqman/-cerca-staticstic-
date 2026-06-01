@@ -103,34 +103,72 @@ const pickBestWorkflowDocument = <T extends Pick<
       return getWorkflowDocumentTimestamp(right) - getWorkflowDocumentTimestamp(left);
     })[0] ?? null;
 
-const countRequiredSignedDocuments = (
+const hasRequiredSignedWorkflowDocument = (
   state: DocumentWorkflowStateWithRelations,
-  queue: DocumentWorkflowQueue
-) => {
-  const requiredDocuments = state.documents.filter((link) => link.required && link.queue === queue);
+  queue: DocumentWorkflowQueue,
+  type: DocumentType,
+  monthKey: string | null
+) =>
+  state.documents.some(
+    (link) =>
+      link.required &&
+      link.queue === queue &&
+      link.document.type === type &&
+      (link.document.monthKey ?? null) === monthKey &&
+      isSignedDocument(link.document)
+  );
 
-  return {
-    total: requiredDocuments.length,
-    signed: requiredDocuments.filter((link) => isSignedDocument(link.document)).length
-  };
-};
+const isFirstQueueSigned = (state: DocumentWorkflowStateWithRelations) =>
+  PERMANENT_SIGNATURE_DOCUMENT_TYPES.every((type) =>
+    hasRequiredSignedWorkflowDocument(state, DocumentWorkflowQueue.FIRST_QUEUE, type, null)
+  );
 
 const isSecondQueueSignedForMonth = (state: DocumentWorkflowStateWithRelations, monthKey: string) =>
   SECOND_QUEUE_DOCUMENT_TYPES.every((type) =>
-    state.documents.some(
-      (link) =>
-        link.required &&
-        link.queue === DocumentWorkflowQueue.SECOND_QUEUE &&
-        link.document.type === type &&
-        link.document.monthKey === monthKey &&
-        isSignedDocument(link.document)
-    )
+    hasRequiredSignedWorkflowDocument(state, DocumentWorkflowQueue.SECOND_QUEUE, type, monthKey)
   );
 
-const buildSecondQueueRequiredMessage = (monthKey?: string) =>
-  monthKey
-    ? `Сначала нужно загрузить подписанные документы второй очереди за ${monthKey}: задание и акт.`
-    : 'Сначала нужно загрузить подписанные документы второй очереди: задание и акт.';
+const getMissingSecondQueueSignedDocumentTypes = (
+  state: DocumentWorkflowStateWithRelations,
+  monthKey: string
+) =>
+  SECOND_QUEUE_DOCUMENT_TYPES.filter(
+    (type) => !hasRequiredSignedWorkflowDocument(state, DocumentWorkflowQueue.SECOND_QUEUE, type, monthKey)
+  );
+
+const isSecondQueueSignedForAllPeriodMonths = (state: DocumentWorkflowStateWithRelations) => {
+  const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
+
+  return periodMonths.length > 0 && periodMonths.every((monthKey) => isSecondQueueSignedForMonth(state, monthKey));
+};
+
+const formatSecondQueueDocumentTypes = (types: readonly DocumentType[] = SECOND_QUEUE_DOCUMENT_TYPES) => {
+  const labels = types.map((type) => {
+    switch (type) {
+      case DocumentType.ASSIGNMENT:
+        return 'задание';
+      case DocumentType.ACT:
+        return 'акт';
+      default:
+        return 'документ';
+    }
+  });
+
+  return labels.join(' и ');
+};
+
+const buildSecondQueueRequiredMessage = (
+  monthKey?: string,
+  missingTypes?: readonly DocumentType[]
+) => {
+  const documentsLabel = formatSecondQueueDocumentTypes(
+    missingTypes && missingTypes.length > 0 ? missingTypes : SECOND_QUEUE_DOCUMENT_TYPES
+  );
+
+  return monthKey
+    ? `Сначала нужно загрузить подписанные документы второй очереди за ${monthKey}: ${documentsLabel}.`
+    : `Сначала нужно загрузить подписанные документы второй очереди: ${documentsLabel}.`;
+};
 
 const isActivePaymentUpload = (upload: Pick<PaymentDocumentUpload, 'status'>) =>
   upload.status !== PaymentDocumentStatus.REJECTED;
@@ -275,16 +313,6 @@ const getPendingReceiptInvoice = (state: DocumentWorkflowStateWithRelations) => 
     });
 
   return invoiceUploads.find((invoiceUpload) => !getReceiptForInvoice(state, invoiceUpload));
-};
-
-const getExpectedQueueCounts = (state: DocumentWorkflowStateWithRelations) => {
-  const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
-  const monthlyDocumentsCount = Math.max(periodMonths.length, 1);
-
-  return {
-    firstQueue: PERMANENT_SIGNATURE_DOCUMENT_TYPES.length,
-    secondQueue: monthlyDocumentsCount * SECOND_QUEUE_DOCUMENT_TYPES.length
-  };
 };
 
 export interface ActiveRosterFirstQueueDocumentStatus {
@@ -667,11 +695,8 @@ export class DocumentWorkflowService {
       throw new Error('Состояние документооборота не найдено');
     }
 
-    const expected = getExpectedQueueCounts(state);
-    const firstQueue = countRequiredSignedDocuments(state, DocumentWorkflowQueue.FIRST_QUEUE);
-    const secondQueue = countRequiredSignedDocuments(state, DocumentWorkflowQueue.SECOND_QUEUE);
-    const firstQueueCompleted = firstQueue.total >= expected.firstQueue && firstQueue.signed >= expected.firstQueue;
-    const secondQueueCompleted = secondQueue.total >= expected.secondQueue && secondQueue.signed >= expected.secondQueue;
+    const firstQueueCompleted = isFirstQueueSigned(state);
+    const secondQueueCompleted = isSecondQueueSignedForAllPeriodMonths(state);
     const invoiceUpload = getLatestPaymentUpload(state, PaymentDocumentType.INVOICE);
     const receiptUpload = getLatestPaymentUpload(state, PaymentDocumentType.RECEIPT);
     const pendingReceiptInvoice = getPendingReceiptInvoice(state);
@@ -769,14 +794,14 @@ export class DocumentWorkflowService {
     }
 
     if (monthKey) {
-      const secondQueueSigned = isSecondQueueSignedForMonth(refreshed, monthKey);
+      const missingSecondQueueDocuments = getMissingSecondQueueSignedDocumentTypes(refreshed, monthKey);
 
-      return secondQueueSigned
+      return missingSecondQueueDocuments.length === 0
         ? { allowed: true as const, state: refreshed }
         : {
             allowed: false as const,
             state: refreshed,
-            reason: buildSecondQueueRequiredMessage(monthKey)
+            reason: buildSecondQueueRequiredMessage(monthKey, missingSecondQueueDocuments)
           };
     }
 
@@ -849,12 +874,12 @@ export class DocumentWorkflowService {
         throw new Error('Выбери период, за который загружается счет.');
       }
 
-      const secondQueueSigned = isNoContractPaymentState(refreshed)
-        ? true
-        : isSecondQueueSignedForMonth(refreshed, input.monthKey);
+      const missingSecondQueueDocuments = isNoContractPaymentState(refreshed)
+        ? []
+        : getMissingSecondQueueSignedDocumentTypes(refreshed, input.monthKey);
 
-      if (!secondQueueSigned) {
-        throw new Error(buildSecondQueueRequiredMessage(input.monthKey));
+      if (missingSecondQueueDocuments.length > 0) {
+        throw new Error(buildSecondQueueRequiredMessage(input.monthKey, missingSecondQueueDocuments));
       }
     }
 
