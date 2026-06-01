@@ -43,6 +43,25 @@ type SheetProperties = {
   title?: string | null;
 };
 
+class SerializedSheetOperationQueue {
+  private readonly tails = new Map<string, Promise<unknown>>();
+
+  enqueue<T>(sheetName: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.tails.get(sheetName) ?? Promise.resolve();
+    const current = previous.catch(() => undefined).then(task);
+    const tail = current.catch(() => undefined);
+
+    this.tails.set(sheetName, tail);
+    tail.finally(() => {
+      if (this.tails.get(sheetName) === tail) {
+        this.tails.delete(sheetName);
+      }
+    });
+
+    return current;
+  }
+}
+
 const columnNumberToLetters = (value: number): string => {
   let current = value;
   let letters = '';
@@ -136,6 +155,8 @@ const buildWrapRequests = (sheetId: number, definition: SheetDefinition) =>
   }));
 
 export class GoogleSheetsService {
+  private readonly sheetOperationQueue = new SerializedSheetOperationQueue();
+
   constructor(private readonly client: GoogleSheetsClient) {}
 
   isEnabled() {
@@ -160,7 +181,13 @@ export class GoogleSheetsService {
   }
 
   async upsertRows(definition: SheetDefinition, rows: SheetRow[]): Promise<SheetUpsertResult> {
-    await this.ensureSheet(definition);
+    return this.sheetOperationQueue.enqueue(definition.sheetName, () =>
+      this.upsertRowsUnlocked(definition, rows)
+    );
+  }
+
+  private async upsertRowsUnlocked(definition: SheetDefinition, rows: SheetRow[]): Promise<SheetUpsertResult> {
+    await this.ensureSheetUnlocked(definition);
 
     const normalizedRows = this.normalizeRows(definition, rows);
 
@@ -202,7 +229,13 @@ export class GoogleSheetsService {
   }
 
   async rebuildSheet(definition: SheetDefinition, rows: SheetRow[]): Promise<SheetUpsertResult> {
-    await this.ensureSheet(definition);
+    return this.sheetOperationQueue.enqueue(definition.sheetName, () =>
+      this.rebuildSheetUnlocked(definition, rows)
+    );
+  }
+
+  private async rebuildSheetUnlocked(definition: SheetDefinition, rows: SheetRow[]): Promise<SheetUpsertResult> {
+    await this.ensureSheetUnlocked(definition);
 
     const api = await this.client.getSheetsApi();
     const spreadsheetId = this.client.getSpreadsheetId();
@@ -272,6 +305,12 @@ export class GoogleSheetsService {
   }
 
   async ensureSheet(definition: SheetDefinition) {
+    return this.sheetOperationQueue.enqueue(definition.sheetName, () =>
+      this.ensureSheetUnlocked(definition)
+    );
+  }
+
+  private async ensureSheetUnlocked(definition: SheetDefinition) {
     const api = await this.client.getSheetsApi();
     const spreadsheetId = this.client.getSpreadsheetId();
     const spreadsheet = await api.spreadsheets.get({

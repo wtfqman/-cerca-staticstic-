@@ -7,7 +7,9 @@ import { TeamLeadRepository } from '../repositories/teamlead.repository';
 import { UserRepository } from '../repositories/user.repository';
 import { NotificationRepository } from '../repositories/notification.repository';
 import { buildDailyCheckInlineKeyboard } from '../keyboards/inline.keyboards';
+import { normalizeErrorForLog } from '../utils/error-logging';
 import { toDateOnly, toDateKey, getNow } from '../utils/periods';
+import { isTelegramDirectMessageUnavailableError } from '../utils/telegram-errors';
 
 export class DailyCheckService {
   constructor(
@@ -49,7 +51,22 @@ export class DailyCheckService {
       try {
         await this.promptCreatorToday(telegram, creator.id, creator.telegramId);
       } catch (error) {
-        logger.error({ error, creatorUserId: creator.id }, 'Failed to send daily reminder');
+        if (isTelegramDirectMessageUnavailableError(error)) {
+          logger.warn(
+            {
+              error: normalizeErrorForLog(error),
+              creatorUserId: creator.id,
+              telegramId: creator.telegramId
+            },
+            'Daily reminder skipped: Telegram direct message unavailable'
+          );
+          continue;
+        }
+
+        logger.error(
+          { error: normalizeErrorForLog(error), creatorUserId: creator.id, telegramId: creator.telegramId },
+          'Failed to send daily reminder'
+        );
       }
     }
   }
@@ -134,7 +151,22 @@ export class DailyCheckService {
         });
         await this.dailyCheckRepository.markTeamLeadNotified(checksForLead.map((item) => item.id));
       } catch (error) {
-        logger.error({ error, teamLeadUserId: teamLead.id }, 'Failed to send missed confirmation report to teamlead');
+        if (isTelegramDirectMessageUnavailableError(error)) {
+          logger.warn(
+            {
+              error: normalizeErrorForLog(error),
+              teamLeadUserId: teamLead.id,
+              telegramId: teamLead.telegramId
+            },
+            'Missed confirmation report skipped: Telegram direct message unavailable'
+          );
+          continue;
+        }
+
+        logger.error(
+          { error: normalizeErrorForLog(error), teamLeadUserId: teamLead.id, telegramId: teamLead.telegramId },
+          'Failed to send missed confirmation report to teamlead'
+        );
       }
     }
 

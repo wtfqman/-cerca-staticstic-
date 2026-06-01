@@ -6,6 +6,7 @@ import { logger } from '../lib/logger';
 import type { BotContext } from '../types/bot-context';
 import { normalizeErrorForLog } from '../utils/error-logging';
 import { formatCreatorDisplayName, formatRussianDate } from '../utils/formatters';
+import { isTelegramDirectMessageUnavailableError } from '../utils/telegram-errors';
 
 const isActivePaymentUpload = (status: PaymentDocumentStatus) => status !== PaymentDocumentStatus.REJECTED;
 
@@ -164,6 +165,19 @@ export const runDocumentReceiptReminderJob = async (bot: Telegraf<BotContext>) =
         'Document receipt reminder sent'
       );
     } catch (error) {
+      if (isTelegramDirectMessageUnavailableError(error)) {
+        logger.warn(
+          {
+            error: normalizeErrorForLog(error),
+            workflowStateId: state.id,
+            creatorUserId: state.creatorUserId,
+            telegramId: state.creator.telegramId
+          },
+          'Document receipt reminder skipped: Telegram direct message unavailable'
+        );
+        continue;
+      }
+
       logger.error(
         {
           error: normalizeErrorForLog(error),

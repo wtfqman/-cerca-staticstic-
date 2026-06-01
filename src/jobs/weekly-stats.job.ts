@@ -8,6 +8,7 @@ import { normalizeErrorForLog } from '../utils/error-logging';
 import { formatCreatorDisplayName, formatIntegerRu } from '../utils/formatters';
 import { formatPeriodLabel, getNow, getWeeklyReportPeriod, toDateOnly } from '../utils/periods';
 import { formatPlatformStatMetrics } from '../utils/social-platform-metrics';
+import { isTelegramDirectMessageUnavailableError } from '../utils/telegram-errors';
 
 const SUBMITTED_WEEKLY_STATUSES = new Set<WeeklyReportStatus>([
   WeeklyReportStatus.SUBMITTED,
@@ -195,6 +196,21 @@ export const runWeeklyStatsReminderJob = async (
         }
       );
     } catch (error) {
+      if (isTelegramDirectMessageUnavailableError(error)) {
+        logger.warn(
+          {
+            error: normalizeErrorForLog(error),
+            creatorUserId: creator.id,
+            telegramId: creator.telegramId,
+            slot,
+            weekStart: period.weekStart,
+            weekEnd: period.weekEnd
+          },
+          'Weekly stats reminder skipped: Telegram direct message unavailable'
+        );
+        continue;
+      }
+
       logger.error(
         {
           error: normalizeErrorForLog(error),
@@ -250,6 +266,20 @@ export const runWeeklyStatsTeamLeadReportJob = async (bot: Telegraf<BotContext>)
         submittedTotal: reports.filter((report) => SUBMITTED_WEEKLY_STATUSES.has(report.status)).length
       });
     } catch (error) {
+      if (isTelegramDirectMessageUnavailableError(error)) {
+        logger.warn(
+          {
+            error: normalizeErrorForLog(error),
+            teamLeadUserId: teamLead.id,
+            telegramId: teamLead.telegramId,
+            weekStart: period.weekStart,
+            weekEnd: period.weekEnd
+          },
+          'Weekly stats teamlead report skipped: Telegram direct message unavailable'
+        );
+        continue;
+      }
+
       logger.error(
         {
           error: normalizeErrorForLog(error),

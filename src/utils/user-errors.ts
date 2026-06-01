@@ -27,6 +27,16 @@ const isTechnicalMessage = (message: string) =>
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === 'string' ? error : '';
 
+export const isUserFacingError = (error: unknown) => {
+  if (error instanceof z.ZodError) {
+    return true;
+  }
+
+  const message = getErrorMessage(error);
+
+  return Boolean(message && !isTechnicalMessage(message));
+};
+
 export const formatValidationError = (
   error: unknown,
   fallback = DEFAULT_VALIDATION_MESSAGE
@@ -95,7 +105,9 @@ export const logUserError = (
   message: string,
   context: Record<string, unknown> = {}
 ) => {
-  logger.error(
+  const log = isUserFacingError(error) ? logger.warn.bind(logger) : logger.error.bind(logger);
+
+  log(
     {
       error: normalizeErrorForLog(error),
       ...context
