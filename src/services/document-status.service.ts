@@ -4,7 +4,7 @@ import type { CreatorDocumentStatusSummary, RequiredDocumentStatusSummary } from
 import { DocumentRepository } from '../repositories/document.repository';
 import { formatAssignedTeamLeadName, formatCreatorDisplayName } from '../utils/formatters';
 import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
-import { isCurrentDocumentWorkflowScopeKey } from '../documents/document-workflow.constants';
+import { isCurrentOrPermanentSignatureDocument } from '../documents/document-reuse.helpers';
 
 type CreatorReference = {
   id: string;
@@ -38,6 +38,32 @@ const SIGNED_DOCUMENT_STATUSES = new Set<DocumentStatus>([
   DocumentStatus.SIGNED_UPLOADED,
   DocumentStatus.FORWARDED_TO_CHAT
 ]);
+
+type SheetDocument = Awaited<ReturnType<DocumentRepository['listForSheetSync']>>[number];
+
+const getDocumentRank = (document: SheetDocument) => {
+  if (SIGNED_DOCUMENT_STATUSES.has(document.status)) {
+    return 30;
+  }
+
+  if (document.status !== DocumentStatus.FAILED) {
+    return 20;
+  }
+
+  return 0;
+};
+
+const pickBestDocument = (documents: SheetDocument[]) =>
+  [...documents]
+    .sort((left, right) => {
+      const rankDiff = getDocumentRank(right) - getDocumentRank(left);
+
+      if (rankDiff !== 0) {
+        return rankDiff;
+      }
+
+      return right.generatedAt.getTime() - left.generatedAt.getTime();
+    })[0];
 
 export class DocumentStatusService {
   constructor(private readonly documentRepository: DocumentRepository) {}
@@ -95,16 +121,18 @@ export class DocumentStatusService {
       };
     }
 
-    const currentDocuments = documents.filter((document) => isCurrentDocumentWorkflowScopeKey(document.scopeKey));
+    const currentDocuments = documents.filter(isCurrentOrPermanentSignatureDocument);
     const permanentDocuments = new Map(
-      currentDocuments
-        .filter((document) => !document.monthKey)
-        .map((document) => [document.type, document] as const)
+      ONE_OFF_DOCUMENT_TYPES.map((type) => [
+        type,
+        pickBestDocument(currentDocuments.filter((document) => document.type === type && !document.monthKey))
+      ] as const)
     );
     const monthlyDocuments = new Map(
-      currentDocuments
-        .filter((document) => document.monthKey === monthKey)
-        .map((document) => [document.type, document] as const)
+      MONTHLY_DOCUMENT_TYPES.map((type) => [
+        type,
+        pickBestDocument(currentDocuments.filter((document) => document.type === type && document.monthKey === monthKey))
+      ] as const)
     );
     const oneOff = ONE_OFF_DOCUMENT_TYPES.map((type) =>
       this.buildRequiredDocumentSummary(type, permanentDocuments.get(type))

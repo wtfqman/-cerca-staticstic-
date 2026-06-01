@@ -20,13 +20,16 @@ import type { DocumentWorkflowService } from './document-workflow.service';
 import { logger } from '../lib/logger';
 import { getCurrentDocumentLayoutRevision } from '../documents/document-layout-revisions';
 import {
-  FIRST_QUEUE_DOCUMENT_TYPES,
   SECOND_QUEUE_DOCUMENT_TYPES,
   getActiveRosterContractDate,
   getWorkflowDocumentScopeKey,
-  isCurrentDocumentWorkflowScopeKey,
   normalizeCampaignPeriodMonths
 } from '../documents/document-workflow.constants';
+import {
+  PERMANENT_SIGNATURE_DOCUMENT_TYPES,
+  isCurrentOrPermanentSignatureDocument,
+  isPermanentSignatureDocumentType
+} from '../documents/document-reuse.helpers';
 
 const SIGNED_STATUSES = new Set<DocumentStatus>([
   DocumentStatus.SIGNED_UPLOADED,
@@ -107,6 +110,7 @@ export class FirstQueueDocumentPackageIncompleteError extends Error {
 
 type SendableDocument = NonNullable<Awaited<ReturnType<DocumentRepository['findById']>>>;
 type CreatorBatchDocument = Awaited<ReturnType<DocumentRepository['listByCreator']>>[number];
+type OneOffDocument = Awaited<ReturnType<DocumentRepository['listOneOffByCreatorAndTypes']>>[number];
 
 const DOCUMENT_FILE_LABELS: Record<DocumentType, string> = {
   [DocumentType.CONTRACT]: 'договор',
@@ -185,8 +189,142 @@ const sortCreatorBatchDocuments = (left: CreatorBatchDocument, right: CreatorBat
   return left.generatedAt.getTime() - right.generatedAt.getTime();
 };
 
-const isCurrentWorkflowDocument = (document: { scopeKey?: string | null }) =>
-  isCurrentDocumentWorkflowScopeKey(document.scopeKey);
+const isCurrentWorkflowDocument = (document: { scopeKey?: string | null; type?: DocumentType | null }) =>
+  isCurrentOrPermanentSignatureDocument(document);
+
+const getReusableOneOffDocumentRank = (document: Pick<OneOffDocument, 'status' | 'payloadJson' | 'type'>) => {
+  if (SIGNED_STATUSES.has(document.status)) {
+    return 30;
+  }
+
+  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+    return 20;
+  }
+
+  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type)) {
+    return 10;
+  }
+
+  return 0;
+};
+
+const getReusableOneOffDocumentTimestamp = (
+  document: Pick<OneOffDocument, 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'>
+) =>
+  document.forwardedAt?.getTime() ??
+  document.signedUploadedAt?.getTime() ??
+  document.sentAt?.getTime() ??
+  document.generatedAt.getTime();
+
+const pickReusableOneOffDocument = (documents: OneOffDocument[]) =>
+  [...documents]
+    .filter((document) => getReusableOneOffDocumentRank(document) > 0)
+    .sort((left, right) => {
+      const rankDiff = getReusableOneOffDocumentRank(right) - getReusableOneOffDocumentRank(left);
+
+      if (rankDiff !== 0) {
+        return rankDiff;
+      }
+
+      if (
+        left.type === right.type &&
+        isPermanentSignatureDocumentType(left.type) &&
+        !SIGNED_STATUSES.has(left.status) &&
+        !SIGNED_STATUSES.has(right.status)
+      ) {
+        return getReusableOneOffDocumentTimestamp(left) - getReusableOneOffDocumentTimestamp(right);
+      }
+
+      return getReusableOneOffDocumentTimestamp(right) - getReusableOneOffDocumentTimestamp(left);
+    })[0] ?? null;
+
+type VisibleWorkflowDocument = {
+  type: DocumentType;
+  monthKey?: string | null;
+  status: DocumentStatus;
+  payloadJson: unknown;
+  generatedAt: Date;
+  sentAt?: Date | null;
+  signedUploadedAt?: Date | null;
+  forwardedAt?: Date | null;
+};
+
+const getVisibleWorkflowDocumentKey = (document: Pick<VisibleWorkflowDocument, 'type' | 'monthKey'>) =>
+  `${document.type}:${document.monthKey ?? 'one-off'}`;
+
+const getVisibleWorkflowDocumentRank = (
+  document: Pick<VisibleWorkflowDocument, 'status' | 'payloadJson' | 'type'>
+) => {
+  if (SIGNED_STATUSES.has(document.status)) {
+    return 30;
+  }
+
+  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+    return 20;
+  }
+
+  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type)) {
+    return 10;
+  }
+
+  return 0;
+};
+
+const getVisibleWorkflowDocumentTimestamp = (
+  document: Pick<VisibleWorkflowDocument, 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'>
+) =>
+  document.forwardedAt?.getTime() ??
+  document.signedUploadedAt?.getTime() ??
+  document.sentAt?.getTime() ??
+  document.generatedAt.getTime();
+
+const compareVisibleWorkflowDocuments = <T extends VisibleWorkflowDocument>(left: T, right: T) => {
+  const rankDiff = getVisibleWorkflowDocumentRank(right) - getVisibleWorkflowDocumentRank(left);
+
+  if (rankDiff !== 0) {
+    return rankDiff;
+  }
+
+  if (
+    left.type === right.type &&
+    isPermanentSignatureDocumentType(left.type) &&
+    !SIGNED_STATUSES.has(left.status) &&
+    !SIGNED_STATUSES.has(right.status)
+  ) {
+    return getVisibleWorkflowDocumentTimestamp(left) - getVisibleWorkflowDocumentTimestamp(right);
+  }
+
+  return getVisibleWorkflowDocumentTimestamp(right) - getVisibleWorkflowDocumentTimestamp(left);
+};
+
+const compactVisibleWorkflowDocuments = <T extends VisibleWorkflowDocument>(documents: T[]) => {
+  const selected = new Map<string, T>();
+
+  for (const document of documents) {
+    const key = getVisibleWorkflowDocumentKey(document);
+    const existing = selected.get(key);
+
+    if (!existing || compareVisibleWorkflowDocuments(document, existing) < 0) {
+      selected.set(key, document);
+    }
+  }
+
+  return [...selected.values()].sort((left, right) => {
+    const orderDiff = CREATOR_DOCUMENT_BATCH_ORDER[left.type] - CREATOR_DOCUMENT_BATCH_ORDER[right.type];
+
+    if (orderDiff !== 0) {
+      return orderDiff;
+    }
+
+    const monthDiff = (left.monthKey ?? '').localeCompare(right.monthKey ?? '');
+
+    if (monthDiff !== 0) {
+      return monthDiff;
+    }
+
+    return left.generatedAt.getTime() - right.generatedAt.getTime();
+  });
+};
 
 const formatCreatorDocumentBatchHeader = (input: {
   creatorName: string;
@@ -299,29 +437,37 @@ export class DocumentService {
       queue: DocumentWorkflowQueue.FIRST_QUEUE,
       contractDate
     };
-    this.assertTemplatesAvailableForLegalType(legalType, FIRST_QUEUE_DOCUMENT_TYPES);
-    const documents = [
-      await this.generateOneOffDocument(creatorUserId, DocumentType.CONTRACT, undefined, {
-        campaignId: campaign.id,
-        queue: DocumentWorkflowQueue.FIRST_QUEUE,
-        scopeKey: getWorkflowDocumentScopeKey({
-          campaignKey: campaign.key,
-          type: DocumentType.CONTRACT
-        }),
-        generatedDate: contractDate,
-        workflow: workflowPayload
-      }),
-      await this.generateOneOffDocument(creatorUserId, DocumentType.NDA, undefined, {
-        campaignId: campaign.id,
-        queue: DocumentWorkflowQueue.FIRST_QUEUE,
-        scopeKey: getWorkflowDocumentScopeKey({
-          campaignKey: campaign.key,
-          type: DocumentType.NDA
-        }),
-        generatedDate: contractDate,
-        workflow: workflowPayload
-      })
-    ];
+    const documents = [];
+
+    for (const type of PERMANENT_SIGNATURE_DOCUMENT_TYPES) {
+      const reusableDocument = await this.findReusableOneOffDocument(creatorUserId, type);
+
+      if (reusableDocument) {
+        await this.registerWorkflowDocument(reusableDocument.id, {
+          campaignId: campaign.id,
+          queue: DocumentWorkflowQueue.FIRST_QUEUE,
+          required: true
+        });
+        documents.push(reusableDocument);
+        continue;
+      }
+
+      this.assertTemplatesAvailableForLegalType(legalType, [type]);
+      documents.push(
+        await this.generateOneOffDocument(creatorUserId, type, undefined, {
+          campaignId: campaign.id,
+          queue: DocumentWorkflowQueue.FIRST_QUEUE,
+          scopeKey: getWorkflowDocumentScopeKey({
+            campaignKey: campaign.key,
+            type
+          }),
+          generatedDate: contractDate,
+          workflow: workflowPayload
+        })
+      );
+    }
+
+    this.assertTemplatesAvailableForLegalType(legalType, [DocumentType.ASSIGNMENT]);
 
     for (const monthKey of periodMonths) {
       const assignmentDate = toDateOnly(getMonthRange(monthKey).dateFrom);
@@ -468,7 +614,9 @@ export class DocumentService {
     }
 
     const documents = await this.loadSendableDocuments(
-      summary.documents.map((document) => document.documentId!)
+      summary.documents
+        .filter((document) => !SIGNED_STATUSES.has(document.status as DocumentStatus))
+        .map((document) => document.documentId!)
     );
     const sentDocuments: SentDocumentInfo[] = [];
 
@@ -538,10 +686,14 @@ export class DocumentService {
       return;
     }
 
-    await this.loadSendableDocuments(documentIds);
+    const documents = await this.loadSendableDocuments(documentIds);
 
-    for (const documentId of documentIds) {
-      await this.sendDocumentToCreator(telegram, documentId);
+    for (const document of documents) {
+      if (SIGNED_STATUSES.has(document.status)) {
+        continue;
+      }
+
+      await this.sendDocumentToCreator(telegram, document.id);
     }
   }
 
@@ -555,9 +707,13 @@ export class DocumentService {
         throw new Error(`Document was not found before sending: ${documentId}`);
       }
 
-      this.assertDocumentCanBeSent(document);
+      const isAlreadySigned = SIGNED_STATUSES.has(document.status);
 
-      if (!fsSync.existsSync(document.filePath)) {
+      if (!isAlreadySigned && !isPermanentSignatureDocumentType(document.type)) {
+        this.assertDocumentCanBeSent(document);
+      }
+
+      if (!isAlreadySigned && !fsSync.existsSync(document.filePath)) {
         throw new Error(
           `PDF file is missing before sending: ${document.type}${document.monthKey ? ` ${document.monthKey}` : ''} (${document.filePath})`
         );
@@ -592,7 +748,15 @@ export class DocumentService {
     }
   }
 
-  private assertDocumentCanBeSent(document: { payloadJson: unknown; type: DocumentType }) {
+  private assertDocumentCanBeSent(document: { payloadJson: unknown; type: DocumentType; status?: DocumentStatus }) {
+    if (
+      isPermanentSignatureDocumentType(document.type) &&
+      document.status &&
+      document.status !== DocumentStatus.FAILED
+    ) {
+      return;
+    }
+
     if (!isApprovedTemplateDocumentPayload(document.payloadJson, document.type)) {
       throw new StaleDocumentTemplateError();
     }
@@ -600,8 +764,16 @@ export class DocumentService {
     return;
   }
 
+  private async findReusableOneOffDocument(creatorUserId: string, type: DocumentType) {
+    const documents = await this.documentRepository.listOneOffByCreatorAndTypes(creatorUserId, [type]);
+
+    return pickReusableOneOffDocument(documents);
+  }
+
   async listCreatorDocuments(creatorUserId: string) {
-    return (await this.documentRepository.listByCreator(creatorUserId)).filter(isCurrentWorkflowDocument);
+    return compactVisibleWorkflowDocuments(
+      (await this.documentRepository.listByCreator(creatorUserId)).filter(isCurrentWorkflowDocument)
+    );
   }
 
   async sendCreatorDocumentsBatchToChat(
@@ -801,20 +973,29 @@ export class DocumentService {
   async listCreatorResendableDocuments(creatorUserId: string) {
     const documents = await this.documentRepository.listByCreator(creatorUserId);
 
-    return documents.filter(
-      (document) =>
-        isCurrentWorkflowDocument(document) &&
-        isApprovedTemplateDocumentPayload(document.payloadJson, document.type)
+    return compactVisibleWorkflowDocuments(
+      documents.filter(
+        (document) =>
+          isCurrentWorkflowDocument(document) &&
+          (
+            isPermanentSignatureDocumentType(document.type) ||
+            isApprovedTemplateDocumentPayload(document.payloadJson, document.type)
+          )
+      )
     );
   }
 
   async listPendingSignatureDocuments(creatorUserId: string) {
-    return (await this.documentRepository.listPendingSignatureByCreator(creatorUserId)).filter(isCurrentWorkflowDocument);
+    return compactVisibleWorkflowDocuments(
+      (await this.documentRepository.listPendingSignatureByCreator(creatorUserId)).filter(isCurrentWorkflowDocument)
+    );
   }
 
   async listSignatureUploadDocuments(creatorUserId: string) {
-    return (await this.documentRepository.listSignatureUploadCandidatesByCreator(creatorUserId)).filter(
-      isCurrentWorkflowDocument
+    return compactVisibleWorkflowDocuments(
+      (await this.documentRepository.listSignatureUploadCandidatesByCreator(creatorUserId)).filter(
+        isCurrentWorkflowDocument
+      )
     );
   }
 

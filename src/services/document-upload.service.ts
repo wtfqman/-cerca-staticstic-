@@ -10,7 +10,7 @@ import { FileStorageService } from './file-storage.service';
 import type { SignedDocumentForwardingResult } from '../documents/document.formatters';
 import { getDocumentTitle } from '../documents/document.constants';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
-import { isCurrentDocumentWorkflowScopeKey } from '../documents/document-workflow.constants';
+import { isCurrentOrPermanentSignatureDocument } from '../documents/document-reuse.helpers';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import type { DocumentWorkflowService } from './document-workflow.service';
 import { formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
@@ -323,7 +323,7 @@ export class DocumentUploadService {
   ) {
     return this.chatSendQueue.enqueue(chatId, async () => {
       const rawUploads = (await this.documentRepository.listUnforwardedSignatureUploads(input))
-        .filter((upload) => isCurrentDocumentWorkflowScopeKey(upload.document.scopeKey))
+        .filter((upload) => isCurrentOrPermanentSignatureDocument(upload.document))
         .sort(sortPendingSignatureUploads);
       const { uploads, supersededUploads } = compactPendingSignatureUploads(rawUploads);
 

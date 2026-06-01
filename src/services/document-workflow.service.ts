@@ -26,6 +26,10 @@ import {
   isCreatorInvoiceMonth,
   normalizeCampaignPeriodMonths
 } from '../documents/document-workflow.constants';
+import {
+  PERMANENT_SIGNATURE_DOCUMENT_TYPES,
+  isPermanentSignatureDocumentType
+} from '../documents/document-reuse.helpers';
 import { logger } from '../lib/logger';
 import { DocumentRepository } from '../repositories/document.repository';
 import { isApprovedTemplateDocumentPayload } from './document.service';
@@ -42,8 +46,62 @@ const SIGNED_DOCUMENT_STATUSES = new Set<DocumentStatus>([
 const isCurrentTemplateDocument = (document: Pick<Document, 'payloadJson' | 'type'>) =>
   isApprovedTemplateDocumentPayload(document.payloadJson, document.type);
 
-const isSignedDocument = (document: Pick<Document, 'status' | 'payloadJson' | 'type'>) =>
-  isCurrentTemplateDocument(document) && SIGNED_DOCUMENT_STATUSES.has(document.status);
+const isSignedDocument = (document: Pick<Document, 'status'>) =>
+  SIGNED_DOCUMENT_STATUSES.has(document.status);
+
+const isUsableWorkflowDocument = (document: Pick<Document, 'status' | 'payloadJson' | 'type'>) =>
+  isSignedDocument(document) ||
+  isCurrentTemplateDocument(document) ||
+  (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED);
+
+const getWorkflowDocumentRank = (document: Pick<Document, 'status' | 'payloadJson' | 'type'>) => {
+  if (isSignedDocument(document)) {
+    return 30;
+  }
+
+  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+    return 20;
+  }
+
+  if (isCurrentTemplateDocument(document)) {
+    return 10;
+  }
+
+  return 0;
+};
+
+const getWorkflowDocumentTimestamp = (
+  document: Pick<Document, 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'>
+) =>
+  document.forwardedAt?.getTime() ??
+  document.signedUploadedAt?.getTime() ??
+  document.sentAt?.getTime() ??
+  document.generatedAt.getTime();
+
+const pickBestWorkflowDocument = <T extends Pick<
+  Document,
+  'status' | 'payloadJson' | 'type' | 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'
+>>(documents: T[]) =>
+  [...documents]
+    .filter(isUsableWorkflowDocument)
+    .sort((left, right) => {
+      const rankDiff = getWorkflowDocumentRank(right) - getWorkflowDocumentRank(left);
+
+      if (rankDiff !== 0) {
+        return rankDiff;
+      }
+
+      if (
+        left.type === right.type &&
+        isPermanentSignatureDocumentType(left.type) &&
+        !isSignedDocument(left) &&
+        !isSignedDocument(right)
+      ) {
+        return getWorkflowDocumentTimestamp(left) - getWorkflowDocumentTimestamp(right);
+      }
+
+      return getWorkflowDocumentTimestamp(right) - getWorkflowDocumentTimestamp(left);
+    })[0] ?? null;
 
 const countRequiredSignedDocuments = (
   state: DocumentWorkflowStateWithRelations,
@@ -339,7 +397,33 @@ export class DocumentWorkflowService {
       creatorUserId
     });
 
+    await this.linkReusablePermanentFirstQueueDocuments(state.id, creatorUserId);
+
     return this.refreshWorkflowState(state.id);
+  }
+
+  private async linkReusablePermanentFirstQueueDocuments(workflowStateId: string, creatorUserId: string) {
+    const reusableDocuments = await this.documentRepository.listOneOffByCreatorAndTypes(
+      creatorUserId,
+      [...PERMANENT_SIGNATURE_DOCUMENT_TYPES]
+    );
+
+    for (const type of PERMANENT_SIGNATURE_DOCUMENT_TYPES) {
+      const reusableDocument = pickBestWorkflowDocument(
+        reusableDocuments.filter((document) => document.type === type)
+      );
+
+      if (!reusableDocument) {
+        continue;
+      }
+
+      await this.workflowRepository.linkDocument({
+        workflowStateId,
+        documentId: reusableDocument.id,
+        queue: DocumentWorkflowQueue.FIRST_QUEUE,
+        required: true
+      });
+    }
   }
 
   async ensureNoContractPaymentCampaign(createdByUserId?: string) {
@@ -371,10 +455,29 @@ export class DocumentWorkflowService {
 
   async getActiveRosterFirstQueueSummary(creatorUserId: string): Promise<ActiveRosterFirstQueueSummary> {
     const campaignKey = getActiveRosterResigningCampaignKey();
-    const campaign = await this.workflowRepository.findCampaignByKey(campaignKey);
-    const state = campaign
+    let campaign = await this.workflowRepository.findCampaignByKey(campaignKey);
+    let state = campaign
       ? await this.workflowRepository.findState(campaign.id, creatorUserId)
       : null;
+
+    if (!state) {
+      const reusableDocuments = await this.documentRepository.listOneOffByCreatorAndTypes(
+        creatorUserId,
+        [...PERMANENT_SIGNATURE_DOCUMENT_TYPES]
+      );
+
+      if (PERMANENT_SIGNATURE_DOCUMENT_TYPES.some((type) =>
+        pickBestWorkflowDocument(reusableDocuments.filter((document) => document.type === type))
+      )) {
+        const preparedState = await this.prepareActiveRosterResigningWorkflow(creatorUserId);
+
+        campaign = preparedState.campaign;
+        state = preparedState;
+      }
+    } else {
+      await this.linkReusablePermanentFirstQueueDocuments(state.id, creatorUserId);
+    }
+
     const refreshedState = state ? await this.refreshWorkflowState(state.id) : null;
     const periodMonths = normalizeCampaignPeriodMonths(
       refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? getActiveRosterResigningPeriodMonths()
@@ -397,14 +500,18 @@ export class DocumentWorkflowService {
       isCompleted: Boolean(refreshedState?.firstQueueCompletedAt),
       completedAt: refreshedState?.firstQueueCompletedAt,
       documents: expectedDocuments.map((expectedDocument) => {
-        const linkedDocument = refreshedState?.documents.find(
-          (link) =>
-            link.queue === DocumentWorkflowQueue.FIRST_QUEUE &&
-            link.document.type === expectedDocument.type &&
-            (link.document.monthKey ?? null) === expectedDocument.monthKey
-        )?.document;
+        const linkedDocument = pickBestWorkflowDocument(
+          refreshedState?.documents
+            .filter(
+              (link) =>
+                link.queue === DocumentWorkflowQueue.FIRST_QUEUE &&
+                link.document.type === expectedDocument.type &&
+                (link.document.monthKey ?? null) === expectedDocument.monthKey
+            )
+            .map((link) => link.document) ?? []
+        );
 
-        if (!linkedDocument || !isCurrentTemplateDocument(linkedDocument)) {
+        if (!linkedDocument || !isUsableWorkflowDocument(linkedDocument)) {
           return {
             ...expectedDocument,
             status: 'NOT_GENERATED' as const
@@ -443,12 +550,16 @@ export class DocumentWorkflowService {
       }))
     );
     const documents = expectedSecondQueueDocuments.map((expectedDocument) => {
-      const linkedDocument = refreshedState?.documents.find(
-        (link) =>
-          link.queue === DocumentWorkflowQueue.SECOND_QUEUE &&
-          link.document.type === expectedDocument.type &&
-          link.document.monthKey === expectedDocument.monthKey
-      )?.document;
+      const linkedDocument = pickBestWorkflowDocument(
+        refreshedState?.documents
+          .filter(
+            (link) =>
+              link.queue === DocumentWorkflowQueue.SECOND_QUEUE &&
+              link.document.type === expectedDocument.type &&
+              link.document.monthKey === expectedDocument.monthKey
+          )
+          .map((link) => link.document) ?? []
+      );
       const paymentStatus = getPaymentQueueStatus(refreshedState, expectedDocument.monthKey);
 
       if (!firstQueueCompleted) {
@@ -459,7 +570,7 @@ export class DocumentWorkflowService {
         };
       }
 
-      if (!linkedDocument || !isCurrentTemplateDocument(linkedDocument)) {
+      if (!linkedDocument || !isUsableWorkflowDocument(linkedDocument)) {
         return {
           ...expectedDocument,
           status: 'NOT_GENERATED' as const,

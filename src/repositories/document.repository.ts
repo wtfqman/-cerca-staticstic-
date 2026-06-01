@@ -139,6 +139,24 @@ export class DocumentRepository {
     });
   }
 
+  async listOneOffByCreatorAndTypes(creatorUserId: string, types: DocumentType[]) {
+    if (!types.length) {
+      return [];
+    }
+
+    return prisma.document.findMany({
+      where: {
+        creatorUserId,
+        type: {
+          in: types
+        },
+        monthKey: null
+      },
+      include: signatureUploadsInclude,
+      orderBy: [{ generatedAt: 'desc' }]
+    });
+  }
+
   async listPendingSignatureByCreator(creatorUserId: string) {
     return prisma.document.findMany({
       where: {
