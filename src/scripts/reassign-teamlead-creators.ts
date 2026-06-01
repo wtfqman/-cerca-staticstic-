@@ -24,6 +24,14 @@ const fromLocator = normalizeLocator(getArgValue('--from') ?? getArgValue('--fro
 const toLocator = normalizeLocator(getArgValue('--to') ?? getArgValue('--to-username'));
 const apply = hasFlag('--apply');
 const includeInactiveSourceLinks = hasFlag('--include-inactive-source-links');
+const onlyWithTargetHistory = hasFlag('--only-with-target-history');
+const activeUpdatedSinceRaw = getArgValue('--active-updated-since');
+
+const activeUpdatedSince = activeUpdatedSinceRaw ? new Date(activeUpdatedSinceRaw) : null;
+
+if (activeUpdatedSinceRaw && Number.isNaN(activeUpdatedSince?.getTime())) {
+  throw new Error(`Invalid --active-updated-since date: ${activeUpdatedSinceRaw}`);
+}
 
 const teamLeadUserInclude = Prisma.validator<Prisma.UserInclude>()({
   teamLeadProfile: true
@@ -89,7 +97,11 @@ const findTeamLead = async (locator: string, options: { requireActive: boolean }
 const run = async () => {
   if (!fromLocator || !toLocator) {
     throw new Error(
-      'Usage: npm run teamleads:reassign -- --from=@old --to=@new [--include-inactive-source-links] [--apply]'
+      [
+        'Usage: npm run teamleads:reassign -- --from=@old --to=@new [--include-inactive-source-links] [--only-with-target-history] [--active-updated-since=ISO_DATE] [--apply]',
+        '',
+        '--only-with-target-history moves only creators that already have any historical link to the target teamlead.'
+      ].join('\n')
     );
   }
 
@@ -118,15 +130,37 @@ const run = async () => {
         : {
             isActive: true
           }),
+      ...(activeUpdatedSince
+        ? {
+            updatedAt: {
+              gte: activeUpdatedSince
+            }
+          }
+        : {}),
       creator: {
         is: {
           isActive: true,
-          creatorAssignments: {
-            none: {
-              teamLeadUserId: toTeamLead.id,
-              isActive: true
-            }
-          },
+          AND: [
+            {
+              creatorAssignments: {
+                none: {
+                  teamLeadUserId: toTeamLead.id,
+                  isActive: true
+                }
+              }
+            },
+            ...(onlyWithTargetHistory
+              ? [
+                  {
+                    creatorAssignments: {
+                      some: {
+                        teamLeadUserId: toTeamLead.id
+                      }
+                    }
+                  }
+                ]
+              : [])
+          ],
           OR: [
             {
               role: UserRole.CREATOR
@@ -156,6 +190,8 @@ const run = async () => {
   console.log(`From: ${formatTeamLead(fromTeamLead)}`);
   console.log(`To:   ${formatTeamLead(toTeamLead)}`);
   console.log(`Include inactive source links: ${includeInactiveSourceLinks ? 'yes' : 'no'}`);
+  console.log(`Only with target history: ${onlyWithTargetHistory ? 'yes' : 'no'}`);
+  console.log(`Active updated since: ${activeUpdatedSince ? activeUpdatedSince.toISOString() : 'not set'}`);
   console.log(`Creators to move: ${links.length}`);
 
   for (const link of links) {
