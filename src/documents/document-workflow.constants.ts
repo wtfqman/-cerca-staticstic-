@@ -1,14 +1,24 @@
 import { DocumentType, DocumentWorkflowQueue } from '@prisma/client';
 
+import { config } from '../config';
 import { formatMonthLabelRu } from '../utils/formatters';
-import { getCurrentMonthKey, getMonthRange, toDateOnly } from '../utils/periods';
+import { getMonthRange, getNow, toDateOnly, toMonthKey } from '../utils/periods';
 
 const ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX = 'active_roster_resigning';
 const NO_CONTRACT_PAYMENT_CAMPAIGN_PREFIX = 'no_contract_payment';
 
 const formatCampaignMonthSuffix = (monthKey: string) => monthKey.replace('-', '_');
 
-export const getDocumentWorkflowMonthKey = () => getCurrentMonthKey();
+export const getDocumentWorkflowMonthKey = () => {
+  const now = getNow();
+
+  // During the monthly close window, documents and invoices still belong to the previous month.
+  if (now.date() <= config.limits.maxMonthlyVideoEditDay) {
+    return toMonthKey(now.subtract(1, 'month'));
+  }
+
+  return toMonthKey(now);
+};
 
 export const getActiveRosterContractDate = (monthKey = getDocumentWorkflowMonthKey()) =>
   toDateOnly(getMonthRange(monthKey).dateFrom);
