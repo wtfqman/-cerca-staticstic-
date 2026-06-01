@@ -11,6 +11,11 @@ import type { SignedDocumentForwardingResult } from '../documents/document.forma
 import { getDocumentTitle } from '../documents/document.constants';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
 import { isCurrentOrPermanentSignatureDocument } from '../documents/document-reuse.helpers';
+import {
+  FIRST_QUEUE_DOCUMENT_TYPES as WORKFLOW_FIRST_QUEUE_DOCUMENT_TYPES,
+  SECOND_QUEUE_DOCUMENT_TYPES as WORKFLOW_SECOND_QUEUE_DOCUMENT_TYPES
+} from '../documents/document-workflow.constants';
+import { assertSignedPdfMatchesDocument } from '../documents/signed-pdf-validation';
 import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import type { DocumentWorkflowService } from './document-workflow.service';
 import { formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
@@ -34,16 +39,9 @@ const SIGNED_DOCUMENT_ORDER: Record<DocumentType, number> = {
   [DocumentType.RIGHTS_TRANSFER]: 50
 };
 
-const FIRST_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([
-  DocumentType.CONTRACT,
-  DocumentType.NDA,
-  DocumentType.ASSIGNMENT
-]);
+const FIRST_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([...WORKFLOW_FIRST_QUEUE_DOCUMENT_TYPES]);
 
-const SECOND_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([
-  DocumentType.ACT,
-  DocumentType.RIGHTS_TRANSFER
-]);
+const SECOND_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([...WORKFLOW_SECOND_QUEUE_DOCUMENT_TYPES]);
 
 const WAITING_FOR_SIGNED_UPLOAD_STATUSES = new Set<DocumentStatus>([
   DocumentStatus.GENERATED,
@@ -549,6 +547,11 @@ export class DocumentUploadService {
     if (buffer.subarray(0, 4).toString('utf8') !== '%PDF') {
       throw new Error('Файл не похож на PDF. Проверь файл и отправь подписанный PDF еще раз.');
     }
+
+    await assertSignedPdfMatchesDocument({
+      buffer,
+      expectedType: document.type
+    });
 
     const uploadedAt = new Date();
     const stored = await this.fileStorageService.saveSignedPdf({

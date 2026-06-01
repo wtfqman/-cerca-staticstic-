@@ -15,6 +15,10 @@ import type {
   WeeklyReportReviewSummary
 } from '../types/report.types';
 import { getDocumentTitle } from '../documents/document.constants';
+import {
+  FIRST_QUEUE_DOCUMENT_TYPES as WORKFLOW_FIRST_QUEUE_DOCUMENT_TYPES,
+  SECOND_QUEUE_DOCUMENT_TYPES as WORKFLOW_SECOND_QUEUE_DOCUMENT_TYPES
+} from '../documents/document-workflow.constants';
 import { formatIntegerRu, formatMoneyRu, formatRussianDate } from '../utils/formatters';
 import { formatPeriodLabel } from '../utils/periods';
 import { formatPlatformStatMetrics } from '../utils/social-platform-metrics';
@@ -391,12 +395,8 @@ const formatMonthlyVideoStatusLine = (item: CreatorMonthlyVideoStatusSummary) =>
     ? `• ${item.creatorName}: ${formatIntegerRu(item.videoCount ?? 0)} видео`
     : `• ${item.creatorName}: количество видео не указано`;
 
-const FIRST_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([
-  DocumentType.CONTRACT,
-  DocumentType.NDA,
-  DocumentType.ASSIGNMENT
-]);
-const SECOND_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([DocumentType.ACT, DocumentType.RIGHTS_TRANSFER]);
+const FIRST_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([...WORKFLOW_FIRST_QUEUE_DOCUMENT_TYPES]);
+const SECOND_QUEUE_DOCUMENT_TYPES = new Set<DocumentType>([...WORKFLOW_SECOND_QUEUE_DOCUMENT_TYPES]);
 
 const getMissingRequiredDocuments = (
   item: CreatorDocumentStatusSummary,

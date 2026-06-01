@@ -351,8 +351,8 @@ async function main() {
       username: row.username,
       profileCompleted: row.profileCompleted,
       legalType: row.legalType,
+      assignment: row.secondQueueDocuments[DocumentType.ASSIGNMENT],
       act: row.secondQueueDocuments[DocumentType.ACT],
-      rightsTransfer: row.secondQueueDocuments[DocumentType.RIGHTS_TRANSFER],
       invoiceUploaded: row.invoiceUploaded
     }))
   );

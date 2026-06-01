@@ -238,6 +238,40 @@ const pickReusableOneOffDocument = (documents: OneOffDocument[]) =>
       return getReusableOneOffDocumentTimestamp(right) - getReusableOneOffDocumentTimestamp(left);
     })[0] ?? null;
 
+const parsePayloadDate = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const russianDate = value.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+
+  if (russianDate) {
+    const [, day, month, year] = russianDate;
+    return toDateOnly(`${year}-${month}-${day}`);
+  }
+
+  const isoDate = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (isoDate) {
+    return toDateOnly(value.trim());
+  }
+
+  return null;
+};
+
+const getPayloadRecord = (payloadJson: unknown) =>
+  typeof payloadJson === 'object' && payloadJson !== null
+    ? payloadJson as Record<string, unknown>
+    : {};
+
+const getContractDateFromDocumentPayload = (document?: Pick<OneOffDocument, 'payloadJson'> | null) => {
+  const payload = getPayloadRecord(document?.payloadJson);
+
+  return parsePayloadDate(payload.contractDate) ??
+    parsePayloadDate(payload.documentDate) ??
+    parsePayloadDate(payload.generatedDate);
+};
+
 type VisibleWorkflowDocument = {
   type: DocumentType;
   monthKey?: string | null;
@@ -429,8 +463,9 @@ export class DocumentService {
 
     const state = await this.documentWorkflowService.prepareActiveRosterResigningWorkflow(creatorUserId);
     const campaign = state.campaign;
-    const periodMonths = normalizeCampaignPeriodMonths(campaign.periodMonths);
-    const contractDate = campaign.contractDate ?? getActiveRosterContractDate();
+    const reusableContractDocument = await this.findReusableOneOffDocument(creatorUserId, DocumentType.CONTRACT);
+    const defaultContractDate = campaign.contractDate ?? getActiveRosterContractDate();
+    const contractDate = getContractDateFromDocumentPayload(reusableContractDocument) ?? defaultContractDate;
     const workflowPayload = {
       campaignKey: campaign.key,
       campaignTitle: campaign.title,
@@ -440,7 +475,9 @@ export class DocumentService {
     const documents = [];
 
     for (const type of PERMANENT_SIGNATURE_DOCUMENT_TYPES) {
-      const reusableDocument = await this.findReusableOneOffDocument(creatorUserId, type);
+      const reusableDocument = type === DocumentType.CONTRACT
+        ? reusableContractDocument
+        : await this.findReusableOneOffDocument(creatorUserId, type);
 
       if (reusableDocument) {
         await this.registerWorkflowDocument(reusableDocument.id, {
@@ -463,29 +500,6 @@ export class DocumentService {
           }),
           generatedDate: contractDate,
           workflow: workflowPayload
-        })
-      );
-    }
-
-    this.assertTemplatesAvailableForLegalType(legalType, [DocumentType.ASSIGNMENT]);
-
-    for (const monthKey of periodMonths) {
-      const assignmentDate = toDateOnly(getMonthRange(monthKey).dateFrom);
-
-      documents.push(
-        await this.generateMonthlyDocument(creatorUserId, monthKey, DocumentType.ASSIGNMENT, undefined, {
-          campaignId: campaign.id,
-          queue: DocumentWorkflowQueue.FIRST_QUEUE,
-          scopeKey: getWorkflowDocumentScopeKey({
-            campaignKey: campaign.key,
-            type: DocumentType.ASSIGNMENT,
-            monthKey
-          }),
-          generatedDate: assignmentDate,
-          workflow: {
-            ...workflowPayload,
-            monthKey
-          }
         })
       );
     }
@@ -514,14 +528,21 @@ export class DocumentService {
     }
 
     const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
-    const contractDate = state.campaign.contractDate ?? getActiveRosterContractDate();
+    const contractDate = await this.resolveCreatorContractDate(
+      creatorUserId,
+      state.campaign.contractDate ?? getActiveRosterContractDate()
+    );
     const documents = [];
     this.assertTemplatesAvailableForLegalType(legalType, [...SECOND_QUEUE_DOCUMENT_TYPES]);
 
     for (const monthKey of periodMonths) {
-      const documentDate = toDateOnly(getMonthRange(monthKey).dateTo);
+      const monthRange = getMonthRange(monthKey);
 
       for (const type of SECOND_QUEUE_DOCUMENT_TYPES) {
+        const documentDate = type === DocumentType.ASSIGNMENT
+          ? toDateOnly(monthRange.dateFrom)
+          : toDateOnly(monthRange.dateTo);
+
         documents.push(
           await this.generateMonthlyDocument(creatorUserId, monthKey, type, undefined, {
             campaignId: state.campaignId,
@@ -768,6 +789,12 @@ export class DocumentService {
     const documents = await this.documentRepository.listOneOffByCreatorAndTypes(creatorUserId, [type]);
 
     return pickReusableOneOffDocument(documents);
+  }
+
+  private async resolveCreatorContractDate(creatorUserId: string, fallback: Date) {
+    const reusableContractDocument = await this.findReusableOneOffDocument(creatorUserId, DocumentType.CONTRACT);
+
+    return getContractDateFromDocumentPayload(reusableContractDocument) ?? fallback;
   }
 
   async listCreatorDocuments(creatorUserId: string) {

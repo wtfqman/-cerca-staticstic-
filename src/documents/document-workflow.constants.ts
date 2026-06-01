@@ -25,7 +25,9 @@ export const getDocumentWorkflowMonthKey = () => {
 };
 
 export const getActiveRosterContractDate = (monthKey = getDocumentWorkflowMonthKey()) =>
-  toDateOnly(getMonthRange(monthKey).dateFrom);
+  config.documents.contractDate
+    ? toDateOnly(config.documents.contractDate)
+    : toDateOnly(getMonthRange(monthKey).dateFrom);
 
 export const getActiveRosterResigningCampaignKey = (monthKey = getDocumentWorkflowMonthKey()) =>
   `${ACTIVE_ROSTER_RESIGNING_CAMPAIGN_PREFIX}_${formatCampaignMonthSuffix(monthKey)}`;
@@ -49,13 +51,12 @@ export const RECEIPT_REMINDER_DELAY_HOURS = 36;
 
 export const FIRST_QUEUE_DOCUMENT_TYPES = [
   DocumentType.CONTRACT,
-  DocumentType.NDA,
-  DocumentType.ASSIGNMENT
+  DocumentType.NDA
 ] as const;
 
 export const SECOND_QUEUE_DOCUMENT_TYPES = [
-  DocumentType.ACT,
-  DocumentType.RIGHTS_TRANSFER
+  DocumentType.ASSIGNMENT,
+  DocumentType.ACT
 ] as const;
 
 export const getDefaultDocumentWorkflowQueue = (type: DocumentType) => {

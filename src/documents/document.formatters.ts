@@ -107,7 +107,7 @@ export const formatActiveRosterFirstQueueStatus = (summary: ActiveRosterFirstQue
     '',
     summary.isCompleted
       ? 'Все документы первой очереди подписаны и загружены.'
-      : 'Подпиши договор, NDA и задания, затем отправь подписанные PDF обратно в бот.'
+      : 'Подпиши договор и NDA, затем отправь подписанные PDF обратно в бот.'
   ]
     .filter(Boolean)
     .join('\n');
@@ -215,12 +215,12 @@ export const formatCreatorFirstQueueScreen = (summary: ActiveRosterFirstQueueSum
     'Мои документы',
     '',
     summary.isCompleted
-      ? 'Первая очередь подписана. Следующий шаг - акты и передача прав.'
+      ? 'Первая очередь подписана. Следующий шаг - задание и акт.'
       : allDocumentsGenerated
-        ? 'Документы уже отправлены. Подпиши договор, NDA и задания, затем отправь подписанные PDF обратно в бот. Повторная отправка - только по кнопке.'
+        ? 'Документы уже отправлены. Подпиши договор и NDA, затем отправь подписанные PDF обратно в бот. Повторная отправка - только по кнопке.'
         : hasGeneratedDocuments
           ? 'Часть документов уже есть, но комплект неполный. Открой формирование первой очереди вручную, чтобы получить полный актуальный пакет.'
-        : 'Сначала сформируй первую очередь: договор, NDA и задания. Потом подпиши их и отправь PDF обратно в бот.',
+        : 'Сначала сформируй первую очередь: договор и NDA. Потом подпиши их и отправь PDF обратно в бот.',
     '',
     ...formatCreatorUploadChecklist(summary.documents),
     '',
@@ -355,7 +355,7 @@ export const formatCreatorSecondQueueScreen = (summary: ActiveRosterSecondQueueS
     return [
       'Следующий шаг',
       '',
-      'Вторая очередь откроется после первой: сначала нужно подписать договор, NDA и задания.',
+      'Вторая очередь откроется после первой: сначала нужно подписать договор и NDA.',
       'После подписи отправь PDF обратно в бот.'
     ].join('\n');
   }
@@ -373,10 +373,10 @@ export const formatCreatorSecondQueueScreen = (summary: ActiveRosterSecondQueueS
     summary.isCompleted
       ? 'Вторая очередь подписана. Теперь выставь счет на сумму ниже, затем загрузи чек.'
       : allDocumentsGenerated
-        ? 'Теперь подпиши акты и передачу прав. После подписания отправь PDF обратно в бот.'
+        ? 'Теперь подпиши задание и акт. После подписания отправь PDF обратно в бот.'
         : hasGeneratedDocuments
           ? 'Часть документов второй очереди уже есть. Сформируй вторую очередь еще раз, чтобы получить полный комплект.'
-          : 'Сформируй вторую очередь: акты и передачу прав. Потом подпиши их и отправь PDF обратно в бот.',
+          : 'Сформируй вторую очередь: задание и акт. Потом подпиши их и отправь PDF обратно в бот.',
     '',
     ...formatCreatorUploadChecklist(summary.documents),
     '',
@@ -394,14 +394,14 @@ export const formatActiveRosterSecondQueueStatus = (summary: ActiveRosterSecondQ
   const billablePayments = summary.payments.filter((payment) => isCreatorInvoiceMonth(payment.monthKey));
 
   return [
-    'Вторая очередь документов: акты и передача прав',
+    'Вторая очередь документов: задание и акт',
     '',
     `Периоды: ${summary.periodMonths.join(', ') || 'периоды не заданы'}`,
     `Статус второй очереди: ${
       summary.isCompleted
         ? 'закрыта'
         : summary.isFirstQueueCompleted
-          ? 'можно формировать акты и передачу прав'
+          ? 'можно формировать задание и акт'
           : 'заблокирована'
     }`,
     summary.lockedReason ?? null,
@@ -417,8 +417,8 @@ export const formatActiveRosterSecondQueueStatus = (summary: ActiveRosterSecondQ
     ...(billablePayments.length ? billablePayments.map(formatReceiptQueueLine) : ['актуальный период не задан']),
     '',
     summary.isFirstQueueCompleted
-      ? 'Акты и передачу прав можно сформировать отдельной кнопкой. После подписи отправь PDF обратно в бот.'
-      : 'Сначала нужно закрыть первую очередь: договор, NDA и задание.'
+      ? 'Задание и акт можно сформировать отдельной кнопкой. После подписи отправь PDF обратно в бот.'
+      : 'Сначала нужно закрыть первую очередь: договор и NDA.'
   ]
     .filter(Boolean)
     .join('\n');

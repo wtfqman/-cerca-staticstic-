@@ -9,7 +9,7 @@ import {
   looksLikePdfBuffer,
   looksLikeReceiptBuffer
 } from '../documents/document-upload.helpers';
-import { isCreatorInvoiceMonth } from '../documents/document-workflow.constants';
+import { isCreatorInvoiceMonth, SECOND_QUEUE_DOCUMENT_TYPES } from '../documents/document-workflow.constants';
 import { getDocumentTitle } from '../documents/document.constants';
 import { logger } from '../lib/logger';
 import { getCreatorInvoiceDisplayAmount } from '../payments/payment.constants';
@@ -22,16 +22,12 @@ import { GoogleSheetsSyncService } from './google-sheets-sync.service';
 import { PaymentCalculationService } from './payment-calculation.service';
 
 const PAYMENT_DOCUMENT_EXPORT_SEND_DELAY_MS = 1_200;
-const INVOICE_RELATED_SIGNED_DOCUMENT_TYPES = [
-  DocumentType.ACT,
-  DocumentType.RIGHTS_TRANSFER,
-  DocumentType.ASSIGNMENT
-] as const;
+const INVOICE_RELATED_SIGNED_DOCUMENT_TYPES = [...SECOND_QUEUE_DOCUMENT_TYPES] as const;
 
 const INVOICE_RELATED_SIGNED_DOCUMENT_ORDER: Partial<Record<DocumentType, number>> = {
-  [DocumentType.ACT]: 10,
-  [DocumentType.RIGHTS_TRANSFER]: 20,
-  [DocumentType.ASSIGNMENT]: 30
+  [DocumentType.ASSIGNMENT]: 10,
+  [DocumentType.ACT]: 20,
+  [DocumentType.RIGHTS_TRANSFER]: 30
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

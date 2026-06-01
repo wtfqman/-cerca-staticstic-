@@ -148,7 +148,7 @@ export const activeRosterFirstQueueKeyboard = () =>
 
 export const activeRosterSecondQueueKeyboard = () =>
   Markup.inlineKeyboard([
-    [Markup.button.callback('Сформировать акты и передачу прав', 'document_generate_second_queue')],
+    [Markup.button.callback('Сформировать задание и акт', 'document_generate_second_queue')],
     [Markup.button.callback('Загрузить счет на оплату', 'payment_invoice_upload_start')],
     [Markup.button.callback('Загрузить чек', 'payment_receipt_upload_start')],
     [Markup.button.callback('Отправить подписанный PDF', 'document_upload_start')]
@@ -185,7 +185,7 @@ export const creatorSecondQueueActionsKeyboard = (input: {
   }
 
   return Markup.inlineKeyboard([
-    [Markup.button.callback('Сформировать/обновить акты и передачу прав', 'document_generate_second_queue')],
+    [Markup.button.callback('Сформировать/обновить задание и акт', 'document_generate_second_queue')],
     ...(input.hasGeneratedDocuments
       ? [[Markup.button.callback('Отправить подписанный PDF', 'document_upload_start')]]
       : []),

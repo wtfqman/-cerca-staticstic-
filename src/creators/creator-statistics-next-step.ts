@@ -130,7 +130,7 @@ export const replyCreatorPostStatisticsNextStep = async (
     await ctx.reply(
       [
         'Статистика сохранена.',
-        'Дальше нужно закрыть вторую очередь документов: акты и передачу прав.',
+        'Дальше нужно закрыть вторую очередь документов: задание и акт.',
         `После подписания второй очереди бот предложит выставить счет за ${invoiceMonthKey}.`
       ].join('\n'),
       secondQueueKeyboard
@@ -150,7 +150,7 @@ export const replyCreatorPostStatisticsNextStep = async (
     [
       'Статистика сохранена.',
       `Счет будет за ${invoiceMonthKey}, но сначала нужно закрыть документы по договору.`,
-      'Следующий шаг - первая очередь: договор, NDA и задания.'
+      'Следующий шаг - первая очередь: договор и NDA.'
     ].join('\n'),
     creatorFirstQueueActionsKeyboard({
       hasGeneratedDocuments: hasGeneratedFirstQueueDocuments,

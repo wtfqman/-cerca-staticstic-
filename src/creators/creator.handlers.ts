@@ -400,7 +400,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await safeAnswerCbQuery(ctx, 'Формирую вторую очередь...');
-    await ctx.reply('Принял. Формирую акты и передачу прав. Это может занять 1-2 минуты.');
+    await ctx.reply('Принял. Формирую задание и акт. Это может занять 1-2 минуты.');
 
     void (async () => {
       try {
@@ -417,7 +417,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
 
         await ctx.reply(
           [
-            'Отправил вторую очередь документов: акты и передачу прав.',
+            'Отправил вторую очередь документов: задание и акт.',
             'Подпиши PDF и отправь подписанные файлы обратно в бот.'
           ].join('\n'),
           creatorSecondQueueActionsKeyboard({

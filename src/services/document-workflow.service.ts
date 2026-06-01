@@ -129,8 +129,8 @@ const isSecondQueueSignedForMonth = (state: DocumentWorkflowStateWithRelations, 
 
 const buildSecondQueueRequiredMessage = (monthKey?: string) =>
   monthKey
-    ? `Сначала нужно загрузить подписанные документы второй очереди за ${monthKey}: акт и передачу прав.`
-    : 'Сначала нужно загрузить подписанные документы второй очереди: акт и передачу прав.';
+    ? `Сначала нужно загрузить подписанные документы второй очереди за ${monthKey}: задание и акт.`
+    : 'Сначала нужно загрузить подписанные документы второй очереди: задание и акт.';
 
 const isActivePaymentUpload = (upload: Pick<PaymentDocumentUpload, 'status'>) =>
   upload.status !== PaymentDocumentStatus.REJECTED;
@@ -282,7 +282,7 @@ const getExpectedQueueCounts = (state: DocumentWorkflowStateWithRelations) => {
   const monthlyDocumentsCount = Math.max(periodMonths.length, 1);
 
   return {
-    firstQueue: 2 + monthlyDocumentsCount,
+    firstQueue: PERMANENT_SIGNATURE_DOCUMENT_TYPES.length,
     secondQueue: monthlyDocumentsCount * SECOND_QUEUE_DOCUMENT_TYPES.length
   };
 };
@@ -482,14 +482,8 @@ export class DocumentWorkflowService {
     const periodMonths = normalizeCampaignPeriodMonths(
       refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? getActiveRosterResigningPeriodMonths()
     );
-    const expectedDocuments: Array<{ type: DocumentType; monthKey: string | null }> = [
-      { type: DocumentType.CONTRACT, monthKey: null },
-      { type: DocumentType.NDA, monthKey: null },
-      ...periodMonths.map((monthKey) => ({
-        type: DocumentType.ASSIGNMENT,
-        monthKey
-      }))
-    ];
+    const expectedDocuments: Array<{ type: DocumentType; monthKey: string | null }> =
+      PERMANENT_SIGNATURE_DOCUMENT_TYPES.map((type) => ({ type, monthKey: null }));
 
     return {
       campaignKey: refreshedState?.campaign.key ?? campaign?.key ?? campaignKey,
@@ -615,7 +609,7 @@ export class DocumentWorkflowService {
       completedAt: refreshedState?.actSignedAt,
       lockedReason: firstQueueCompleted
         ? undefined
-        : 'Вторая очередь доступна после подписания договора, NDA и заданий.',
+        : 'Вторая очередь доступна после подписания договора и NDA.',
       documents,
       payments
     };
@@ -730,8 +724,8 @@ export class DocumentWorkflowService {
       : {
         allowed: false as const,
         state: refreshed,
-          reason: 'Вторая очередь станет доступна после подписания договора, NDA и заданий.'
-        };
+        reason: 'Вторая очередь станет доступна после подписания договора и NDA.'
+      };
   }
 
   async canUploadInvoice(

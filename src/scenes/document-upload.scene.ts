@@ -57,7 +57,7 @@ const buildSignedUploadProgress = async (creatorUserId: string) => {
   );
 
   if (!signableSecondQueueDocuments.length) {
-    return 'Первая очередь подписана. Следующий шаг - сформировать акты и передачу прав.';
+    return 'Первая очередь подписана. Следующий шаг - сформировать задание и акт.';
   }
   const signedSecondQueueDocuments = signableSecondQueueDocuments.filter(
     (document) => signedDocumentStatuses.has(document.status) || Boolean(document.signedUploadedAt)
