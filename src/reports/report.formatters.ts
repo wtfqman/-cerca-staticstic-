@@ -342,6 +342,22 @@ export const formatAdminReport = (report: AdminReportSummary): string =>
     .filter((line) => line !== null)
     .join('\n');
 
+const formatAdminPaymentsTotals = (report: AdminReportSummary) => {
+  const baseTotal = report.creators.reduce((sum, item) => sum + (item.baseTotalPayment ?? item.totalPayment), 0);
+  const surchargeTotal = report.creators.reduce((sum, item) => sum + (item.invoiceSurcharge ?? 0), 0);
+  const invoiceTotal = report.creators.reduce((sum, item) => sum + (item.invoiceTotalPayment ?? item.totalPayment), 0);
+
+  if (baseTotal === invoiceTotal && surchargeTotal === 0) {
+    return [`Итого: ${formatMoneyRu(report.totalPayment)}`];
+  }
+
+  return [
+    `Итого по актам: ${formatMoneyRu(baseTotal)}`,
+    `К счетам: +${formatMoneyRu(surchargeTotal)}`,
+    `Итого по счетам: ${formatMoneyRu(invoiceTotal)}`
+  ];
+};
+
 export const formatAdminPaymentsReport = (report: AdminReportSummary): string =>
   report.creators.length
     ? [
@@ -350,7 +366,7 @@ export const formatAdminPaymentsReport = (report: AdminReportSummary): string =>
         ...noticeLines(formatEntriesDataNotice(report.creators)),
         ...report.creators.map(formatCreatorPaymentLine),
         '',
-        `Итого: ${formatMoneyRu(report.totalPayment)}`
+        ...formatAdminPaymentsTotals(report)
       ]
         .filter((line) => line !== null)
         .join('\n')

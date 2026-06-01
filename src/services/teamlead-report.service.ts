@@ -16,6 +16,15 @@ const EMPTY_TOTALS = {
   saves: 0
 };
 
+const getEffectiveVideoCount = (item: {
+  payment?: { actualVideoCount: number };
+  monthlyVideoCount?: number;
+  monthlyVideoSubmitted?: boolean;
+  totals: { videoCount: number };
+}) =>
+  item.payment?.actualVideoCount ??
+  (item.monthlyVideoSubmitted ? item.monthlyVideoCount ?? 0 : item.totals.videoCount);
+
 const buildWeeklyItems = (
   report: Awaited<ReturnType<WeeklyStatsRepository['listReportsByCreatorAndMonth']>>[number]
 ) =>
@@ -145,7 +154,7 @@ export class TeamLeadReportService {
 
     const totals = creatorEntries.reduce(
       (accumulator, item) => ({
-        videoCount: accumulator.videoCount + item.totals.videoCount,
+        videoCount: accumulator.videoCount + getEffectiveVideoCount(item),
         views: accumulator.views + item.totals.views,
         likes: accumulator.likes + item.totals.likes,
         comments: accumulator.comments + item.totals.comments,

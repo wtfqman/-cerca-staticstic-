@@ -21,6 +21,15 @@ const EMPTY_TOTALS = {
   saves: 0
 };
 
+const getEffectiveVideoCount = (item: {
+  payment?: { actualVideoCount: number };
+  monthlyVideoCount?: number;
+  monthlyVideoSubmitted?: boolean;
+  totals: { videoCount: number };
+}) =>
+  item.payment?.actualVideoCount ??
+  (item.monthlyVideoSubmitted ? item.monthlyVideoCount ?? 0 : item.totals.videoCount);
+
 export class AdminReportService {
   constructor(
     private readonly userRepository: UserRepository,
@@ -119,7 +128,7 @@ export class AdminReportService {
 
     const totals = creatorSummaries.reduce(
       (accumulator, item) => ({
-        videoCount: accumulator.videoCount + item.totals.videoCount,
+        videoCount: accumulator.videoCount + getEffectiveVideoCount(item),
         views: accumulator.views + item.totals.views,
         likes: accumulator.likes + item.totals.likes,
         comments: accumulator.comments + item.totals.comments,
@@ -260,7 +269,7 @@ export class AdminReportService {
 
     const totals = creatorSummaries.reduce(
       (accumulator, item) => ({
-        videoCount: accumulator.videoCount + item.totals.videoCount,
+        videoCount: accumulator.videoCount + getEffectiveVideoCount(item),
         views: accumulator.views + item.totals.views,
         likes: accumulator.likes + item.totals.likes,
         comments: accumulator.comments + item.totals.comments,
