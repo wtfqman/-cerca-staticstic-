@@ -6,18 +6,24 @@ import type { BotContext } from '../types/bot-context';
 import { container } from '../container';
 import { ACCESS_PENDING_TEXT, CREATOR_SELF_EDIT_DISABLED_TEXT, HELP_TEXTS } from '../texts/messages';
 import { mainMenuKeyboardForUser, mainMenuTextForUser } from '../keyboards/menu.keyboards';
-import { creatorProfileSelfEditKeyboard, reportMonthKeyboard } from '../keyboards/inline.keyboards';
+import {
+  creatorProfileSelfEditKeyboard,
+  creatorSecondQueueActionsKeyboard,
+  reportMonthKeyboard
+} from '../keyboards/inline.keyboards';
 import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
 import { getMessageText, splitTelegramMessage } from '../utils/telegram';
 import { formatAggregationSnapshot, formatCreatorMonthlyReport } from '../reports/report.formatters';
 import { formatSignedUploadResultMessage } from '../documents/document.formatters';
 import { isPdfTelegramDocument } from '../documents/document-upload.helpers';
 import { formatUserError, logUserError } from '../utils/user-errors';
+import { formatIntegerRu } from '../utils/formatters';
 import {
   formatTemporaryCreatorInviteExpiry,
   getTemporaryCreatorInviteDecision,
   parseStartPayload
 } from '../utils/temporary-creator-invite';
+import { getRequiredSecondQueueStatisticsStatus } from '../creators/creator-statistics-requirements';
 import {
   ensureCreatorProfileCompletedForDocuments
 } from '../creators/creator-documents.flow';
@@ -27,6 +33,62 @@ import {
   canUseCreatorScenario,
   canUseTeamLeadScenario
 } from '../utils/access';
+
+type TelegramScreenshotDocument = {
+  file_id: string;
+  file_unique_id?: string;
+  file_name?: string;
+  mime_type?: string;
+};
+
+const isImageDocument = (document: TelegramScreenshotDocument) => {
+  const mimeType = document.mime_type?.toLowerCase() ?? '';
+  const fileName = document.file_name?.toLowerCase() ?? '';
+
+  return (
+    mimeType.startsWith('image/') ||
+    ['.jpg', '.jpeg', '.png', '.webp'].some((extension) => fileName.endsWith(extension))
+  );
+};
+
+const getScreenshotFile = (ctx: BotContext) => {
+  if (!ctx.message) {
+    return null;
+  }
+
+  if ('photo' in ctx.message && ctx.message.photo.length > 0) {
+    const photo = ctx.message.photo[ctx.message.photo.length - 1];
+
+    return {
+      telegramFileId: photo.file_id,
+      telegramFileUniqueId: photo.file_unique_id
+    };
+  }
+
+  if ('document' in ctx.message && ctx.message.document && isImageDocument(ctx.message.document)) {
+    return {
+      telegramFileId: ctx.message.document.file_id,
+      telegramFileUniqueId: ctx.message.document.file_unique_id
+    };
+  }
+
+  return null;
+};
+
+const hasGeneratedSecondQueueDocuments = (
+  summary: Awaited<ReturnType<typeof container.services.documentWorkflowService.getActiveRosterSecondQueueSummary>>
+) =>
+  summary.documents.length > 0 &&
+  summary.documents.every(
+    (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
+  );
+
+const hasAvailableSecondQueueDocuments = (
+  summary: Awaited<ReturnType<typeof container.services.documentWorkflowService.getActiveRosterSecondQueueSummary>>
+) =>
+  summary.documents.some(
+    (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
+  );
 
 export const showMainMenu = async (ctx: BotContext) => {
   const currentUser = ctx.state.currentUser;
@@ -169,7 +231,98 @@ export const handleCreatorWeekReport = async (ctx: BotContext) => {
   await ctx.reply(formatAggregationSnapshot('Сводка за последние 7 дней', summary));
 };
 
-export const handleMonthlyReachScreenshotUpload = async (_ctx: BotContext) => false;
+export const handleMonthlyReachScreenshotUpload = async (ctx: BotContext) => {
+  const currentUser = ctx.state.currentUser;
+
+  if (!currentUser || !canUseCreatorScenario(currentUser)) {
+    return false;
+  }
+
+  const screenshot = getScreenshotFile(ctx);
+
+  if (!screenshot) {
+    return false;
+  }
+
+  const status = await getRequiredSecondQueueStatisticsStatus(currentUser.id);
+
+  if (status.isReady || !status.monthlyVideoSubmitted || !status.hasReach) {
+    return false;
+  }
+
+  const reports = await container.repositories.weeklyStatsRepository.listReportsByCreatorAndMonth(
+    currentUser.id,
+    status.monthKey,
+    { submittedOnly: true }
+  );
+  const targetReport =
+    [...reports].reverse().find((report) => report.items.some((item) => item.views > 0)) ??
+    reports[reports.length - 1];
+
+  if (!targetReport) {
+    await ctx.reply(
+      [
+        `Сначала нужно заполнить недельную статистику за ${status.monthKey}.`,
+        'После этого отправь скрины статистики еще раз.'
+      ].join('\n'),
+      mainMenuKeyboardForUser(currentUser)
+    );
+    return true;
+  }
+
+  try {
+    await container.services.weeklyStatsService.saveAttachment({
+      telegram: ctx.telegram,
+      reportId: targetReport.id,
+      creatorUserId: currentUser.id,
+      ...screenshot
+    });
+
+    const updatedStatus = await getRequiredSecondQueueStatisticsStatus(currentUser.id);
+
+    if (!updatedStatus.isReady) {
+      await ctx.reply(
+        [
+          `Скрин сохранен: ${formatIntegerRu(updatedStatus.screenshotCount)}/${formatIntegerRu(
+            updatedStatus.requiredScreenshotCount
+          )}.`,
+          `Отправь еще ${formatIntegerRu(
+            updatedStatus.requiredScreenshotCount - updatedStatus.screenshotCount
+          )} скрин(а) статистики за ${updatedStatus.monthKey}.`
+        ].join('\n')
+      );
+      return true;
+    }
+
+    const summary = await container.services.documentWorkflowService.getActiveRosterSecondQueueSummary(currentUser.id);
+
+    await ctx.reply(
+      [
+        `Все скрины за ${updatedStatus.monthKey} сохранены: ${formatIntegerRu(
+          updatedStatus.screenshotCount
+        )}/${formatIntegerRu(updatedStatus.requiredScreenshotCount)}.`,
+        'Теперь можно сформировать вторую очередь.'
+      ].join('\n'),
+      creatorSecondQueueActionsKeyboard({
+        isCompleted: summary.isCompleted,
+        hasGeneratedDocuments: hasGeneratedSecondQueueDocuments(summary),
+        hasAvailableDocuments: hasAvailableSecondQueueDocuments(summary)
+      })
+    );
+  } catch (error) {
+    logUserError(error, 'Monthly required screenshot upload failed', {
+      userId: currentUser.id,
+      monthKey: status.monthKey,
+      reportId: targetReport.id
+    });
+    await ctx.reply(
+      'Не удалось сохранить скрин. Отправь его еще раз фото или PNG/JPG/WebP файлом.',
+      mainMenuKeyboardForUser(currentUser)
+    );
+  }
+
+  return true;
+};
 
 export const handleDocumentReplyUpload = async (ctx: BotContext) => {
     const currentUser = ctx.state.currentUser;
