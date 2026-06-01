@@ -19,6 +19,11 @@ const getArgValue = (name: string) => {
 };
 
 const normalizeLocator = (value?: string) => value?.trim().replace(/^@/, '');
+const splitListArg = (value?: string) =>
+  value
+    ?.split(',')
+    .map((item) => item.trim())
+    .filter(Boolean) ?? [];
 
 const fromLocator = normalizeLocator(getArgValue('--from') ?? getArgValue('--from-username'));
 const toLocator = normalizeLocator(getArgValue('--to') ?? getArgValue('--to-username'));
@@ -26,6 +31,7 @@ const apply = hasFlag('--apply');
 const includeInactiveSourceLinks = hasFlag('--include-inactive-source-links');
 const onlyWithTargetHistory = hasFlag('--only-with-target-history');
 const activeUpdatedSinceRaw = getArgValue('--active-updated-since');
+const creatorTelegramIds = splitListArg(getArgValue('--creator-telegram-ids'));
 
 const activeUpdatedSince = activeUpdatedSinceRaw ? new Date(activeUpdatedSinceRaw) : null;
 
@@ -98,9 +104,10 @@ const run = async () => {
   if (!fromLocator || !toLocator) {
     throw new Error(
       [
-        'Usage: npm run teamleads:reassign -- --from=@old --to=@new [--include-inactive-source-links] [--only-with-target-history] [--active-updated-since=ISO_DATE] [--apply]',
+        'Usage: npm run teamleads:reassign -- --from=@old --to=@new [--include-inactive-source-links] [--only-with-target-history] [--active-updated-since=ISO_DATE] [--creator-telegram-ids=ID1,ID2] [--apply]',
         '',
-        '--only-with-target-history moves only creators that already have any historical link to the target teamlead.'
+        '--only-with-target-history moves only creators that already have any historical link to the target teamlead.',
+        '--creator-telegram-ids limits the move to the exact creator telegram IDs.'
       ].join('\n')
     );
   }
@@ -141,6 +148,15 @@ const run = async () => {
         is: {
           isActive: true,
           AND: [
+            ...(creatorTelegramIds.length
+              ? [
+                  {
+                    telegramId: {
+                      in: creatorTelegramIds
+                    }
+                  }
+                ]
+              : []),
             {
               creatorAssignments: {
                 none: {
@@ -192,7 +208,17 @@ const run = async () => {
   console.log(`Include inactive source links: ${includeInactiveSourceLinks ? 'yes' : 'no'}`);
   console.log(`Only with target history: ${onlyWithTargetHistory ? 'yes' : 'no'}`);
   console.log(`Active updated since: ${activeUpdatedSince ? activeUpdatedSince.toISOString() : 'not set'}`);
+  console.log(`Creator telegramId filter: ${creatorTelegramIds.length ? creatorTelegramIds.join(', ') : 'not set'}`);
   console.log(`Creators to move: ${links.length}`);
+
+  if (creatorTelegramIds.length) {
+    const matchedTelegramIds = new Set(links.map((link) => link.creator.telegramId));
+    const missingTelegramIds = creatorTelegramIds.filter((telegramId) => !matchedTelegramIds.has(telegramId));
+
+    if (missingTelegramIds.length) {
+      console.log(`Creator telegramIds not matched by current filters: ${missingTelegramIds.join(', ')}`);
+    }
+  }
 
   for (const link of links) {
     console.log(
