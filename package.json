@@ -15,6 +15,7 @@
     "reconcile:known-users": "tsx src/scripts/reconcile-known-users.ts",
     "seed:teamleads": "tsx src/scripts/seed-teamleads.ts",
     "teamleads:audit": "tsx src/scripts/audit-teamlead-links.ts",
+    "teamleads:reassign": "tsx src/scripts/reassign-teamlead-creators.ts",
     "teamleads:restore-previous": "tsx src/scripts/audit-teamlead-links.ts --restore-previous",
     "payments:audit": "tsx src/scripts/audit-payment-documents.ts",
     "grant:teamlead-creators": "tsx src/scripts/grant-teamlead-creator-access.ts",
