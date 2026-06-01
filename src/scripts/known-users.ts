@@ -12,7 +12,10 @@ export interface KnownTeamLeadInput extends KnownUserInput {
 
 export interface KnownAdminInput extends KnownUserInput {}
 
-export interface KnownCreatorInput extends KnownUserInput {}
+export interface KnownCreatorInput extends KnownUserInput {
+  removeTeamLeadProfile?: boolean;
+  deactivateTeamLeadLinks?: boolean;
+}
 
 export const KNOWN_ADMINS: KnownAdminInput[] = [
   {
@@ -49,37 +52,49 @@ export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
     username: 'danila1255',
     firstName: 'Danila',
     lastName: null,
-    displayName: '@danila1255',
-    isActive: false
-  },
+    displayName: '@danila1255'
+  }
+];
+
+export const KNOWN_CREATORS: KnownCreatorInput[] = [
   {
     telegramId: '7025455607',
     username: 'D1nen',
     firstName: 'D1nen',
     lastName: null,
-    displayName: '@D1nen'
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
   },
   {
     telegramId: '748641314',
     username: 'Maxximlead',
     firstName: 'Maxximlead',
     lastName: null,
-    displayName: '@Maxximlead'
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
+  },
+  {
+    telegramId: '674890842',
+    username: null,
+    firstName: 'софя',
+    lastName: null,
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
   },
   {
     telegramId: '709509558',
     username: null,
     firstName: null,
     lastName: null,
-    displayName: '709509558'
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
   },
   {
     telegramId: '661899304',
     username: 'burgonskaya',
     firstName: null,
     lastName: null,
-    displayName: '@burgonskaya'
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
   }
 ];
-
-export const KNOWN_CREATORS: KnownCreatorInput[] = [];

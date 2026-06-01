@@ -24,6 +24,8 @@ interface KnownUserPlan {
   isActive: boolean;
   requiresCreatorProfile: boolean;
   requiresTeamLeadProfile: boolean;
+  removeTeamLeadProfile: boolean;
+  deactivateTeamLeadLinks: boolean;
   displayName?: string;
 }
 
@@ -38,7 +40,7 @@ interface ReconcileResult {
   username: string | null;
   firstName: string | null;
   deactivatedTeamLeadLinks: number;
-  teamLeadProfile: 'created' | 'updated' | 'unchanged' | 'skipped';
+  teamLeadProfile: 'created' | 'updated' | 'unchanged' | 'removed' | 'skipped';
   creatorProfile: 'created' | 'exists' | 'skipped';
 }
 
@@ -186,6 +188,8 @@ const addOrMergePlan = (plans: Map<string, KnownUserPlan>, next: KnownUserPlan) 
     isActive: current.isActive || next.isActive,
     requiresCreatorProfile: current.requiresCreatorProfile || next.requiresCreatorProfile,
     requiresTeamLeadProfile: current.requiresTeamLeadProfile || next.requiresTeamLeadProfile,
+    removeTeamLeadProfile: current.removeTeamLeadProfile || next.removeTeamLeadProfile,
+    deactivateTeamLeadLinks: current.deactivateTeamLeadLinks || next.deactivateTeamLeadLinks,
     displayName: current.displayName ?? next.displayName
   });
 };
@@ -201,7 +205,9 @@ const buildKnownUserPlans = () => {
       baseRole: UserRole.ADMIN,
       isActive: input.isActive ?? true,
       requiresCreatorProfile: false,
-      requiresTeamLeadProfile: false
+      requiresTeamLeadProfile: false,
+      removeTeamLeadProfile: false,
+      deactivateTeamLeadLinks: false
     });
   }
 
@@ -214,6 +220,8 @@ const buildKnownUserPlans = () => {
       isActive: input.isActive ?? true,
       requiresCreatorProfile: shouldGrantCreatorAccessToTeamLead(normalized.telegramId),
       requiresTeamLeadProfile: true,
+      removeTeamLeadProfile: false,
+      deactivateTeamLeadLinks: false,
       displayName: buildDisplayName(input)
     });
   }
@@ -226,7 +234,9 @@ const buildKnownUserPlans = () => {
       baseRole: UserRole.CREATOR,
       isActive: input.isActive ?? true,
       requiresCreatorProfile: true,
-      requiresTeamLeadProfile: false
+      requiresTeamLeadProfile: false,
+      removeTeamLeadProfile: input.removeTeamLeadProfile ?? false,
+      deactivateTeamLeadLinks: input.deactivateTeamLeadLinks ?? false
     });
   }
 
@@ -336,11 +346,14 @@ const reconcileKnownUser = async (
 
   const teamLeadProfile = plan.requiresTeamLeadProfile
     ? await ensureTeamLeadProfile(tx, user, plan.displayName ?? plan.telegramId)
-    : 'skipped';
+    : plan.removeTeamLeadProfile && user.teamLeadProfile
+      ? (await tx.teamLeadProfile.delete({ where: { userId: user.id } }), 'removed')
+      : 'skipped';
   const creatorProfile = plan.requiresCreatorProfile ? await ensureCreatorProfile(tx, user) : 'skipped';
-  const deactivatedTeamLeadLinks = plan.isActive
-    ? 0
-    : (
+  const deactivatedTeamLeadLinks =
+    plan.isActive && !plan.deactivateTeamLeadLinks
+      ? 0
+      : (
         await tx.creatorTeamLeadLink.updateMany({
           where: {
             teamLeadUserId: user.id,

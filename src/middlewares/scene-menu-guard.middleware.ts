@@ -8,6 +8,7 @@ import { getMessageText } from '../utils/telegram';
 import {
   canUseAdminScenario,
   canUseCreatorScenario,
+  canUseDocumentOperationsScenario,
   canUseTeamLeadScenario
 } from '../utils/access';
 import { SCENE_IDS } from '../scenes/scene-ids';
@@ -24,6 +25,11 @@ const allMenuTexts = new Set<string>([
   ...Object.values(ADMIN_MENU),
   ...Object.values(TEAMLEAD_MENU),
   ...Object.values(CREATOR_MENU)
+]);
+
+const documentOperationsMenuTexts = new Set<string>([
+  ADMIN_MENU.documents,
+  ADMIN_MENU.bulkActions
 ]);
 
 const sceneCallbackPrefixes: Record<string, string[]> = {
@@ -75,6 +81,7 @@ const isMenuTextInterruption = (ctx: BotContext) => {
   if (currentUser) {
     return (
       (canUseAdminScenario(currentUser) && menuTextsByRole[UserRole.ADMIN].has(text)) ||
+      (canUseDocumentOperationsScenario(currentUser) && documentOperationsMenuTexts.has(text)) ||
       (canUseTeamLeadScenario(currentUser) && menuTextsByRole[UserRole.TEAMLEAD].has(text)) ||
       (canUseCreatorScenario(currentUser) && menuTextsByRole[UserRole.CREATOR].has(text))
     );

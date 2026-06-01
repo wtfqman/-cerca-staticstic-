@@ -19,7 +19,7 @@ import {
   weeklyReportReviewKeyboard
 } from '../keyboards/inline.keyboards';
 import { ADMIN_MENU } from '../keyboards/menu-labels';
-import { roleGuard } from '../middlewares/role-guard.middleware';
+import { documentOperationsGuard, roleGuard } from '../middlewares/role-guard.middleware';
 import {
   formatAdminAttentionSummary,
   formatAdminDashboardSummary,
@@ -512,7 +512,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     );
   });
 
-  bot.hears(ADMIN_MENU.documents, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.hears(ADMIN_MENU.documents, documentOperationsGuard(), async (ctx) => {
     const creators = await buildCreatorItems();
 
     if (!creators.length) {
@@ -558,7 +558,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply('Управление синхронизацией Google Sheets.', googleSheetsMenuKeyboard());
   });
 
-  bot.hears(ADMIN_MENU.bulkActions, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.hears(ADMIN_MENU.bulkActions, documentOperationsGuard(), async (ctx) => {
     const creators = await buildCreatorItems();
 
     if (!creators.length) {
@@ -1074,7 +1074,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     await ctx.reply(formatTeamLeadGroupReport(report));
   });
 
-  bot.action(/^admin_export_(new|all)_signed_documents$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_export_(new|all)_signed_documents$/, documentOperationsGuard(), async (ctx) => {
     if (!config.documents.chatId) {
       await ctx.answerCbQuery('Служебный чат не настроен');
       await ctx.reply('Служебный чат для документов не настроен. Проверь DOCUMENTS_CHAT_ID.');
@@ -1122,7 +1122,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
   });
 
-  bot.action(/^admin_export_(new|all)_payment_documents:(INVOICE|RECEIPT)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_export_(new|all)_payment_documents:(INVOICE|RECEIPT)$/, documentOperationsGuard(), async (ctx) => {
     if (!config.documents.chatId) {
       await ctx.answerCbQuery('Служебный чат не настроен');
       await ctx.reply('Служебный чат для документов не настроен. Проверь DOCUMENTS_CHAT_ID.');
@@ -1185,7 +1185,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
   });
 
-  bot.action(/^admin_creator_documents_pick:page:(\d+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_creator_documents_pick:page:(\d+)$/, documentOperationsGuard(), async (ctx) => {
     const page = Number(ctx.match[1]);
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(
@@ -1193,7 +1193,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     );
   });
 
-  bot.action(/^admin_creator_documents_pick:pick:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_creator_documents_pick:pick:(.+)$/, documentOperationsGuard(), async (ctx) => {
     const creatorUserId = ctx.match[1];
     const creator = await container.services.userService.getById(creatorUserId);
 
@@ -1246,7 +1246,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
   });
 
-  bot.action(/^admin_creator_documents_batch:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_creator_documents_batch:(.+)$/, documentOperationsGuard(), async (ctx) => {
     const creatorUserId = ctx.match[1];
     const creator = await container.services.userService.getById(creatorUserId);
 
@@ -1427,7 +1427,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     }
   });
 
-  bot.action(/^admin_bulk:(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_bulk:(.+)$/, documentOperationsGuard(), async (ctx) => {
     const action = ctx.match[1];
     await ctx.answerCbQuery();
 
@@ -1476,7 +1476,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     );
   });
 
-  bot.action(/^admin_bulk_month:([^:]+):(.+)$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_bulk_month:([^:]+):(.+)$/, documentOperationsGuard(), async (ctx) => {
     const action = ctx.match[1];
     const monthKey = ctx.match[2];
     await ctx.answerCbQuery();
@@ -1504,7 +1504,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
     );
   });
 
-  bot.action(/^admin_bulk_confirm:([^:]+)(?::(.+))?$/, roleGuard(UserRole.ADMIN), async (ctx) => {
+  bot.action(/^admin_bulk_confirm:([^:]+)(?::(.+))?$/, documentOperationsGuard(), async (ctx) => {
     const action = ctx.match[1];
     const monthKey = ctx.match[2];
 

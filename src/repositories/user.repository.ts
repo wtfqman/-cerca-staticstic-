@@ -47,6 +47,7 @@ const activeTeamLeadWhere = {
   OR: [
     { role: UserRole.TEAMLEAD },
     {
+      role: UserRole.ADMIN,
       teamLeadProfile: {
         isNot: null
       }

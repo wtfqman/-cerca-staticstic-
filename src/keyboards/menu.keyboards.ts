@@ -6,6 +6,7 @@ import {
   canUseAdminScenario,
   canUseCreatorAndTeamLeadScenarios,
   canUseCreatorScenario,
+  canUseDocumentOperationsScenario,
   canUseTeamLeadScenario,
   type AccessUser
 } from '../utils/access';
@@ -86,6 +87,23 @@ export const adminTeamLeadMenuKeyboard = () =>
     [TEAMLEAD_MENU.attention, ADMIN_MENU.help]
   ]).resize();
 
+export const documentOperationsMenuKeyboard = () =>
+  Markup.keyboard([
+    [ADMIN_MENU.documents, ADMIN_MENU.bulkActions],
+    [CREATOR_MENU.help]
+  ]).resize();
+
+export const creatorDocumentOperationsMenuKeyboard = (user?: AccessUser | null) =>
+  Markup.keyboard([
+    [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
+    ...creatorStatisticsRows(user),
+    [CREATOR_MENU.reports, CREATOR_MENU.documents],
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
+    [ADMIN_MENU.documents, ADMIN_MENU.bulkActions],
+    [CREATOR_MENU.help]
+  ]).resize();
+
 export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
   Markup.keyboard([
     [CREATOR_MENU.profile, CREATOR_MENU.stats],
@@ -103,6 +121,14 @@ export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {
 
   if (canUseAdminScenario(user)) {
     return adminMenuKeyboard();
+  }
+
+  if (canUseDocumentOperationsScenario(user) && canUseCreatorScenario(user)) {
+    return creatorDocumentOperationsMenuKeyboard(user);
+  }
+
+  if (canUseDocumentOperationsScenario(user)) {
+    return documentOperationsMenuKeyboard();
   }
 
   if (canUseCreatorAndTeamLeadScenarios(user)) {
@@ -131,6 +157,18 @@ export const mainMenuTextForUser = (user?: AccessUser | null) => {
 
   if (canUseAdminScenario(user)) {
     return 'Главное меню администратора.';
+  }
+
+  if (canUseDocumentOperationsScenario(user) && canUseCreatorScenario(user)) {
+    return [
+      'Главное меню: креатор и работа с документами.',
+      'Сверху - личные разделы креатора.',
+      'Ниже - документы и массовые действия.'
+    ].join('\n');
+  }
+
+  if (canUseDocumentOperationsScenario(user)) {
+    return 'Главное меню: документы и массовые действия.';
   }
 
   if (canUseCreatorAndTeamLeadScenarios(user)) {
