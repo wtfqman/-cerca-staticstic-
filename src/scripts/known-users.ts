@@ -42,33 +42,46 @@ export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
   },
   {
     telegramId: '846359286',
-    username: 'elenakolyhalova',
-    firstName: 'Elena',
+    username: 'klbrdnv_V',
+    firstName: null,
     lastName: null,
-    displayName: '@elenakolyhalova'
+    displayName: '@klbrdnv_V'
   },
   {
-    telegramId: '193310707',
+    telegramId: '7025455607',
     username: 'danila1255',
     firstName: 'Danila',
     lastName: null,
     displayName: '@danila1255'
+  },
+  {
+    telegramId: '1652747843',
+    username: 'alexndrSAVIN',
+    firstName: 'Alexandr',
+    lastName: null,
+    displayName: '@alexndrSAVIN'
+  },
+  {
+    telegramId: '709509558',
+    username: 'Maxximlead',
+    firstName: 'Maxximlead',
+    lastName: null,
+    displayName: '@Maxximlead'
+  },
+  {
+    telegramId: '193310707',
+    username: 'elenakolyhalova',
+    firstName: 'Elena',
+    lastName: null,
+    displayName: '@elenakolyhalova'
   }
 ];
 
 export const KNOWN_CREATORS: KnownCreatorInput[] = [
   {
-    telegramId: '7025455607',
+    telegramId: '748641314',
     username: 'D1nen',
     firstName: 'D1nen',
-    lastName: null,
-    removeTeamLeadProfile: true,
-    deactivateTeamLeadLinks: true
-  },
-  {
-    telegramId: '748641314',
-    username: 'Maxximlead',
-    firstName: 'Maxximlead',
     lastName: null,
     removeTeamLeadProfile: true,
     deactivateTeamLeadLinks: true
@@ -77,14 +90,6 @@ export const KNOWN_CREATORS: KnownCreatorInput[] = [
     telegramId: '674890842',
     username: null,
     firstName: 'софя',
-    lastName: null,
-    removeTeamLeadProfile: true,
-    deactivateTeamLeadLinks: true
-  },
-  {
-    telegramId: '709509558',
-    username: null,
-    firstName: null,
     lastName: null,
     removeTeamLeadProfile: true,
     deactivateTeamLeadLinks: true

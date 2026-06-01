@@ -18,6 +18,7 @@
     "teamleads:reassign": "tsx src/scripts/reassign-teamlead-creators.ts",
     "teamleads:restore-previous": "tsx src/scripts/audit-teamlead-links.ts --restore-previous",
     "payments:audit": "tsx src/scripts/audit-payment-documents.ts",
+    "stats:audit": "tsx src/scripts/audit-statistics-readiness.ts",
     "grant:teamlead-creators": "tsx src/scripts/grant-teamlead-creator-access.ts",
     "grant:admin": "tsx src/scripts/grant-admin.ts",
     "reset:test-creator": "tsx src/scripts/reset-test-creator.ts",

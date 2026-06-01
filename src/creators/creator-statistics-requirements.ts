@@ -1,10 +1,8 @@
-import { SocialPlatform } from '@prisma/client';
-
 import { container } from '../container';
 import { getCreatorInvoiceMonthKey } from '../documents/document-workflow.constants';
 
 export const getRequiredSecondQueueMonthKey = () => getCreatorInvoiceMonthKey();
-export const REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT = Object.values(SocialPlatform).length;
+export const MIN_REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT = 1;
 
 export interface RequiredSecondQueueStatisticsStatus {
   monthKey: string;
@@ -28,9 +26,20 @@ export const getRequiredSecondQueueStatisticsStatus = async (
     )
   ]);
 
-  const hasReach = reports.some((report) => report.items.some((item) => item.views > 0));
+  const platformsWithReach = new Set(
+    reports.flatMap((report) =>
+      report.items
+        .filter((item) => item.views > 0)
+        .map((item) => item.platform)
+    )
+  );
+  const hasReach = platformsWithReach.size > 0;
   const screenshotCount = reports.reduce((sum, report) => sum + report.attachments.length, 0);
-  const hasScreenshots = screenshotCount >= REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT;
+  const requiredScreenshotCount = Math.max(
+    MIN_REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT,
+    platformsWithReach.size
+  );
+  const hasScreenshots = screenshotCount >= requiredScreenshotCount;
   const monthlyVideoSubmitted = Boolean(monthlyVideo);
 
   return {
@@ -38,7 +47,7 @@ export const getRequiredSecondQueueStatisticsStatus = async (
     monthlyVideoSubmitted,
     hasReach,
     screenshotCount,
-    requiredScreenshotCount: REQUIRED_SECOND_QUEUE_SCREENSHOT_COUNT,
+    requiredScreenshotCount,
     isReady: monthlyVideoSubmitted && hasReach && hasScreenshots
   };
 };
@@ -49,7 +58,7 @@ export const formatRequiredSecondQueueStatisticsMissingLines = (
   [
     status.monthlyVideoSubmitted ? null : `- укажи количество видео за ${status.monthKey}`,
     status.hasReach ? null : `- внеси охваты за ${status.monthKey}`,
-    status.screenshotCount >= status.requiredScreenshotCount
+    !status.hasReach || status.screenshotCount >= status.requiredScreenshotCount
       ? null
       : `- отправь ${status.requiredScreenshotCount} скрина статистики за ${status.monthKey} (${status.screenshotCount}/${status.requiredScreenshotCount})`
   ].filter((line): line is string => Boolean(line));
