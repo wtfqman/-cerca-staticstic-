@@ -43,6 +43,18 @@ const resolveWorkflowDate = (workflow: Record<string, unknown> | undefined, key:
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const resolveWorkflowString = (workflow: Record<string, unknown> | undefined, key: string) => {
+  const value = workflow?.[key];
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalized = value.trim();
+
+  return normalized.length > 0 ? normalized : null;
+};
+
 const hasText = (value: string | null | undefined) => typeof value === 'string' && value.trim().length > 0;
 
 const getMonthStartDate = (monthKey: string) => toDateOnly(getMonthRange(monthKey).dateFrom);
@@ -100,6 +112,7 @@ export class DocumentPayloadBuilderService {
 
     const basePayload = this.buildBasePayload(creator);
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
+    const workflowContractNumber = resolveWorkflowString(options.workflow, 'contractNumber');
     const documentDate = options.generatedDate ?? workflowContractDate ?? getDefaultOneOffDocumentDate();
     const contractDate = workflowContractDate ?? documentDate;
 
@@ -109,7 +122,7 @@ export class DocumentPayloadBuilderService {
       generatedDate: formatRussianDate(documentDate),
       documentDate: formatRussianDate(documentDate),
       contractDate: formatRussianDate(contractDate),
-      contractNumber: buildContractNumber(basePayload.creatorFullName, contractDate),
+      contractNumber: workflowContractNumber ?? buildContractNumber(basePayload.creatorFullName, contractDate),
       creator: basePayload,
       company: this.getCompanyPayload(),
       workflow: options.workflow,
@@ -129,6 +142,7 @@ export class DocumentPayloadBuilderService {
     const creator = await this.assertCreatorProfileCompleted(creatorUserId);
 
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
+    const workflowContractNumber = resolveWorkflowString(options.workflow, 'contractNumber');
     const documentDate = options.generatedDate ?? getDefaultMonthlyDocumentDate(monthKey, type);
     const monthRange = getMonthRange(monthKey);
     const [aggregation, payment] = await Promise.all([
@@ -153,7 +167,9 @@ export class DocumentPayloadBuilderService {
       generatedDate: formatRussianDate(documentDate),
       documentDate: formatRussianDate(documentDate),
       contractDate: workflowContractDate ? formatRussianDate(workflowContractDate) : '',
-      contractNumber: workflowContractDate ? buildContractNumber(basePayload.creatorFullName, workflowContractDate) : '',
+      contractNumber: workflowContractNumber ?? (
+        workflowContractDate ? buildContractNumber(basePayload.creatorFullName, workflowContractDate) : ''
+      ),
       assignmentDate: formatRussianDate(documentDate),
       actDate: formatRussianDate(documentDate),
       rightsTransferDate: formatRussianDate(documentDate),

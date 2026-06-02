@@ -87,6 +87,7 @@ When changing roles manually:
 - If a creator refills the profile, old signed files may still matter; do not delete user documents unless explicitly requested.
 - Admins can export documents to the configured documents chat.
 - Recent request: exports should keep invoices/signed acts/assignments close together for accounting.
+- Contract references in monthly documents must preserve the original contract number for existing creators. Only the monthly document dates/period dates change. New creators with no reusable contract use the current workflow contract date, and their contract number is generated from that date.
 
 ### Invoices And Receipts
 
@@ -213,4 +214,3 @@ Weekly stats for May:
 - Role changes affect menus and access. Always clear sessions for changed users.
 - Documents and receipts go to real working chats. Confirm `DOCUMENTS_CHAT_ID` if the user says files are going to the wrong chat.
 - Booking bot is separate. Do not use booking folder or PM2 process for statistics tasks.
-

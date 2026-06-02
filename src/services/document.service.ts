@@ -272,6 +272,18 @@ const getContractDateFromDocumentPayload = (document?: Pick<OneOffDocument, 'pay
     parsePayloadDate(payload.generatedDate);
 };
 
+const getContractNumberFromDocumentPayload = (document?: Pick<OneOffDocument, 'payloadJson'> | null) => {
+  const payload = getPayloadRecord(document?.payloadJson);
+
+  if (typeof payload.contractNumber !== 'string') {
+    return null;
+  }
+
+  const normalized = payload.contractNumber.trim();
+
+  return normalized.length > 0 ? normalized : null;
+};
+
 type VisibleWorkflowDocument = {
   type: DocumentType;
   monthKey?: string | null;
@@ -466,11 +478,13 @@ export class DocumentService {
     const reusableContractDocument = await this.findReusableOneOffDocument(creatorUserId, DocumentType.CONTRACT);
     const defaultContractDate = campaign.contractDate ?? getActiveRosterContractDate();
     const contractDate = getContractDateFromDocumentPayload(reusableContractDocument) ?? defaultContractDate;
+    const contractNumber = getContractNumberFromDocumentPayload(reusableContractDocument) ?? undefined;
     const workflowPayload = {
       campaignKey: campaign.key,
       campaignTitle: campaign.title,
       queue: DocumentWorkflowQueue.FIRST_QUEUE,
-      contractDate
+      contractDate,
+      contractNumber
     };
     const documents = [];
 
@@ -528,7 +542,7 @@ export class DocumentService {
     }
 
     const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
-    const contractDate = await this.resolveCreatorContractDate(
+    const contractReference = await this.resolveCreatorContractReference(
       creatorUserId,
       state.campaign.contractDate ?? getActiveRosterContractDate()
     );
@@ -557,7 +571,8 @@ export class DocumentService {
               campaignKey: state.campaign.key,
               campaignTitle: state.campaign.title,
               queue: DocumentWorkflowQueue.SECOND_QUEUE,
-              contractDate,
+              contractDate: contractReference.contractDate,
+              contractNumber: contractReference.contractNumber,
               monthKey
             }
           })
@@ -791,10 +806,13 @@ export class DocumentService {
     return pickReusableOneOffDocument(documents);
   }
 
-  private async resolveCreatorContractDate(creatorUserId: string, fallback: Date) {
+  private async resolveCreatorContractReference(creatorUserId: string, fallback: Date) {
     const reusableContractDocument = await this.findReusableOneOffDocument(creatorUserId, DocumentType.CONTRACT);
 
-    return getContractDateFromDocumentPayload(reusableContractDocument) ?? fallback;
+    return {
+      contractDate: getContractDateFromDocumentPayload(reusableContractDocument) ?? fallback,
+      contractNumber: getContractNumberFromDocumentPayload(reusableContractDocument) ?? undefined
+    };
   }
 
   async listCreatorDocuments(creatorUserId: string) {
