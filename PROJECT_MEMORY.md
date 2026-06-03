@@ -50,6 +50,7 @@ pm2 save --force
 - The statistics bot uses the live database from the Cerca Trova bot setup. Do not paste or store the DB password in docs.
 - Google Sheets sync is used for reporting. The service account JSON lives on the server, but its private key must never be committed.
 - Current documents/chat target was changed to a new chat ID in `.env` on the server: `DOCUMENTS_CHAT_ID=-1003873632508`.
+- For safe document export testing, set `TEST_DOCUMENTS_CHAT_ID` and switch `DOCUMENTS_CHAT_TARGET=test`; return to `DOCUMENTS_CHAT_TARGET=production` for the working chat.
 - Google Sheets target spreadsheet was configured through `.env`; do not hardcode credentials in code.
 
 ## Roles And Access
@@ -88,6 +89,8 @@ When changing roles manually:
 - Admins can export documents to the configured documents chat.
 - Recent request: exports should keep invoices/signed acts/assignments close together for accounting.
 - Contract references in monthly documents must preserve the original contract number for existing creators. Only the monthly document dates/period dates change. New creators with no reusable contract use the current workflow contract date, and their contract number is generated from that date.
+- Date fields are separate: `contractDate` is only the base agreement date, `documentDate` is the concrete document date, `companySignDate` and `creatorSignDate` drive signature dates, and monthly documents use their own `assignmentDate`, `actDate`, or `rightsTransferDate`.
+- DOCX generation is guarded by `assertDocumentPayloadValidForRender` plus post-render text validation. Run `npm run documents:smoke-test` after document pipeline changes.
 
 ### Invoices And Receipts
 

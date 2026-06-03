@@ -75,6 +75,12 @@ const getDefaultMonthlyDocumentDate = (monthKey: string, type: DocumentType) => 
   return new Date();
 };
 
+const resolveWorkflowSignDate = (
+  workflow: Record<string, unknown> | undefined,
+  key: string,
+  fallback: Date
+) => resolveWorkflowDate(workflow, key) ?? fallback;
+
 export class DocumentPayloadBuilderService {
   constructor(
     private readonly userRepository: UserRepository,
@@ -112,9 +118,12 @@ export class DocumentPayloadBuilderService {
 
     const basePayload = this.buildBasePayload(creator);
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
+    const workflowDocumentDate = resolveWorkflowDate(options.workflow, 'documentDate');
     const workflowContractNumber = resolveWorkflowString(options.workflow, 'contractNumber');
-    const documentDate = options.generatedDate ?? workflowContractDate ?? getDefaultOneOffDocumentDate();
+    const documentDate = workflowDocumentDate ?? options.generatedDate ?? workflowContractDate ?? getDefaultOneOffDocumentDate();
     const contractDate = workflowContractDate ?? documentDate;
+    const companySignDate = resolveWorkflowSignDate(options.workflow, 'companySignDate', documentDate);
+    const creatorSignDate = resolveWorkflowSignDate(options.workflow, 'creatorSignDate', documentDate);
 
     return {
       title: type === DocumentType.CONTRACT ? 'Договор' : 'NDA',
@@ -123,6 +132,8 @@ export class DocumentPayloadBuilderService {
       documentDate: formatRussianDate(documentDate),
       contractDate: formatRussianDate(contractDate),
       contractNumber: workflowContractNumber ?? buildContractNumber(basePayload.creatorFullName, contractDate),
+      companySignDate: formatRussianDate(companySignDate),
+      creatorSignDate: formatRussianDate(creatorSignDate),
       creator: basePayload,
       company: this.getCompanyPayload(),
       workflow: options.workflow,
@@ -142,8 +153,11 @@ export class DocumentPayloadBuilderService {
     const creator = await this.assertCreatorProfileCompleted(creatorUserId);
 
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
+    const workflowDocumentDate = resolveWorkflowDate(options.workflow, 'documentDate');
     const workflowContractNumber = resolveWorkflowString(options.workflow, 'contractNumber');
-    const documentDate = options.generatedDate ?? getDefaultMonthlyDocumentDate(monthKey, type);
+    const documentDate = workflowDocumentDate ?? options.generatedDate ?? getDefaultMonthlyDocumentDate(monthKey, type);
+    const companySignDate = resolveWorkflowSignDate(options.workflow, 'companySignDate', documentDate);
+    const creatorSignDate = resolveWorkflowSignDate(options.workflow, 'creatorSignDate', documentDate);
     const monthRange = getMonthRange(monthKey);
     const [aggregation, payment] = await Promise.all([
       this.aggregationService.aggregateCreatorMonth(creatorUserId, monthKey, { submittedOnly: true }),
@@ -170,9 +184,11 @@ export class DocumentPayloadBuilderService {
       contractNumber: workflowContractNumber ?? (
         workflowContractDate ? buildContractNumber(basePayload.creatorFullName, workflowContractDate) : ''
       ),
-      assignmentDate: formatRussianDate(documentDate),
-      actDate: formatRussianDate(documentDate),
-      rightsTransferDate: formatRussianDate(documentDate),
+      companySignDate: formatRussianDate(companySignDate),
+      creatorSignDate: formatRussianDate(creatorSignDate),
+      assignmentDate: type === DocumentType.ASSIGNMENT ? formatRussianDate(documentDate) : '',
+      actDate: type === DocumentType.ACT ? formatRussianDate(documentDate) : '',
+      rightsTransferDate: type === DocumentType.RIGHTS_TRANSFER ? formatRussianDate(documentDate) : '',
       company: this.getCompanyPayload(),
       workflow: options.workflow,
       monthKey,

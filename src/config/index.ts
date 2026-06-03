@@ -25,7 +25,12 @@ export const config = Object.freeze({
     googleSheetsNightlySync: env.GOOGLE_SHEETS_NIGHTLY_SYNC_CRON ?? null
   }),
   documents: Object.freeze({
-    chatId: env.DOCUMENTS_CHAT_ID,
+    primaryChatId: env.DOCUMENTS_CHAT_ID,
+    testChatId: env.TEST_DOCUMENTS_CHAT_ID,
+    chatTarget: env.DOCUMENTS_CHAT_TARGET,
+    chatId: env.DOCUMENTS_CHAT_TARGET === 'test'
+      ? env.TEST_DOCUMENTS_CHAT_ID
+      : env.DOCUMENTS_CHAT_ID,
     workflowMonthKey: env.DOCUMENT_WORKFLOW_MONTH_KEY ?? null,
     contractDate: env.DOCUMENT_CONTRACT_DATE ?? null,
     company: Object.freeze({

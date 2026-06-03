@@ -5,7 +5,7 @@ import { DOCX_DOCUMENT_TEMPLATE_ROOT } from './docx-template.resolver';
 
 export const GOOGLE_DOCS_EXPORTED_DOCX_SOURCE_KIND = 'google-docs-exported-docx';
 export const APPROVED_DOCX_EXAMPLE_SOURCE_KIND = 'approved-docx-example';
-export const CURRENT_DOCX_RENDER_PIPELINE_VERSION = 2;
+export const CURRENT_DOCX_RENDER_PIPELINE_VERSION = 3;
 
 const ALLOWED_DOCX_TEMPLATE_SOURCE_KINDS = new Set([
   GOOGLE_DOCS_EXPORTED_DOCX_SOURCE_KIND,

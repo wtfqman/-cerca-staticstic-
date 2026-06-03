@@ -27,6 +27,8 @@ export interface CreatorDocumentBasePayload {
   contractDate?: string;
   contractNumber?: string;
   documentDate?: string;
+  companySignDate?: string;
+  creatorSignDate?: string;
   passportSeries?: string | null;
   passportNumber?: string | null;
   passportIssuedAt?: string | null;

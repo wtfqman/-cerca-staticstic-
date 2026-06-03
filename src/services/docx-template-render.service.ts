@@ -13,6 +13,12 @@ import {
   resolveDocumentPersonGrammar
 } from '../documents/document-person-grammar';
 import { getCurrentDocumentLayoutRevision } from '../documents/document-layout-revisions';
+import {
+  DocumentPayloadValidationError,
+  assertDocumentPayloadValidForRender,
+  assertRenderedDocumentTextValid
+} from '../documents/document-payload.validation';
+import { logger } from '../lib/logger';
 import { DocxPdfService } from './docx-pdf.service';
 
 type ReplacementFields = {
@@ -40,6 +46,8 @@ type ReplacementFields = {
   contractNumber: string;
   contractDate: string;
   documentDate: string;
+  companySignDate: string;
+  creatorSignDate: string;
   assignmentDate: string;
   actDate: string;
   rightsTransferDate: string;
@@ -219,6 +227,9 @@ const formatDayMonth = (value: string) => {
 
 const formatContractReference = (fields: Pick<ReplacementFields, 'contractNumber' | 'contractDate'>) =>
   `№ ${fields.contractNumber} от ${formatQuotedDate(fields.contractDate)}`;
+
+const isStandaloneSignatureDatePlaceholder = (text: string) =>
+  /^05[\s\u00a0]+[^\s\u00a0]+[\s\u00a0]+2025[\s\u00a0]*\u0433\.?$/i.test(text.trim());
 
 const replaceStaleContractReferenceDates = (paragraph: string, fields: ReplacementFields) => {
   if (!fields.contractDate || !fields.documentDate || fields.contractDate === fields.documentDate) {
@@ -932,6 +943,8 @@ export class DocxTemplateRenderService {
     legalType: LegalType;
     payload: Record<string, unknown>;
   }): Promise<RenderedDocxDocument> {
+    this.assertPayloadValidForRender(input.type, input.legalType, input.payload, 'payload');
+
     const template = resolveDocxDocumentTemplate({
       type: input.type,
       legalType: input.legalType
@@ -943,6 +956,13 @@ export class DocxTemplateRenderService {
     const fields = this.buildReplacementFields(input.payload, input.type, input.legalType);
     const sourceXml = template.section ? this.extractSection(documentXml, template.section) : documentXml;
     const finalXml = normalizeGeneratedDocumentLayout(this.replaceVariables(sourceXml, fields), fields);
+    this.assertPayloadValidForRender(
+      input.type,
+      input.legalType,
+      input.payload,
+      'renderedText',
+      textFromXml(finalXml)
+    );
     const docxBuffer = buildDocxBufferWithDocumentXml(zip, finalXml);
     const pdfBuffer = await this.docxPdfService.renderPdfFromDocx(docxBuffer);
     const layoutRevision = getCurrentDocumentLayoutRevision(input.type);
@@ -966,6 +986,36 @@ export class DocxTemplateRenderService {
     };
   }
 
+  private assertPayloadValidForRender(
+    type: DocumentType,
+    legalType: LegalType,
+    payload: Record<string, unknown>,
+    phase: 'payload' | 'renderedText',
+    renderedText?: string
+  ) {
+    try {
+      if (phase === 'payload') {
+        assertDocumentPayloadValidForRender({ type, payload });
+      } else {
+        assertRenderedDocumentTextValid({ type, payload, text: renderedText ?? '' });
+      }
+    } catch (error) {
+      if (error instanceof DocumentPayloadValidationError) {
+        logger.warn(
+          {
+            type,
+            legalType,
+            phase,
+            issues: error.issues
+          },
+          'Document payload validation failed'
+        );
+      }
+
+      throw error;
+    }
+  }
+
   private buildReplacementFields(
     payload: Record<string, unknown>,
     type: DocumentType,
@@ -981,6 +1031,8 @@ export class DocxTemplateRenderService {
     const variablePart = asNumber(payment.variablePart);
     const totalPayment = asNumber(payment.totalPayment);
     const personGrammar = readPersonGrammar(source, fullName);
+    const documentDate = asString(payload.documentDate) || asString(payload.generatedDate);
+    const contractDate = asString(payload.contractDate) || (type === DocumentType.CONTRACT ? documentDate : '');
 
     return {
       type,
@@ -1005,11 +1057,13 @@ export class DocxTemplateRenderService {
       bankBik: asString(source.bankBik) || EMPTY_FIELD,
       bankCorrAccount: asString(source.bankCorrAccount) || EMPTY_FIELD,
       contractNumber: asString(payload.contractNumber) || EMPTY_FIELD,
-      contractDate: asString(payload.contractDate) || asString(payload.documentDate),
-      documentDate: asString(payload.documentDate) || asString(payload.generatedDate),
-      assignmentDate: asString(payload.assignmentDate) || asString(payload.documentDate),
-      actDate: asString(payload.actDate) || asString(payload.documentDate),
-      rightsTransferDate: asString(payload.rightsTransferDate) || asString(payload.documentDate),
+      contractDate,
+      documentDate,
+      companySignDate: asString(payload.companySignDate) || documentDate,
+      creatorSignDate: asString(payload.creatorSignDate) || documentDate,
+      assignmentDate: asString(payload.assignmentDate) || documentDate,
+      actDate: asString(payload.actDate) || documentDate,
+      rightsTransferDate: asString(payload.rightsTransferDate) || documentDate,
       periodStartDate: asString(payload.periodStartDate),
       periodEndDate: asString(payload.periodEndDate),
       rawViewsFormatted: asString(payload.rawViewsFormatted) || formatInteger(asNumber(payment.rawViews)),
@@ -1036,18 +1090,35 @@ export class DocxTemplateRenderService {
   }
 
   private replaceVariables(xml: string, fields: ReplacementFields) {
+    let signatureDatePlaceholderIndex = 0;
+
     return xml.replace(PARAGRAPH_RE, (paragraph) => {
+      const text = textFromXml(paragraph).replace(/\s+/g, ' ').trim();
+
+      if (isStandaloneSignatureDatePlaceholder(text)) {
+        const primaryDate = signatureDatePlaceholderIndex % 2 === 0
+          ? fields.companySignDate
+          : fields.creatorSignDate;
+        signatureDatePlaceholderIndex += 1;
+
+        return this.replaceParagraphVariables(paragraph, fields, { primaryDate });
+      }
+
       return this.replaceParagraphVariables(paragraph, fields);
     });
   }
 
-  private replaceParagraphVariables(paragraph: string, fields: ReplacementFields) {
+  private replaceParagraphVariables(
+    paragraph: string,
+    fields: ReplacementFields,
+    options: { primaryDate?: string } = {}
+  ) {
     if (!textFromXml(paragraph)) {
       return paragraph;
     }
 
     let result = paragraph;
-    const primaryDate = this.resolvePrimaryDateForParagraph(textFromXml(result), fields);
+    const primaryDate = options.primaryDate ?? this.resolvePrimaryDateForParagraph(textFromXml(result), fields);
     const primaryQuotedDate = formatQuotedDate(primaryDate);
     const primaryLongDate = formatLongDate(primaryDate);
 
@@ -1116,6 +1187,14 @@ export class DocxTemplateRenderService {
   private resolvePrimaryDateForParagraph(text: string, fields: ReplacementFields) {
     const referencesContract = /договор/i.test(text);
 
+    if (referencesContract) {
+      return fields.contractDate || fields.documentDate;
+    }
+
+    if (fields.type === DocumentType.CONTRACT) {
+      return fields.contractDate || fields.documentDate;
+    }
+
     if (fields.type === DocumentType.ASSIGNMENT && !referencesContract) {
       return fields.assignmentDate || fields.documentDate || fields.contractDate;
     }
@@ -1128,7 +1207,7 @@ export class DocxTemplateRenderService {
       return fields.rightsTransferDate || fields.documentDate || fields.contractDate;
     }
 
-    return fields.contractDate || fields.documentDate;
+    return fields.documentDate || fields.contractDate;
   }
 
   private replaceKnownPersonNames(text: string, fields: ReplacementFields) {

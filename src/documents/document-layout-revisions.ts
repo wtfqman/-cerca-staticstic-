@@ -1,8 +1,10 @@
 import { DocumentType } from '@prisma/client';
 
 const CURRENT_LAYOUT_REVISIONS: Partial<Record<DocumentType, number>> = {
-  [DocumentType.NDA]: 1,
-  [DocumentType.ASSIGNMENT]: 1
+  [DocumentType.NDA]: 2,
+  [DocumentType.ASSIGNMENT]: 2,
+  [DocumentType.ACT]: 1,
+  [DocumentType.RIGHTS_TRANSFER]: 1
 };
 
 export const getCurrentDocumentLayoutRevision = (type: DocumentType) =>

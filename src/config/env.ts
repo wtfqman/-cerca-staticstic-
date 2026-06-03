@@ -36,6 +36,10 @@ const optionalDateKeySchema = z.preprocess(
   parseOptionalString,
   z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, 'Date must use YYYY-MM-DD format').optional()
 );
+const optionalTelegramIdSchema = optionalStringSchema.refine(
+  (value) => !value || TELEGRAM_ID_PATTERN.test(value),
+  'Value must be a Telegram chat ID'
+);
 
 const normalizeSpreadsheetId = (value: unknown) => {
   if (typeof value !== 'string') {
@@ -233,10 +237,9 @@ const rawEnvSchema = z
     WEEKLY_STATS_REMINDER_CRON: requiredCronSchema.default('0 12,15,18,20 * * 1'),
     WEEKLY_STATS_TEAMLEAD_REPORT_CRON: requiredCronSchema.default('0 21 * * 1'),
     DOCUMENT_RECEIPT_REMINDER_CRON: requiredCronSchema.default('0 * * * *'),
-    DOCUMENTS_CHAT_ID: optionalStringSchema.refine(
-      (value) => !value || TELEGRAM_ID_PATTERN.test(value),
-      'DOCUMENTS_CHAT_ID must be a Telegram chat ID'
-    ),
+    DOCUMENTS_CHAT_ID: optionalTelegramIdSchema,
+    TEST_DOCUMENTS_CHAT_ID: optionalTelegramIdSchema,
+    DOCUMENTS_CHAT_TARGET: z.enum(['production', 'test']).default('production'),
     STORAGE_ROOT: z.string().trim().min(1).default('./storage'),
     PDF_FONT_FAMILY: z.string().trim().min(1).default('DejaVu Sans'),
     PDF_BROWSER_TIMEOUT_MS: intFromEnv(30000, { min: 1 }),
@@ -284,6 +287,14 @@ const rawEnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['ADMIN_TELEGRAM_IDS'],
         message: `Invalid Telegram IDs: ${invalidAdminIds.join(', ')}`
+      });
+    }
+
+    if (value.DOCUMENTS_CHAT_TARGET === 'test' && !value.TEST_DOCUMENTS_CHAT_ID) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TEST_DOCUMENTS_CHAT_ID'],
+        message: 'TEST_DOCUMENTS_CHAT_ID is required when DOCUMENTS_CHAT_TARGET=test'
       });
     }
 
@@ -373,6 +384,8 @@ export const env = Object.freeze({
   WEEKLY_STATS_TEAMLEAD_REPORT_CRON: rawEnv.WEEKLY_STATS_TEAMLEAD_REPORT_CRON,
   DOCUMENT_RECEIPT_REMINDER_CRON: rawEnv.DOCUMENT_RECEIPT_REMINDER_CRON,
   DOCUMENTS_CHAT_ID: rawEnv.DOCUMENTS_CHAT_ID ?? null,
+  TEST_DOCUMENTS_CHAT_ID: rawEnv.TEST_DOCUMENTS_CHAT_ID ?? null,
+  DOCUMENTS_CHAT_TARGET: rawEnv.DOCUMENTS_CHAT_TARGET,
   STORAGE_ROOT: path.resolve(process.cwd(), rawEnv.STORAGE_ROOT),
   PDF_FONT_FAMILY: rawEnv.PDF_FONT_FAMILY,
   PDF_BROWSER_TIMEOUT_MS: rawEnv.PDF_BROWSER_TIMEOUT_MS,

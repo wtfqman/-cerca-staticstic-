@@ -449,10 +449,28 @@ export class DocumentService {
 
     const types: DocumentType[] = [DocumentType.ASSIGNMENT];
     await this.assertTemplatesAvailable(creatorUserId, types);
+    const monthRange = getMonthRange(monthKey);
+    const contractReference = await this.resolveCreatorContractReference(
+      creatorUserId,
+      toDateOnly(monthRange.dateFrom)
+    );
     const documents = [];
 
     for (const type of types) {
-      documents.push(await this.generateMonthlyDocument(creatorUserId, monthKey, type));
+      const documentDate = type === DocumentType.ASSIGNMENT
+        ? toDateOnly(monthRange.dateFrom)
+        : toDateOnly(monthRange.dateTo);
+
+      documents.push(
+        await this.generateMonthlyDocument(creatorUserId, monthKey, type, undefined, {
+          generatedDate: documentDate,
+          workflow: {
+            contractDate: contractReference.contractDate,
+            contractNumber: contractReference.contractNumber,
+            monthKey
+          }
+        })
+      );
     }
 
     await this.googleSheetsSyncService?.safeSyncDocuments(documents.map((document) => document.id));
