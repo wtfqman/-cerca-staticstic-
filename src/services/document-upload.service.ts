@@ -30,6 +30,7 @@ const SIGNED_DOCUMENT_FORWARD_INCOMPLETE_DELAY_MS = 5 * 60_000;
 const TELEGRAM_SEND_RETRY_BUFFER_MS = 1_000;
 const TELEGRAM_SEND_MAX_ATTEMPTS = 4;
 const TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS = 1_200;
+const TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS = 10;
 
 const SIGNED_DOCUMENT_ORDER: Record<DocumentType, number> = {
   [DocumentType.CONTRACT]: 10,
@@ -296,6 +297,70 @@ const sendTelegramWithRetry = async <T>(
   throw new Error('Telegram send retry attempts exhausted');
 };
 
+const chunkForTelegramMediaGroup = <T>(items: T[]) => {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS) {
+    chunks.push(items.slice(index, index + TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS));
+  }
+
+  return chunks;
+};
+
+const sendLocalDocumentAlbumWithRetry = async <T>(input: {
+  telegram: Telegram;
+  chatId: string;
+  items: T[];
+  getFilePath: (item: T) => string;
+  getCaption: (item: T, index: number, chunk: T[]) => string;
+  getLogContext: (chunk: T[]) => Record<string, unknown>;
+  singleOperation: string;
+  albumOperation: string;
+}) => {
+  const sentItems: Array<{ item: T; messageId: number }> = [];
+
+  for (const chunk of chunkForTelegramMediaGroup(input.items)) {
+    if (chunk.length === 1) {
+      const message = await sendTelegramWithRetry(
+        () => input.telegram.sendDocument(input.chatId, Input.fromLocalFile(input.getFilePath(chunk[0])), {
+          caption: input.getCaption(chunk[0], 0, chunk)
+        }),
+        {
+          ...input.getLogContext(chunk),
+          operation: input.singleOperation
+        }
+      );
+
+      sentItems.push({ item: chunk[0], messageId: message.message_id });
+      await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
+      continue;
+    }
+
+    const messages = await sendTelegramWithRetry(
+      () => input.telegram.sendMediaGroup(
+        input.chatId,
+        chunk.map((item, index) => ({
+          type: 'document' as const,
+          media: Input.fromLocalFile(input.getFilePath(item)),
+          caption: input.getCaption(item, index, chunk)
+        }))
+      ),
+      {
+        ...input.getLogContext(chunk),
+        operation: input.albumOperation
+      }
+    );
+
+    for (const [index, message] of messages.entries()) {
+      sentItems.push({ item: chunk[index], messageId: message.message_id });
+    }
+
+    await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
+  }
+
+  return sentItems;
+};
+
 const hasDocumentsWaitingForSignedUpload = (documents: Array<{ status: DocumentStatus | 'NOT_GENERATED' | 'LOCKED' }>) =>
   documents.some((document) =>
     document.status !== 'NOT_GENERATED' &&
@@ -375,40 +440,7 @@ export class DocumentUploadService {
 
       for (const groupUploads of groups) {
         const creator = groupUploads[0].creator;
-
-        try {
-          await sendTelegramWithRetry(
-            () => telegram.sendMessage(chatId, formatManualExportHeader(groupUploads)),
-            {
-              creatorUserId: creator.id,
-              documentsChatId: chatId,
-              operation: 'manual_export_header'
-            }
-          );
-          await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
-        } catch (error) {
-          logger.error(
-            {
-              error,
-              creatorUserId: creator.id,
-              documentsChatId: chatId,
-              uploadIds: groupUploads.map((upload) => upload.id)
-            },
-            'Failed to send manual signed documents export header'
-          );
-
-          for (const upload of groupUploads) {
-            skippedUploads.push({
-              uploadId: upload.id,
-              documentId: upload.documentId,
-              type: upload.document.type,
-              monthKey: upload.document.monthKey,
-              reason: 'header_send_failed'
-            });
-          }
-
-          continue;
-        }
+        const availableUploads: PendingSignatureUpload[] = [];
 
         for (const upload of groupUploads) {
           if (!fs.existsSync(upload.filePath)) {
@@ -432,22 +464,60 @@ export class DocumentUploadService {
             continue;
           }
 
-          try {
-            const message = await sendTelegramWithRetry(
-              () => telegram.sendDocument(chatId, Input.fromLocalFile(upload.filePath), {
-                caption: formatManualExportFileCaption(upload)
-              }),
-              {
-                creatorUserId: upload.creatorUserId,
-                documentId: upload.documentId,
-                uploadId: upload.id,
-                documentsChatId: chatId,
-                operation: 'manual_export_document'
-              }
-            );
-            await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
+          availableUploads.push(upload);
+        }
 
-            await this.documentRepository.updateSignatureForwardInfo(upload.id, chatId, message.message_id);
+        if (!availableUploads.length) {
+          continue;
+        }
+
+        let sentAlbumItems: Array<{ item: PendingSignatureUpload; messageId: number }>;
+
+        try {
+          sentAlbumItems = await sendLocalDocumentAlbumWithRetry({
+            telegram,
+            chatId,
+            items: availableUploads,
+            getFilePath: (upload) => upload.filePath,
+            getCaption: (upload, index, chunk) =>
+              index === 0 ? formatManualExportHeader(chunk) : formatManualExportFileCaption(upload),
+            getLogContext: (chunk) => ({
+              creatorUserId: creator.id,
+              documentsChatId: chatId,
+              uploadIds: chunk.map((upload) => upload.id)
+            }),
+            singleOperation: 'manual_export_document',
+            albumOperation: 'manual_export_album'
+          });
+        } catch (error) {
+          logger.error(
+            {
+              error,
+              creatorUserId: creator.id,
+              documentsChatId: chatId,
+              uploadIds: availableUploads.map((upload) => upload.id)
+            },
+            'Failed to send signed PDF album during manual documents export'
+          );
+
+          for (const upload of availableUploads) {
+            skippedUploads.push({
+              uploadId: upload.id,
+              documentId: upload.documentId,
+              type: upload.document.type,
+              monthKey: upload.document.monthKey,
+              reason: 'document_send_failed'
+            });
+          }
+
+          continue;
+        }
+
+        for (const sentItem of sentAlbumItems) {
+          const upload = sentItem.item;
+
+          try {
+            await this.documentRepository.updateSignatureForwardInfo(upload.id, chatId, sentItem.messageId);
             await this.documentRepository.updateStatus(upload.documentId, DocumentStatus.FORWARDED_TO_CHAT, {
               forwardedAt: new Date()
             });
@@ -457,7 +527,7 @@ export class DocumentUploadService {
               documentId: upload.documentId,
               type: upload.document.type,
               monthKey: upload.document.monthKey,
-              messageId: message.message_id
+              messageId: sentItem.messageId
             });
           } catch (error) {
             logger.error(
@@ -466,9 +536,10 @@ export class DocumentUploadService {
                 creatorUserId: upload.creatorUserId,
                 documentId: upload.documentId,
                 uploadId: upload.id,
-                documentsChatId: chatId
+                documentsChatId: chatId,
+                messageId: sentItem.messageId
               },
-              'Failed to send signed PDF during manual documents export'
+              'Failed to mark signed PDF forwarded after manual documents export album'
             );
 
             skippedUploads.push({
@@ -476,7 +547,7 @@ export class DocumentUploadService {
               documentId: upload.documentId,
               type: upload.document.type,
               monthKey: upload.document.monthKey,
-              reason: 'document_send_failed'
+              reason: 'forward_mark_failed'
             });
           }
         }
@@ -726,53 +797,67 @@ export class DocumentUploadService {
         );
       }
 
-      try {
-        await sendTelegramWithRetry(
-          () => batch.telegram.sendMessage(batch.chatId, formatSignedDocumentBatchHeader(items)),
+      const availableItems = items.filter((item) => {
+        if (fs.existsSync(item.filePath)) {
+          return true;
+        }
+
+        logger.error(
           {
             creatorUserId: batch.creatorUserId,
+            documentId: item.document.id,
+            uploadId: item.upload.id,
             documentsChatId: batch.chatId,
-            operation: 'automatic_forward_header'
-          }
+            filePath: item.filePath
+          },
+          'Signed PDF file is missing before automatic documents chat album'
         );
-        await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
+        return false;
+      });
+
+      let sentAlbumItems: Array<{ item: PendingSignedForwardItem; messageId: number }>;
+
+      if (!availableItems.length) {
+        return;
+      }
+
+      try {
+        sentAlbumItems = await sendLocalDocumentAlbumWithRetry({
+          telegram: batch.telegram,
+          chatId: batch.chatId,
+          items: availableItems,
+          getFilePath: (item) => item.filePath,
+          getCaption: (item, index, chunk) =>
+            index === 0 ? formatSignedDocumentBatchHeader(chunk) : formatSignedDocumentFileCaption(item),
+          getLogContext: (chunk) => ({
+            creatorUserId: batch.creatorUserId,
+            documentsChatId: batch.chatId,
+            uploadIds: chunk.map((item) => item.upload.id)
+          }),
+          singleOperation: 'automatic_forward_document',
+          albumOperation: 'automatic_forward_album'
+        });
       } catch (error) {
         logger.error(
           {
             error,
             creatorUserId: batch.creatorUserId,
             documentsChatId: batch.chatId,
-            uploadIds: items.map((item) => item.upload.id)
+            uploadIds: availableItems.map((item) => item.upload.id)
           },
-          'Failed to send signed document batch header to documents chat'
+          'Failed to forward signed document album to documents chat'
         );
         return;
       }
 
-      for (const item of items) {
-        try {
-          const forwardedMessage = await sendTelegramWithRetry(
-            () => batch.telegram.sendDocument(
-              batch.chatId,
-              Input.fromLocalFile(item.filePath),
-              {
-                caption: formatSignedDocumentFileCaption(item)
-              }
-            ),
-            {
-              creatorUserId: batch.creatorUserId,
-              documentId: item.document.id,
-              uploadId: item.upload.id,
-              documentsChatId: batch.chatId,
-              operation: 'automatic_forward_document'
-            }
-          );
-          await sleep(TELEGRAM_MANUAL_EXPORT_SEND_DELAY_MS);
+      for (const sentItem of sentAlbumItems) {
+        const item = sentItem.item;
 
+        try {
           await this.documentRepository.updateSignatureForwardInfo(
             item.upload.id,
             batch.chatId,
-            forwardedMessage.message_id
+            sentItem.messageId
           );
           await this.documentRepository.updateStatus(item.document.id, DocumentStatus.FORWARDED_TO_CHAT, {
             forwardedAt: new Date()
@@ -786,23 +871,24 @@ export class DocumentUploadService {
               uploadId: item.upload.id,
               documentsChatId: batch.chatId
             },
-            'Failed to forward signed document to documents chat'
+            'Failed to mark signed document forwarded after documents chat album'
           );
         }
       }
 
-      await this.googleSheetsSyncService?.safeSyncDocuments(items.map((item) => item.document.id));
+      await this.googleSheetsSyncService?.safeSyncDocuments(sentAlbumItems.map((sentItem) => sentItem.item.document.id));
 
       logger.info(
         {
           creatorUserId: batch.creatorUserId,
           documentsChatId: batch.chatId,
-          documentCount: items.length,
-          documents: items.map((item) => ({
-            documentId: item.document.id,
-            uploadId: item.upload.id,
-            type: item.document.type,
-            monthKey: item.document.monthKey
+          documentCount: sentAlbumItems.length,
+          documents: sentAlbumItems.map((sentItem) => ({
+            documentId: sentItem.item.document.id,
+            uploadId: sentItem.item.upload.id,
+            type: sentItem.item.document.type,
+            monthKey: sentItem.item.document.monthKey,
+            messageId: sentItem.messageId
           }))
         },
         'Signed document batch forwarded to documents chat'

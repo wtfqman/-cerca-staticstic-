@@ -35,6 +35,20 @@ export class NotificationService {
     return message;
   }
 
+  async sendMediaGroup(
+    telegram: Telegram,
+    userId: string,
+    chatId: string | number,
+    media: Parameters<Telegram['sendMediaGroup']>[1],
+    payloads: unknown[]
+  ) {
+    const messages = await telegram.sendMediaGroup(chatId, media);
+    await Promise.all(
+      payloads.map((payload) => this.repository.create(userId, NotificationType.DOCUMENT_SENT, payload))
+    );
+    return messages;
+  }
+
   async safeSend(
     operation: () => Promise<unknown>,
     contextMessage: string

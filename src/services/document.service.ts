@@ -35,6 +35,7 @@ const SIGNED_STATUSES = new Set<DocumentStatus>([
   DocumentStatus.SIGNED_UPLOADED,
   DocumentStatus.FORWARDED_TO_CHAT
 ]);
+const TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS = 10;
 
 export class StaleDocumentTemplateError extends Error {
   constructor() {
@@ -187,6 +188,16 @@ const sortCreatorBatchDocuments = (left: CreatorBatchDocument, right: CreatorBat
   }
 
   return left.generatedAt.getTime() - right.generatedAt.getTime();
+};
+
+const chunkForTelegramMediaGroup = <T>(items: T[]) => {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS) {
+    chunks.push(items.slice(index, index + TELEGRAM_DOCUMENT_MEDIA_GROUP_MAX_ITEMS));
+  }
+
+  return chunks;
 };
 
 const isCurrentWorkflowDocument = (document: { scopeKey?: string | null; type?: DocumentType | null }) =>
@@ -644,6 +655,79 @@ export class DocumentService {
     return message;
   }
 
+  private async sendDocumentAlbumToCreator(
+    telegram: Telegram,
+    documents: SendableDocument[],
+    options: DocumentBatchOptions = {}
+  ): Promise<SentDocumentInfo[]> {
+    const sentDocuments: SentDocumentInfo[] = [];
+
+    for (const chunk of chunkForTelegramMediaGroup(documents)) {
+      const creator = chunk[0].creator;
+      const creatorSurname = getCreatorSurnameForFileName(creator);
+      const messages = chunk.length === 1
+        ? [
+            await this.notificationService.sendDocument(
+              telegram,
+              creator.id,
+              creator.telegramId,
+              Input.fromLocalFile(chunk[0].filePath, formatGeneratedDocumentFileName(chunk[0])),
+              formatDocumentCaption(chunk[0]),
+              {
+                documentId: chunk[0].id,
+                type: chunk[0].type
+              }
+            )
+          ]
+        : await this.notificationService.sendMediaGroup(
+            telegram,
+            creator.id,
+            creator.telegramId,
+            chunk.map((document) => ({
+              type: 'document' as const,
+              media: Input.fromLocalFile(
+                document.filePath,
+                formatCreatorDocumentFileName({
+                  creatorSurname,
+                  type: document.type,
+                  monthKey: document.monthKey
+                })
+              ),
+              caption: formatDocumentCaption(document)
+            })),
+            chunk.map((document) => ({
+              documentId: document.id,
+              type: document.type
+            }))
+          );
+
+      for (const [index, document] of chunk.entries()) {
+        const message = messages[index];
+        const status = SIGNED_STATUSES.has(document.status) ? document.status : DocumentStatus.SENT_TO_CREATOR;
+
+        await this.documentRepository.updateStatus(document.id, status, {
+          sentAt: new Date(),
+          telegramMessageId: message.message_id
+        });
+
+        sentDocuments.push({
+          documentId: document.id,
+          type: document.type,
+          monthKey: document.monthKey,
+          filePath: document.filePath,
+          status,
+          telegramMessageId: message.message_id
+        });
+      }
+    }
+
+    if (options.syncSheets !== false && sentDocuments.length > 0) {
+      await this.googleSheetsSyncService?.safeSyncDocuments(sentDocuments.map((document) => document.documentId));
+    }
+
+    return sentDocuments;
+  }
+
   async sendActiveRosterResigningFirstQueueDocuments(
     creatorUserId: string,
     telegram: Telegram,
@@ -672,7 +756,6 @@ export class DocumentService {
         .filter((document) => !SIGNED_STATUSES.has(document.status as DocumentStatus))
         .map((document) => document.documentId!)
     );
-    const sentDocuments: SentDocumentInfo[] = [];
 
     for (const document of documents) {
       const fileStats = fsSync.statSync(document.filePath);
@@ -689,44 +772,37 @@ export class DocumentService {
         },
         'Sending first queue document'
       );
+    }
 
-      let message;
+    let sentDocuments: SentDocumentInfo[];
 
-      try {
-        message = await this.sendDocumentToCreator(telegram, document.id, options);
-      } catch (error) {
-        logger.error(
-          {
-            error,
-            creatorUserId,
+    try {
+      sentDocuments = await this.sendDocumentAlbumToCreator(telegram, documents, options);
+    } catch (error) {
+      logger.error(
+        {
+          error,
+          creatorUserId,
+          documents: documents.map((document) => ({
             documentId: document.id,
-          type: document.type,
-          monthKey: document.monthKey,
-          filePath: document.filePath,
-          fileSizeBytes: fileStats.size,
-          fileMtime: fileStats.mtime.toISOString()
+            type: document.type,
+            monthKey: document.monthKey,
+            filePath: document.filePath
+          }))
         },
-        'First queue document send failed'
+        'First queue document album send failed'
       );
-        throw error;
-      }
+      throw error;
+    }
 
-      sentDocuments.push({
-        documentId: document.id,
-        type: document.type,
-        monthKey: document.monthKey,
-        filePath: document.filePath,
-        status: SIGNED_STATUSES.has(document.status) ? document.status : DocumentStatus.SENT_TO_CREATOR,
-        telegramMessageId: message.message_id
-      });
-
+    for (const document of sentDocuments) {
       logger.info(
         {
           creatorUserId,
-          documentId: document.id,
+          documentId: document.documentId,
           type: document.type,
           monthKey: document.monthKey,
-          telegramMessageId: message.message_id
+          telegramMessageId: document.telegramMessageId
         },
         'First queue document sent'
       );
@@ -740,15 +816,10 @@ export class DocumentService {
       return;
     }
 
-    const documents = await this.loadSendableDocuments(documentIds);
+    const documents = (await this.loadSendableDocuments(documentIds))
+      .filter((document) => !SIGNED_STATUSES.has(document.status));
 
-    for (const document of documents) {
-      if (SIGNED_STATUSES.has(document.status)) {
-        continue;
-      }
-
-      await this.sendDocumentToCreator(telegram, document.id);
-    }
+    await this.sendDocumentAlbumToCreator(telegram, documents);
   }
 
   private async loadSendableDocuments(documentIds: string[]) {
@@ -855,15 +926,11 @@ export class DocumentService {
       throw new Error('У креатора нет документов для отправки комплектом.');
     }
 
-    const headerMessage = await telegram.sendMessage(
-      input.chatId,
-      formatCreatorDocumentBatchHeader({
-        creatorName: input.creatorName,
-        documents
-      })
-    );
     const sentDocuments: SentCreatorDocumentBatchInfo[] = [];
     const skippedDocuments: SkippedCreatorDocumentBatchInfo[] = [];
+    const sendableDocuments: CreatorBatchDocument[] = [];
+    const creatorSurname = getCreatorSurnameForFileName(null, input.creatorName);
+    let headerMessageId: number | null = null;
 
     for (const document of documents) {
       if (!fsSync.existsSync(document.filePath)) {
@@ -886,47 +953,81 @@ export class DocumentService {
         continue;
       }
 
+      sendableDocuments.push(document);
+    }
+
+    for (const chunk of chunkForTelegramMediaGroup(sendableDocuments)) {
       try {
-        const creatorSurname = getCreatorSurnameForFileName(null, input.creatorName);
-        const message = await telegram.sendDocument(
-          input.chatId,
-          Input.fromLocalFile(
-            document.filePath,
-            formatCreatorDocumentFileName({
-              creatorSurname,
-              type: document.type,
-              monthKey: document.monthKey
-            })
-          ),
-          {
-            caption: formatCreatorDocumentBatchCaption(document)
-          }
-        );
+        const messages = chunk.length === 1
+          ? [
+              await telegram.sendDocument(
+                input.chatId,
+                Input.fromLocalFile(
+                  chunk[0].filePath,
+                  formatCreatorDocumentFileName({
+                    creatorSurname,
+                    type: chunk[0].type,
+                    monthKey: chunk[0].monthKey
+                  })
+                ),
+                {
+                  caption: formatCreatorDocumentBatchHeader({
+                    creatorName: input.creatorName,
+                    documents: chunk
+                  })
+                }
+              )
+            ]
+          : await telegram.sendMediaGroup(
+              input.chatId,
+              chunk.map((document, index) => ({
+                type: 'document' as const,
+                media: Input.fromLocalFile(
+                  document.filePath,
+                  formatCreatorDocumentFileName({
+                    creatorSurname,
+                    type: document.type,
+                    monthKey: document.monthKey
+                  })
+                ),
+                caption: index === 0
+                  ? formatCreatorDocumentBatchHeader({
+                      creatorName: input.creatorName,
+                      documents: chunk
+                    })
+                  : formatCreatorDocumentBatchCaption(document)
+              }))
+            );
 
-        sentDocuments.push({
-          documentId: document.id,
-          type: document.type,
-          monthKey: document.monthKey,
-          filePath: document.filePath,
-          telegramMessageId: message.message_id
-        });
+        headerMessageId ??= messages[0].message_id;
+
+        for (const [index, document] of chunk.entries()) {
+          sentDocuments.push({
+            documentId: document.id,
+            type: document.type,
+            monthKey: document.monthKey,
+            filePath: document.filePath,
+            telegramMessageId: messages[index].message_id
+          });
+        }
       } catch (error) {
-        const skippedDocument = {
+        const reason = error instanceof Error ? error.message : 'send_failed';
+        const skippedChunkDocuments = chunk.map((document) => ({
           documentId: document.id,
           type: document.type,
           monthKey: document.monthKey,
           filePath: document.filePath,
-          reason: error instanceof Error ? error.message : 'send_failed'
-        };
+          reason
+        }));
 
-        skippedDocuments.push(skippedDocument);
+        skippedDocuments.push(...skippedChunkDocuments);
         logger.error(
           {
             error,
             creatorUserId: input.creatorUserId,
-            ...skippedDocument
+            documents: skippedChunkDocuments
           },
-          'Creator document batch send failed for one file'
+          'Creator document batch album send failed'
         );
       }
     }
@@ -935,7 +1036,7 @@ export class DocumentService {
       {
         creatorUserId: input.creatorUserId,
         chatId: input.chatId,
-        headerMessageId: headerMessage.message_id,
+        headerMessageId,
         sentDocumentCount: sentDocuments.length,
         skippedDocumentCount: skippedDocuments.length,
         documents: sentDocuments,
@@ -945,7 +1046,7 @@ export class DocumentService {
     );
 
     return {
-      headerMessageId: headerMessage.message_id,
+      headerMessageId,
       sentDocuments,
       skippedDocuments
     };
@@ -959,6 +1060,7 @@ export class DocumentService {
     const documents = [...await this.listCreatorResendableDocuments(creatorUserId)].sort(sortCreatorBatchDocuments);
     const sentDocuments: SentCreatorDocumentBatchInfo[] = [];
     const skippedDocuments: SkippedCreatorDocumentBatchInfo[] = [];
+    const sendableDocuments: SendableDocument[] = [];
 
     if (documents.length === 0) {
       throw new Error('У тебя пока нет актуальных PDF для повторной отправки.');
@@ -986,15 +1088,14 @@ export class DocumentService {
       }
 
       try {
-        const message = await this.sendDocumentToCreator(telegram, document.id, options);
+        const sendableDocument = await this.documentRepository.findById(document.id);
 
-        sentDocuments.push({
-          documentId: document.id,
-          type: document.type,
-          monthKey: document.monthKey,
-          filePath: document.filePath,
-          telegramMessageId: message.message_id
-        });
+        if (!sendableDocument) {
+          throw new Error(`Document was not found before resending: ${document.id}`);
+        }
+
+        this.assertDocumentCanBeSent(sendableDocument);
+        sendableDocuments.push(sendableDocument);
       } catch (error) {
         const skippedDocument = {
           documentId: document.id,
@@ -1014,6 +1115,39 @@ export class DocumentService {
           'Creator document resend failed for one file'
         );
       }
+    }
+
+    try {
+      const albumSentDocuments = await this.sendDocumentAlbumToCreator(telegram, sendableDocuments, options);
+
+      sentDocuments.push(
+        ...albumSentDocuments.map((document) => ({
+          documentId: document.documentId,
+          type: document.type,
+          monthKey: document.monthKey,
+          filePath: document.filePath,
+          telegramMessageId: document.telegramMessageId
+        }))
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'send_failed';
+      const skippedAlbumDocuments = sendableDocuments.map((document) => ({
+        documentId: document.id,
+        type: document.type,
+        monthKey: document.monthKey,
+        filePath: document.filePath,
+        reason
+      }));
+
+      skippedDocuments.push(...skippedAlbumDocuments);
+      logger.error(
+        {
+          error,
+          creatorUserId,
+          documents: skippedAlbumDocuments
+        },
+        'Creator document resend album send failed'
+      );
     }
 
     logger.info(
