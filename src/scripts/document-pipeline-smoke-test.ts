@@ -109,8 +109,8 @@ const validRenderCases: Array<{
       creatorSignDate: '31.05.2026',
       actDate: '31.05.2026'
     },
-    mustInclude: ['БТР-01.03.2026', 'марта 2026', 'мая 2026'],
-    mustNotInclude: ['05.05.2025', '05 мая 2025']
+    mustInclude: ['БТР-01.03.2026', 'марта 2026', 'мая 2026', 'Дата подписи', 'Григорян А.С.', 'Богданов Ф.Г.'],
+    mustNotInclude: ['05.05.2025', '05 мая 2025', '___________________/___________________/']
   },
   {
     type: DocumentType.RIGHTS_TRANSFER,

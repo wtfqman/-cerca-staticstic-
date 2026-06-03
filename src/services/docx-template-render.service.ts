@@ -102,6 +102,7 @@ const TEXT_NODE_RE = /<w:t\b[^>]*>[\s\S]*?<\/w:t>/g;
 const BODY_RE = /(<w:body\b[^>]*>)([\s\S]*?)(<\/w:body>)/;
 const PARAGRAPH_PROPERTIES_RE = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/;
 const TABLE_ROW_RE = /<w:tr\b[\s\S]*?<\/w:tr>/g;
+const TABLE_CELL_RE = /<w:tc\b[\s\S]*?<\/w:tc>/g;
 const TABLE_ROW_PROPERTIES_RE = /<w:trPr\b[^>]*>[\s\S]*?<\/w:trPr>/;
 const TEXT_RUN_RE = /(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/;
 const GENERATED_PAGE_SIZE_XML = '<w:pgSz w:h="16840" w:w="11900" w:orient="portrait"/>';
@@ -651,6 +652,80 @@ const normalizeSignatureTable = (table: string, fields: ReplacementFields) => {
   );
 };
 
+const buildActSignatureDateParagraph = (date: string) =>
+  setParagraphLayout(
+    `<w:p><w:r><w:t>${xmlEncode(`Дата подписи: ${formatQuotedDate(date)}`)}</w:t></w:r></w:p>`,
+    {
+      keepLines: true,
+      widowControl: true,
+      spacing: {
+        before: 120,
+        after: 0,
+        line: 240,
+        lineRule: 'auto'
+      }
+    }
+  );
+
+const appendActSignatureDates = (table: string, fields: ReplacementFields) => {
+  const normalizedText = textFromXml(table).replace(/\s+/g, ' ').trim();
+
+  if (/Дата подписи/i.test(normalizedText)) {
+    return table;
+  }
+
+  let cellIndex = 0;
+
+  return table.replace(TABLE_CELL_RE, (cell) => {
+    const date = cellIndex === 0 ? fields.companySignDate : fields.creatorSignDate;
+    cellIndex += 1;
+
+    if (cellIndex > 2 || !date) {
+      return cell;
+    }
+
+    return cell.replace(/<\/w:tc>$/, `${buildActSignatureDateParagraph(date)}</w:tc>`);
+  });
+};
+
+const normalizeActSignatureTable = (table: string, fields: ReplacementFields) =>
+  appendActSignatureDates(normalizeSignatureTable(table, fields), fields);
+
+const normalizeActLayout = (xml: string, fields: ReplacementFields) =>
+  updateBodyBlocks(xml, (blocks) => {
+    const signatureTableIndex = findLastTableBlockIndex(blocks);
+
+    if (signatureTableIndex < 0) {
+      return blocks;
+    }
+
+    return blocks.map((block, index) => {
+      if (index === signatureTableIndex) {
+        return normalizeActSignatureTable(block, fields);
+      }
+
+      if (index === signatureTableIndex - 1 || index === signatureTableIndex - 2) {
+        const isEmpty = textFromXml(block).trim().length === 0;
+
+        return block.startsWith('<w:p')
+          ? setParagraphLayout(block, {
+              keepNext: true,
+              keepLines: true,
+              widowControl: true,
+              spacing: {
+                before: isEmpty ? 0 : 120,
+                after: isEmpty ? 0 : 60,
+                line: 240,
+                lineRule: 'auto'
+              }
+            })
+          : block;
+      }
+
+      return block;
+    });
+  });
+
 const normalizeSignatureBlockLayout = (xml: string, fields: ReplacementFields) =>
   updateBodyBlocks(xml, (blocks) => {
     const signatureTableIndex = findLastTableBlockIndex(blocks);
@@ -892,6 +967,10 @@ const normalizeGeneratedDocumentLayout = (xml: string, fields: ReplacementFields
 
   if (fields.type === DocumentType.NDA) {
     return normalizeNdaLayout(xml);
+  }
+
+  if (fields.type === DocumentType.ACT) {
+    return normalizeActLayout(xml, fields);
   }
 
   if (fields.type === DocumentType.CONTRACT) {
