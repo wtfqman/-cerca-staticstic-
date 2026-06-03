@@ -8,7 +8,6 @@ import { ACCESS_PENDING_TEXT, CREATOR_SELF_EDIT_DISABLED_TEXT, HELP_TEXTS } from
 import { mainMenuKeyboardForUser, mainMenuTextForUser } from '../keyboards/menu.keyboards';
 import {
   creatorProfileSelfEditKeyboard,
-  creatorSecondQueueActionsKeyboard,
   reportMonthKeyboard
 } from '../keyboards/inline.keyboards';
 import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
@@ -27,6 +26,7 @@ import { getRequiredSecondQueueStatisticsStatus } from '../creators/creator-stat
 import {
   ensureCreatorProfileCompletedForDocuments
 } from '../creators/creator-documents.flow';
+import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statistics-next-step';
 import {
   canUseAdminScenario,
   canUseAnyScenario,
@@ -74,21 +74,6 @@ const getScreenshotFile = (ctx: BotContext) => {
 
   return null;
 };
-
-const hasGeneratedSecondQueueDocuments = (
-  summary: Awaited<ReturnType<typeof container.services.documentWorkflowService.getActiveRosterSecondQueueSummary>>
-) =>
-  summary.documents.length > 0 &&
-  summary.documents.every(
-    (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
-  );
-
-const hasAvailableSecondQueueDocuments = (
-  summary: Awaited<ReturnType<typeof container.services.documentWorkflowService.getActiveRosterSecondQueueSummary>>
-) =>
-  summary.documents.some(
-    (document) => document.status !== 'LOCKED' && document.status !== 'NOT_GENERATED'
-  );
 
 export const showMainMenu = async (ctx: BotContext) => {
   const currentUser = ctx.state.currentUser;
@@ -294,21 +279,14 @@ export const handleMonthlyReachScreenshotUpload = async (ctx: BotContext) => {
       return true;
     }
 
-    const summary = await container.services.documentWorkflowService.getActiveRosterSecondQueueSummary(currentUser.id);
-
     await ctx.reply(
       [
         `Все скрины за ${updatedStatus.monthKey} сохранены: ${formatIntegerRu(
           updatedStatus.screenshotCount
-        )}/${formatIntegerRu(updatedStatus.requiredScreenshotCount)}.`,
-        'Теперь можно сформировать вторую очередь.'
-      ].join('\n'),
-      creatorSecondQueueActionsKeyboard({
-        isCompleted: summary.isCompleted,
-        hasGeneratedDocuments: hasGeneratedSecondQueueDocuments(summary),
-        hasAvailableDocuments: hasAvailableSecondQueueDocuments(summary)
-      })
+        )}/${formatIntegerRu(updatedStatus.requiredScreenshotCount)}.`
+      ].join('\n')
     );
+    await replyCreatorPostStatisticsNextStep(ctx, { statisticsMonthKey: updatedStatus.monthKey });
   } catch (error) {
     logUserError(error, 'Monthly required screenshot upload failed', {
       userId: currentUser.id,
