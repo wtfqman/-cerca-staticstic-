@@ -207,7 +207,7 @@ export class DocumentPayloadBuilderService {
         type === DocumentType.ACT
           ? 'Акт'
           : type === DocumentType.ACT_1000
-            ? 'Акт на 1000 руб.'
+            ? 'Акт передачи прав на 1000 руб.'
             : type === DocumentType.ASSIGNMENT
             ? 'Задание'
             : 'Передача прав',
@@ -220,8 +220,11 @@ export class DocumentPayloadBuilderService {
       companySignDate: formatRussianDate(companySignDate),
       creatorSignDate: formatRussianDate(creatorSignDate),
       assignmentDate: type === DocumentType.ASSIGNMENT ? formatRussianDate(documentDate) : '',
-      actDate: type === DocumentType.ACT || type === DocumentType.ACT_1000 ? formatRussianDate(documentDate) : '',
-      rightsTransferDate: type === DocumentType.RIGHTS_TRANSFER ? formatRussianDate(documentDate) : '',
+      actDate: type === DocumentType.ACT ? formatRussianDate(documentDate) : '',
+      rightsTransferDate:
+        type === DocumentType.ACT_1000 || type === DocumentType.RIGHTS_TRANSFER
+          ? formatRussianDate(documentDate)
+          : '',
       company: this.getCompanyPayload(),
       workflow: options.workflow,
       monthKey,

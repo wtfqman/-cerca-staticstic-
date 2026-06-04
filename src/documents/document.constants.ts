@@ -17,7 +17,7 @@ const documentTitleMap: Record<DocumentType, string> = {
   [DocumentType.CONTRACT]: 'Договор',
   [DocumentType.NDA]: 'NDA',
   [DocumentType.ACT]: 'Акт',
-  [DocumentType.ACT_1000]: 'Акт на 1000 руб.',
+  [DocumentType.ACT_1000]: 'Акт передачи прав на 1000 руб.',
   [DocumentType.ASSIGNMENT]: 'Задание',
   [DocumentType.RIGHTS_TRANSFER]: 'Передача прав'
 };

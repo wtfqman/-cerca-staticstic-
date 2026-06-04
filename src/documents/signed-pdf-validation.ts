@@ -46,6 +46,8 @@ const detectSignedPdfDocumentType = (text: string): DocumentType | null => {
     {
       type: DocumentType.ACT_1000,
       index: firstMarkerIndex(text, [
+        'акт передачи прав на 1000',
+        'акт передачи прав на 1 000',
         'акт об оказании услуг на 1000',
         'акт об оказании услуг на 1 000',
         'акт на 1000',
@@ -123,7 +125,7 @@ export const assertSignedPdfMatchesDocument = async (input: {
     detectedType !== input.expectedType &&
     !(
       input.expectedType === DocumentType.ACT_1000 &&
-      detectedType === DocumentType.ACT &&
+      (detectedType === DocumentType.ACT || detectedType === DocumentType.RIGHTS_TRANSFER) &&
       looksLikeAct1000(text)
     )
   ) {

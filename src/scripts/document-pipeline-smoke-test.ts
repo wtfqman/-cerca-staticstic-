@@ -120,7 +120,7 @@ const validRenderCases: Array<{
       documentDate: '31.05.2026',
       companySignDate: '31.05.2026',
       creatorSignDate: '31.05.2026',
-      actDate: '31.05.2026',
+      rightsTransferDate: '31.05.2026',
       payment: {
         ...payment,
         targetVideoCount: 1,

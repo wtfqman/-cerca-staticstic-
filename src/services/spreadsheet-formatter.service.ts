@@ -108,6 +108,7 @@ const documentTypeLabelMap: Record<string, string> = {
   CONTRACT: 'Договор',
   NDA: 'NDA',
   ACT: 'Акт',
+  ACT_1000: 'Акт передачи прав на 1000 руб.',
   ASSIGNMENT: 'Задание',
   RIGHTS_TRANSFER: 'Передача прав'
 };

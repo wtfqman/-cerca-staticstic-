@@ -55,9 +55,10 @@ const documentSectionMap: Partial<Record<DocumentType, DocxSection>> = {
     endMarker: 'Приложение №3'
   },
   [DocumentType.ACT_1000]: {
-    startAfterMarker: 'Задание заказчика №_',
-    startMarker: 'Приложение №2',
-    endMarker: 'Приложение №3'
+    startAfterMarker: 'Общая стоимость оказанных услуг составляет',
+    startMarker: 'Приложение №3',
+    endMarker: 'Приложение №4',
+    endMarkerOptional: true
   },
   [DocumentType.RIGHTS_TRANSFER]: {
     startAfterMarker: 'Общая стоимость оказанных услуг составляет',

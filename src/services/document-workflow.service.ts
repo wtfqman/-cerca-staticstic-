@@ -150,7 +150,7 @@ const formatSecondQueueDocumentTypes = (types: readonly DocumentType[] = SECOND_
       case DocumentType.ACT:
         return 'акт';
       case DocumentType.ACT_1000:
-        return 'акт на 1000 руб.';
+        return 'акт передачи прав на 1000 руб.';
       default:
         return 'документ';
     }

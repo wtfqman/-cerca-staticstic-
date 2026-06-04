@@ -128,7 +128,7 @@ const MONTHS_GENITIVE = [
 ];
 
 const EMPTY_FIELD = 'не указано';
-const ACT_1000_TITLE = 'Акт об оказании услуг на 1000 руб.';
+const ACT_1000_TITLE = 'Акт передачи прав на 1 000 руб.';
 
 const xmlDecode = (value: string) =>
   value
@@ -970,7 +970,7 @@ const normalizeGeneratedDocumentLayout = (xml: string, fields: ReplacementFields
     return normalizeNdaLayout(xml);
   }
 
-  if (fields.type === DocumentType.ACT || fields.type === DocumentType.ACT_1000) {
+  if (fields.type === DocumentType.ACT) {
     return normalizeActLayout(xml, fields);
   }
 
@@ -1279,11 +1279,11 @@ export class DocxTemplateRenderService {
       return fields.assignmentDate || fields.documentDate || fields.contractDate;
     }
 
-    if ((fields.type === DocumentType.ACT || fields.type === DocumentType.ACT_1000) && !referencesContract) {
+    if (fields.type === DocumentType.ACT && !referencesContract) {
       return fields.actDate || fields.documentDate || fields.contractDate;
     }
 
-    if (fields.type === DocumentType.RIGHTS_TRANSFER && !referencesContract) {
+    if ((fields.type === DocumentType.ACT_1000 || fields.type === DocumentType.RIGHTS_TRANSFER) && !referencesContract) {
       return fields.rightsTransferDate || fields.documentDate || fields.contractDate;
     }
 
@@ -1380,6 +1380,7 @@ export class DocxTemplateRenderService {
     let result = text;
 
     if (fields.type === DocumentType.ACT_1000) {
+      result = replaceTextInParagraph(result, /Передача прав/g, ACT_1000_TITLE);
       result = replaceTextInParagraph(result, /Акт об оказании услуг/g, ACT_1000_TITLE);
       result = replaceTextInParagraph(
         result,
@@ -1406,6 +1407,10 @@ export class DocxTemplateRenderService {
 
     if (fields.totalPaymentText) {
       result = replaceTextInParagraph(result, /41000\s+\(сорок одна тысяча\)\s+руб\./g, fields.totalPaymentText);
+    }
+
+    if (fields.type === DocumentType.ACT_1000 && fields.totalPaymentText) {
+      result = replaceTextInParagraph(result, /1\s?000\s+рублей/g, fields.totalPaymentText);
     }
 
     return result;

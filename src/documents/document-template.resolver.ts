@@ -9,7 +9,7 @@ const documentFolderMap: Record<DocumentType, string> = {
   [DocumentType.CONTRACT]: 'contract',
   [DocumentType.NDA]: 'nda',
   [DocumentType.ACT]: 'act',
-  [DocumentType.ACT_1000]: 'act',
+  [DocumentType.ACT_1000]: 'rights-transfer',
   [DocumentType.ASSIGNMENT]: 'assignment',
   [DocumentType.RIGHTS_TRANSFER]: 'rights-transfer'
 };
