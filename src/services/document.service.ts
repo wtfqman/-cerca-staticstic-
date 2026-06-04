@@ -118,6 +118,7 @@ const DOCUMENT_FILE_LABELS: Record<DocumentType, string> = {
   [DocumentType.NDA]: 'NDA',
   [DocumentType.ASSIGNMENT]: 'задание',
   [DocumentType.ACT]: 'акт',
+  [DocumentType.ACT_1000]: 'акт_1000',
   [DocumentType.RIGHTS_TRANSFER]: 'передача_прав'
 };
 
@@ -126,6 +127,7 @@ const CREATOR_DOCUMENT_BATCH_ORDER: Record<DocumentType, number> = {
   [DocumentType.NDA]: 20,
   [DocumentType.ASSIGNMENT]: 30,
   [DocumentType.ACT]: 40,
+  [DocumentType.ACT_1000]: 45,
   [DocumentType.RIGHTS_TRANSFER]: 50
 };
 
@@ -457,8 +459,9 @@ export class DocumentService {
 
   async generateMonthlyDocuments(creatorUserId: string, monthKey: string, telegram?: Telegram) {
     await this.payloadBuilder.assertCreatorProfileCompleted(creatorUserId);
+    await this.documentWorkflowService?.assertNoPendingReceiptBeforeDocumentGeneration(creatorUserId);
 
-    const types: DocumentType[] = [DocumentType.ASSIGNMENT];
+    const types: DocumentType[] = [DocumentType.ASSIGNMENT, DocumentType.ACT, DocumentType.ACT_1000];
     await this.assertTemplatesAvailable(creatorUserId, types);
     const monthRange = getMonthRange(monthKey);
     const contractReference = await this.resolveCreatorContractReference(
@@ -500,6 +503,7 @@ export class DocumentService {
     }
 
     const creator = await this.payloadBuilder.assertCreatorProfileCompleted(creatorUserId);
+    await this.documentWorkflowService.assertNoPendingReceiptBeforeDocumentGeneration(creatorUserId);
     const legalType = creator.creatorProfile!.legalType!;
 
     const state = await this.documentWorkflowService.prepareActiveRosterResigningWorkflow(creatorUserId);
@@ -561,6 +565,7 @@ export class DocumentService {
     }
 
     const creator = await this.payloadBuilder.assertCreatorProfileCompleted(creatorUserId);
+    await this.documentWorkflowService.assertNoPendingReceiptBeforeDocumentGeneration(creatorUserId);
     const legalType = creator.creatorProfile!.legalType!;
 
     const state = await this.documentWorkflowService.prepareActiveRosterResigningWorkflow(creatorUserId);

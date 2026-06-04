@@ -44,6 +44,15 @@ const detectSignedPdfDocumentType = (text: string): DocumentType | null => {
       ])
     },
     {
+      type: DocumentType.ACT_1000,
+      index: firstMarkerIndex(text, [
+        'акт об оказании услуг на 1000',
+        'акт об оказании услуг на 1 000',
+        'акт на 1000',
+        'акт на 1 000'
+      ])
+    },
+    {
       type: DocumentType.ACT,
       index: firstMarkerIndex(text, [
         'акт оказанных услуг',
@@ -70,6 +79,9 @@ const detectSignedPdfDocumentType = (text: string): DocumentType | null => {
 
   return candidates.sort((left, right) => left.index - right.index)[0]?.type ?? null;
 };
+
+const looksLikeAct1000 = (text: string) =>
+  /\b1\s?000\b/.test(text) || /\b1000\b/.test(text) || text.includes('одна тысяча');
 
 export class SignedPdfValidationError extends Error {
   constructor(message: string) {
@@ -107,7 +119,14 @@ export const assertSignedPdfMatchesDocument = async (input: {
     );
   }
 
-  if (detectedType !== input.expectedType) {
+  if (
+    detectedType !== input.expectedType &&
+    !(
+      input.expectedType === DocumentType.ACT_1000 &&
+      detectedType === DocumentType.ACT &&
+      looksLikeAct1000(text)
+    )
+  ) {
     throw new SignedPdfValidationError(
       `Похоже, это «${getDocumentTitle(detectedType)}», а выбран слот «${getDocumentTitle(input.expectedType)}». Выбери правильную кнопку и загрузи файл туда.`
     );

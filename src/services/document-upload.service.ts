@@ -37,6 +37,7 @@ const SIGNED_DOCUMENT_ORDER: Record<DocumentType, number> = {
   [DocumentType.NDA]: 20,
   [DocumentType.ASSIGNMENT]: 30,
   [DocumentType.ACT]: 40,
+  [DocumentType.ACT_1000]: 45,
   [DocumentType.RIGHTS_TRANSFER]: 50
 };
 
@@ -443,6 +444,17 @@ export class DocumentUploadService {
         const availableUploads: PendingSignatureUpload[] = [];
 
         for (const upload of groupUploads) {
+          if (await this.isSignedUploadBlockedByMissingReceipt(upload)) {
+            skippedUploads.push({
+              uploadId: upload.id,
+              documentId: upload.documentId,
+              type: upload.document.type,
+              monthKey: upload.document.monthKey,
+              reason: 'receipt_missing'
+            });
+            continue;
+          }
+
           if (!fs.existsSync(upload.filePath)) {
             logger.error(
               {
@@ -663,6 +675,38 @@ export class DocumentUploadService {
       forwarding,
       wasAlreadySigned
     };
+  }
+
+  private async isSignedUploadBlockedByMissingReceipt(upload: PendingSignatureUpload) {
+    if (
+      !this.documentWorkflowService ||
+      !SECOND_QUEUE_DOCUMENT_TYPES.has(upload.document.type) ||
+      !upload.document.monthKey
+    ) {
+      return false;
+    }
+
+    const hasReceipt = await this.documentWorkflowService.hasReceiptForCreatorMonth(
+      upload.creatorUserId,
+      upload.document.monthKey
+    );
+
+    if (hasReceipt) {
+      return false;
+    }
+
+    logger.warn(
+      {
+        creatorUserId: upload.creatorUserId,
+        documentId: upload.documentId,
+        uploadId: upload.id,
+        type: upload.document.type,
+        monthKey: upload.document.monthKey
+      },
+      'Signed second queue document export skipped until receipt is uploaded'
+    );
+
+    return true;
   }
 
   private async enqueueSignedDocumentForwarding(input: PendingSignedForwardItem) {

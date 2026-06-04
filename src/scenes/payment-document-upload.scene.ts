@@ -165,8 +165,8 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
 
     await ctx.reply(
       uploadType === 'INVOICE'
-        ? 'Выбери месяц, за который загружаешь счет. Счет доступен только после подписанных документов второй очереди за этот же месяц.'
-        : 'Выбери месяц, за который загружаешь чек. Чек доступен после загруженного счета за этот же месяц.',
+        ? 'Выбери месяц, за который загружаешь счет. После счета сразу нужен чек: без чека документы не уйдут дальше.'
+        : 'Выбери месяц, за который загружаешь чек. Чек обязателен после загруженного счета за этот же месяц.',
       uploadType === 'INVOICE'
         ? paymentInvoiceMonthKeyboard(availablePaymentMonths)
         : paymentReceiptMonthKeyboard(availablePaymentMonths)
@@ -307,8 +307,8 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
             uploadType === 'INVOICE'
                 ? [
                     `Счет за ${monthKey} получен и сохранен.`,
-                    'Теперь по этому периоду система будет ждать чек.',
-                    'После оплаты загрузи чек в бот кнопкой «Загрузить чек».'
+                    'Теперь сразу загрузи чек за этот же период.',
+                    'Пока чек не загружен, бот не передаст счет и документы дальше.'
                 ].join('\n')
                 : [
                     `Чек за ${monthKey} получен и сохранен.`,

@@ -31,6 +31,7 @@ const documentFolderMap: Record<DocumentType, string> = {
   [DocumentType.CONTRACT]: 'contract',
   [DocumentType.NDA]: 'nda',
   [DocumentType.ACT]: 'contract',
+  [DocumentType.ACT_1000]: 'contract',
   [DocumentType.ASSIGNMENT]: 'contract',
   [DocumentType.RIGHTS_TRANSFER]: 'contract'
 };
@@ -49,6 +50,11 @@ const documentSectionMap: Partial<Record<DocumentType, DocxSection>> = {
     endMarker: 'Приложение №2'
   },
   [DocumentType.ACT]: {
+    startAfterMarker: 'Задание заказчика №_',
+    startMarker: 'Приложение №2',
+    endMarker: 'Приложение №3'
+  },
+  [DocumentType.ACT_1000]: {
     startAfterMarker: 'Задание заказчика №_',
     startMarker: 'Приложение №2',
     endMarker: 'Приложение №3'

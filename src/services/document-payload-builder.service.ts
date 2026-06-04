@@ -56,6 +56,7 @@ const resolveWorkflowString = (workflow: Record<string, unknown> | undefined, ke
 };
 
 const hasText = (value: string | null | undefined) => typeof value === 'string' && value.trim().length > 0;
+const ACT_1000_AMOUNT = 1_000;
 
 const getMonthStartDate = (monthKey: string) => toDateOnly(getMonthRange(monthKey).dateFrom);
 
@@ -68,12 +69,41 @@ const getDefaultMonthlyDocumentDate = (monthKey: string, type: DocumentType) => 
     return getMonthStartDate(monthKey);
   }
 
-  if (type === DocumentType.ACT || type === DocumentType.RIGHTS_TRANSFER) {
+  if (type === DocumentType.ACT || type === DocumentType.ACT_1000 || type === DocumentType.RIGHTS_TRANSFER) {
     return getMonthEndDate(monthKey);
   }
 
   return new Date();
 };
+
+const buildAct1000Payment = <T extends {
+  targetVideoCount: number;
+  baseSalary: number;
+  fixedRatePerVideo?: number;
+  fixedSalaryCap?: number;
+  actualVideoCount: number;
+  fixedSalaryPart: number;
+  rawViews: number;
+  roundedViews: number;
+  viewSteps: number;
+  appliedRate: number;
+  variablePart: number;
+  totalPayment: number;
+}>(payment: T): T => ({
+  ...payment,
+  targetVideoCount: 1,
+  baseSalary: ACT_1000_AMOUNT,
+  fixedRatePerVideo: ACT_1000_AMOUNT,
+  fixedSalaryCap: ACT_1000_AMOUNT,
+  actualVideoCount: 1,
+  fixedSalaryPart: ACT_1000_AMOUNT,
+  rawViews: 0,
+  roundedViews: 0,
+  viewSteps: 0,
+  appliedRate: 0,
+  variablePart: 0,
+  totalPayment: ACT_1000_AMOUNT
+});
 
 const resolveWorkflowSignDate = (
   workflow: Record<string, unknown> | undefined,
@@ -168,6 +198,7 @@ export class DocumentPayloadBuilderService {
     ]);
 
     const basePayload = this.buildBasePayload(creator);
+    const documentPayment = type === DocumentType.ACT_1000 ? buildAct1000Payment(payment) : payment;
 
     return {
       ...basePayload,
@@ -175,7 +206,9 @@ export class DocumentPayloadBuilderService {
       title:
         type === DocumentType.ACT
           ? 'Акт'
-          : type === DocumentType.ASSIGNMENT
+          : type === DocumentType.ACT_1000
+            ? 'Акт на 1000 руб.'
+            : type === DocumentType.ASSIGNMENT
             ? 'Задание'
             : 'Передача прав',
       generatedDate: formatRussianDate(documentDate),
@@ -187,7 +220,7 @@ export class DocumentPayloadBuilderService {
       companySignDate: formatRussianDate(companySignDate),
       creatorSignDate: formatRussianDate(creatorSignDate),
       assignmentDate: type === DocumentType.ASSIGNMENT ? formatRussianDate(documentDate) : '',
-      actDate: type === DocumentType.ACT ? formatRussianDate(documentDate) : '',
+      actDate: type === DocumentType.ACT || type === DocumentType.ACT_1000 ? formatRussianDate(documentDate) : '',
       rightsTransferDate: type === DocumentType.RIGHTS_TRANSFER ? formatRussianDate(documentDate) : '',
       company: this.getCompanyPayload(),
       workflow: options.workflow,
@@ -196,28 +229,28 @@ export class DocumentPayloadBuilderService {
       periodStartDate: formatRussianDate(toDateOnly(monthRange.dateFrom)),
       periodEndDate: formatRussianDate(toDateOnly(monthRange.dateTo)),
       aggregation,
-      payment,
-      fixedSalaryWords: moneyToWordsRu(payment.fixedSalaryPart),
-      variablePartWords: moneyToWordsRu(payment.variablePart),
-      totalPaymentWords: moneyToWordsRu(payment.totalPayment),
+      payment: documentPayment,
+      fixedSalaryWords: moneyToWordsRu(documentPayment.fixedSalaryPart),
+      variablePartWords: moneyToWordsRu(documentPayment.variablePart),
+      totalPaymentWords: moneyToWordsRu(documentPayment.totalPayment),
       fixedRatePerVideoFormatted:
-        typeof payment.fixedRatePerVideo === 'number' ? formatMoneyRu(payment.fixedRatePerVideo) : '',
+        typeof documentPayment.fixedRatePerVideo === 'number' ? formatMoneyRu(documentPayment.fixedRatePerVideo) : '',
       fixedSalaryCapFormatted:
-        typeof payment.fixedSalaryCap === 'number' ? formatMoneyRu(payment.fixedSalaryCap) : '',
+        typeof documentPayment.fixedSalaryCap === 'number' ? formatMoneyRu(documentPayment.fixedSalaryCap) : '',
       servicesBlock: {
-        contentUnits: payment.actualVideoCount,
-        contentUnitRate: payment.fixedRatePerVideo,
-        contentCap: payment.fixedSalaryCap,
-        contentCost: payment.fixedSalaryPart,
-        totalViews: payment.rawViews,
-        viewsCost: payment.variablePart,
-        totalCost: payment.totalPayment
+        contentUnits: documentPayment.actualVideoCount,
+        contentUnitRate: documentPayment.fixedRatePerVideo,
+        contentCap: documentPayment.fixedSalaryCap,
+        contentCost: documentPayment.fixedSalaryPart,
+        totalViews: documentPayment.rawViews,
+        viewsCost: documentPayment.variablePart,
+        totalCost: documentPayment.totalPayment
       },
-      fixedSalaryFormatted: formatMoneyRu(payment.fixedSalaryPart),
-      variablePartFormatted: formatMoneyRu(payment.variablePart),
-      totalPaymentFormatted: formatMoneyRu(payment.totalPayment),
-      roundedViewsFormatted: payment.roundedViews.toLocaleString('ru-RU'),
-      rawViewsFormatted: payment.rawViews.toLocaleString('ru-RU')
+      fixedSalaryFormatted: formatMoneyRu(documentPayment.fixedSalaryPart),
+      variablePartFormatted: formatMoneyRu(documentPayment.variablePart),
+      totalPaymentFormatted: formatMoneyRu(documentPayment.totalPayment),
+      roundedViewsFormatted: documentPayment.roundedViews.toLocaleString('ru-RU'),
+      rawViewsFormatted: documentPayment.rawViews.toLocaleString('ru-RU')
     };
   }
 

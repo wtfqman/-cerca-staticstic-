@@ -27,6 +27,7 @@ const INVOICE_RELATED_SIGNED_DOCUMENT_TYPES = [...SECOND_QUEUE_DOCUMENT_TYPES] a
 const INVOICE_RELATED_SIGNED_DOCUMENT_ORDER: Partial<Record<DocumentType, number>> = {
   [DocumentType.ASSIGNMENT]: 10,
   [DocumentType.ACT]: 20,
+  [DocumentType.ACT_1000]: 25,
   [DocumentType.RIGHTS_TRANSFER]: 30
 };
 
@@ -345,6 +346,35 @@ export class PaymentDocumentUploadService {
 
       for (const upload of uploads) {
         const creatorName = formatCreatorDisplayName(upload.creator);
+        if (upload.type === PaymentDocumentType.INVOICE) {
+          const receiptUpload = await this.documentWorkflowRepository.findReceiptForInvoice({
+            creatorUserId: upload.creatorUserId,
+            monthKey: upload.monthKey,
+            invoiceUploadedAt: upload.uploadedAt
+          });
+
+          if (!receiptUpload) {
+            logger.warn(
+              {
+                uploadId: upload.id,
+                creatorUserId: upload.creatorUserId,
+                monthKey: upload.monthKey
+              },
+              'Invoice export skipped until receipt is uploaded'
+            );
+
+            skippedUploads.push({
+              uploadId: upload.id,
+              creatorUserId: upload.creatorUserId,
+              creatorName,
+              monthKey: upload.monthKey,
+              type: upload.type,
+              reason: 'receipt_missing'
+            });
+            continue;
+          }
+        }
+
         const fileInput = upload.filePath && fs.existsSync(upload.filePath)
           ? Input.fromLocalFile(upload.filePath)
           : upload.telegramFileId ?? null;

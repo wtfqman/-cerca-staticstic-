@@ -324,11 +324,11 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return;
     }
 
-    await safeAnswerCbQuery(ctx, 'Формирую задание...');
+    await safeAnswerCbQuery(ctx, 'Формирую документы...');
 
     try {
       await container.services.documentService.generateMonthlyDocuments(ctx.state.currentUser!.id, monthKey, ctx.telegram);
-      await ctx.reply(`Задание за ${monthKey} сформировано и отправлено тебе в чат. Его можно открыть в разделе "Мои документы".`);
+      await ctx.reply(`Документы за ${monthKey} сформированы и отправлены тебе в чат. Их можно открыть в разделе "Мои документы".`);
     } catch (error) {
       logUserError(error, 'Monthly document generation failed', {
         userId: ctx.state.currentUser?.id,
@@ -336,10 +336,10 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       });
       await ctx.reply(
         [
-          `Не удалось сформировать задание за ${monthKey}.`,
+          `Не удалось сформировать документы за ${monthKey}.`,
           formatUserError(
             error,
-            'Сейчас задание не удалось сформировать автоматически. Попробуй позже или сообщи администратору.'
+            'Сейчас документы не удалось сформировать автоматически. Попробуй позже или сообщи администратору.'
           )
         ]
           .filter(Boolean)
@@ -400,7 +400,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await safeAnswerCbQuery(ctx, 'Формирую вторую очередь...');
-    await ctx.reply('Принял. Формирую задание и акт. Это может занять 1-2 минуты.');
+    await ctx.reply('Принял. Формирую задание, акт и акт на 1000 руб. Это может занять 1-2 минуты.');
 
     void (async () => {
       try {
@@ -417,7 +417,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
 
         await ctx.reply(
           [
-            'Отправил вторую очередь документов: задание и акт.',
+            'Отправил вторую очередь документов: задание, акт и акт на 1000 руб.',
             'Подпиши PDF и отправь подписанные файлы обратно в бот.'
           ].join('\n'),
           creatorSecondQueueActionsKeyboard({

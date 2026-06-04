@@ -128,6 +128,7 @@ const MONTHS_GENITIVE = [
 ];
 
 const EMPTY_FIELD = 'не указано';
+const ACT_1000_TITLE = 'Акт об оказании услуг на 1000 руб.';
 
 const xmlDecode = (value: string) =>
   value
@@ -969,7 +970,7 @@ const normalizeGeneratedDocumentLayout = (xml: string, fields: ReplacementFields
     return normalizeNdaLayout(xml);
   }
 
-  if (fields.type === DocumentType.ACT) {
+  if (fields.type === DocumentType.ACT || fields.type === DocumentType.ACT_1000) {
     return normalizeActLayout(xml, fields);
   }
 
@@ -1278,7 +1279,7 @@ export class DocxTemplateRenderService {
       return fields.assignmentDate || fields.documentDate || fields.contractDate;
     }
 
-    if (fields.type === DocumentType.ACT && !referencesContract) {
+    if ((fields.type === DocumentType.ACT || fields.type === DocumentType.ACT_1000) && !referencesContract) {
       return fields.actDate || fields.documentDate || fields.contractDate;
     }
 
@@ -1377,6 +1378,15 @@ export class DocxTemplateRenderService {
 
   private replaceMonthlyValues(text: string, fields: ReplacementFields) {
     let result = text;
+
+    if (fields.type === DocumentType.ACT_1000) {
+      result = replaceTextInParagraph(result, /Акт об оказании услуг/g, ACT_1000_TITLE);
+      result = replaceTextInParagraph(
+        result,
+        /РђРєС‚ РѕР± РѕРєР°Р·Р°РЅРёРё СѓСЃР»СѓРі/g,
+        ACT_1000_TITLE
+      );
+    }
 
     if (fields.actualVideoCountFormatted) {
       result = replaceTextInParagraph(result, /__\s+единиц контента/g, `${fields.actualVideoCountFormatted} единиц контента`);

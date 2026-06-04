@@ -9,6 +9,7 @@ const documentFolderMap: Record<DocumentType, string> = {
   [DocumentType.CONTRACT]: 'contract',
   [DocumentType.NDA]: 'nda',
   [DocumentType.ACT]: 'act',
+  [DocumentType.ACT_1000]: 'act',
   [DocumentType.ASSIGNMENT]: 'assignment',
   [DocumentType.RIGHTS_TRANSFER]: 'rights-transfer'
 };
@@ -20,6 +21,7 @@ const legalTypeFolderMap: Record<LegalType, string> = {
 
 const monthlyDocumentTypes = new Set<DocumentType>([
   DocumentType.ACT,
+  DocumentType.ACT_1000,
   DocumentType.ASSIGNMENT,
   DocumentType.RIGHTS_TRANSFER
 ]);

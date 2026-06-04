@@ -353,6 +353,7 @@ async function main() {
       legalType: row.legalType,
       assignment: row.secondQueueDocuments[DocumentType.ASSIGNMENT],
       act: row.secondQueueDocuments[DocumentType.ACT],
+      act1000: row.secondQueueDocuments[DocumentType.ACT_1000],
       invoiceUploaded: row.invoiceUploaded
     }))
   );

@@ -44,7 +44,7 @@ const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSumm
   if (invoicePayment?.invoiceUploadedAt) {
     return [
       'Статистика сохранена.',
-      `Счет за ${monthKey} уже загружен. После оплаты загрузи чек в бот.`,
+      `Счет за ${monthKey} уже загружен. Теперь сразу нужен чек: без него бот не передаст документы дальше.`,
       '',
       formatCreatorSecondQueueScreen(summary)
     ].join('\n');
@@ -53,7 +53,7 @@ const formatCompletedSecondQueueNextStep = (summary: ActiveRosterSecondQueueSumm
   return [
     'Статистика сохранена.',
     `Следующий шаг: выставить счет за ${monthKey}.`,
-    'После оплаты загрузи чек в бот.',
+    'После счета сразу загрузи чек в бот: без чека сценарий не двинется дальше.',
     '',
     formatCreatorSecondQueueScreen(summary)
   ].join('\n');
@@ -82,7 +82,7 @@ export const replyCreatorPostStatisticsNextStep = async (
       [
         'Статистика сохранена.',
         `Теперь выставь счет за ${invoiceMonthKey}.`,
-        'После оплаты загрузи чек в бот.'
+        'После счета сразу загрузи чек в бот: без чека сценарий не двинется дальше.'
       ].join('\n'),
       noContractCreatorPaymentKeyboard()
     );
@@ -130,7 +130,7 @@ export const replyCreatorPostStatisticsNextStep = async (
     await ctx.reply(
       [
         'Статистика сохранена.',
-        'Дальше нужно закрыть вторую очередь документов: задание и акт.',
+        'Дальше нужно закрыть вторую очередь документов: задание, акт и акт на 1000 руб.',
         `После подписания второй очереди бот предложит выставить счет за ${invoiceMonthKey}.`
       ].join('\n'),
       secondQueueKeyboard

@@ -32,7 +32,12 @@ type CreatorReference = {
 const isActiveCreator = (creator: CreatorReference) => creator.isActive !== false;
 
 const ONE_OFF_DOCUMENT_TYPES = [DocumentType.CONTRACT, DocumentType.NDA];
-const MONTHLY_DOCUMENT_TYPES = [DocumentType.ASSIGNMENT, DocumentType.ACT, DocumentType.RIGHTS_TRANSFER];
+const MONTHLY_DOCUMENT_TYPES = [
+  DocumentType.ASSIGNMENT,
+  DocumentType.ACT,
+  DocumentType.ACT_1000,
+  DocumentType.RIGHTS_TRANSFER
+];
 const OPTIONAL_FOR_MANUAL_CHECK = new Set<DocumentType>([DocumentType.CONTRACT]);
 const SIGNED_DOCUMENT_STATUSES = new Set<DocumentStatus>([
   DocumentStatus.SIGNED_UPLOADED,

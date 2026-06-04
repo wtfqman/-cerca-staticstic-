@@ -1165,7 +1165,7 @@ export const registerAdminHandlers = (bot: Telegraf<BotContext>) => {
             ? `Старых дублей пропущено: ${formatIntegerRu(result.supersededCount)}`
             : null,
           result.skippedUploads.length
-            ? `Не удалось отправить: ${formatIntegerRu(result.skippedUploads.length)}. Подробности записаны в лог.`
+            ? `Не отправлено или заблокировано: ${formatIntegerRu(result.skippedUploads.length)}. Подробности записаны в лог.`
             : null,
           result.skippedRelatedDocuments.length
             ? `Не удалось отправить документы к счетам: ${formatIntegerRu(result.skippedRelatedDocuments.length)}. Подробности записаны в лог.`

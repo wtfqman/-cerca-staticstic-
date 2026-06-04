@@ -51,6 +51,7 @@ enum DocumentType {
   CONTRACT
   NDA
   ACT
+  ACT_1000
   ASSIGNMENT
   RIGHTS_TRANSFER
 }

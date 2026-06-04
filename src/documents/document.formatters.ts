@@ -215,7 +215,7 @@ export const formatCreatorFirstQueueScreen = (summary: ActiveRosterFirstQueueSum
     'Мои документы',
     '',
     summary.isCompleted
-      ? 'Первая очередь подписана. Следующий шаг - задание и акт.'
+      ? 'Первая очередь подписана. Следующий шаг - задание, акт и акт на 1000 руб.'
       : allDocumentsGenerated
         ? 'Документы уже отправлены. Подпиши договор и NDA, затем отправь подписанные PDF обратно в бот. Повторная отправка - только по кнопке.'
         : hasGeneratedDocuments
@@ -300,9 +300,7 @@ const formatReceiptQueueLine = (payment: ActiveRosterPaymentQueueStatus) => {
   }
 
   if (payment.receiptExpectedAt) {
-    return payment.receiptReminderDueAt
-      ? `${payment.monthKey}: ожидается, напоминание после ${formatRussianDateTime(payment.receiptReminderDueAt)}`
-      : `${payment.monthKey}: ожидается`;
+    return `${payment.monthKey}: ожидается сейчас`;
   }
 
   return payment.invoiceUploadedAt
@@ -371,12 +369,12 @@ export const formatCreatorSecondQueueScreen = (summary: ActiveRosterSecondQueueS
     'Мои документы',
     '',
     summary.isCompleted
-      ? 'Вторая очередь подписана. Теперь выставь счет на сумму ниже, затем загрузи чек.'
+      ? 'Вторая очередь подписана. Теперь выставь счет на сумму ниже и сразу загрузи чек.'
       : allDocumentsGenerated
-        ? 'Теперь подпиши задание и акт. После подписания отправь PDF обратно в бот.'
+        ? 'Теперь подпиши задание, акт и акт на 1000 руб. После подписания отправь PDF обратно в бот.'
         : hasGeneratedDocuments
           ? 'Часть документов второй очереди уже есть. Сформируй вторую очередь еще раз, чтобы получить полный комплект.'
-          : 'Сформируй вторую очередь: задание и акт. Потом подпиши их и отправь PDF обратно в бот.',
+          : 'Сформируй вторую очередь: задание, акт и акт на 1000 руб. Потом подпиши их и отправь PDF обратно в бот.',
     '',
     ...formatCreatorUploadChecklist(summary.documents),
     '',
@@ -394,14 +392,14 @@ export const formatActiveRosterSecondQueueStatus = (summary: ActiveRosterSecondQ
   const billablePayments = summary.payments.filter((payment) => isCreatorInvoiceMonth(payment.monthKey));
 
   return [
-    'Вторая очередь документов: задание и акт',
+    'Вторая очередь документов: задание, акт и акт на 1000 руб.',
     '',
     `Периоды: ${summary.periodMonths.join(', ') || 'периоды не заданы'}`,
     `Статус второй очереди: ${
       summary.isCompleted
         ? 'закрыта'
         : summary.isFirstQueueCompleted
-          ? 'можно формировать задание и акт'
+          ? 'можно формировать задание, акт и акт на 1000 руб.'
           : 'заблокирована'
     }`,
     summary.lockedReason ?? null,
@@ -417,7 +415,7 @@ export const formatActiveRosterSecondQueueStatus = (summary: ActiveRosterSecondQ
     ...(billablePayments.length ? billablePayments.map(formatReceiptQueueLine) : ['актуальный период не задан']),
     '',
     summary.isFirstQueueCompleted
-      ? 'Задание и акт можно сформировать отдельной кнопкой. После подписи отправь PDF обратно в бот.'
+      ? 'Задание, акт и акт на 1000 руб. можно сформировать отдельной кнопкой. После подписи отправь PDF обратно в бот.'
       : 'Сначала нужно закрыть первую очередь: договор и NDA.'
   ]
     .filter(Boolean)

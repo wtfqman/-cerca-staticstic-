@@ -317,6 +317,86 @@ export class DocumentWorkflowRepository {
     });
   }
 
+  async findReceiptForInvoice(input: {
+    creatorUserId: string;
+    monthKey?: string | null;
+    invoiceUploadedAt: Date;
+  }) {
+    return prisma.paymentDocumentUpload.findFirst({
+      where: {
+        creatorUserId: input.creatorUserId,
+        monthKey: input.monthKey ?? null,
+        type: PaymentDocumentType.RECEIPT,
+        status: {
+          not: PaymentDocumentStatus.REJECTED
+        },
+        uploadedAt: {
+          gte: input.invoiceUploadedAt
+        }
+      },
+      orderBy: {
+        uploadedAt: 'desc'
+      }
+    });
+  }
+
+  async findPendingReceiptInvoiceForCreator(creatorUserId: string) {
+    const uploads = await prisma.paymentDocumentUpload.findMany({
+      where: {
+        creatorUserId,
+        status: {
+          not: PaymentDocumentStatus.REJECTED
+        },
+        type: {
+          in: [PaymentDocumentType.INVOICE, PaymentDocumentType.RECEIPT]
+        }
+      },
+      orderBy: {
+        uploadedAt: 'desc'
+      }
+    });
+    const latestInvoicesByMonth = new Map<string, typeof uploads[number]>();
+
+    for (const upload of uploads) {
+      if (upload.type !== PaymentDocumentType.INVOICE) {
+        continue;
+      }
+
+      const key = upload.monthKey ?? '';
+
+      if (!latestInvoicesByMonth.has(key)) {
+        latestInvoicesByMonth.set(key, upload);
+      }
+    }
+
+    return [...latestInvoicesByMonth.values()].find((invoiceUpload) =>
+      !uploads.some(
+        (upload) =>
+          upload.type === PaymentDocumentType.RECEIPT &&
+          upload.monthKey === invoiceUpload.monthKey &&
+          upload.uploadedAt >= invoiceUpload.uploadedAt
+      )
+    ) ?? null;
+  }
+
+  async hasReceiptForCreatorMonth(creatorUserId: string, monthKey: string) {
+    const receipt = await prisma.paymentDocumentUpload.findFirst({
+      where: {
+        creatorUserId,
+        monthKey,
+        type: PaymentDocumentType.RECEIPT,
+        status: {
+          not: PaymentDocumentStatus.REJECTED
+        }
+      },
+      select: {
+        id: true
+      }
+    });
+
+    return Boolean(receipt);
+  }
+
   async clearInvoiceReceiptReminderDue(input: {
     workflowStateId: string;
     creatorUserId: string;

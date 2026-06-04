@@ -149,6 +149,8 @@ const formatSecondQueueDocumentTypes = (types: readonly DocumentType[] = SECOND_
         return 'задание';
       case DocumentType.ACT:
         return 'акт';
+      case DocumentType.ACT_1000:
+        return 'акт на 1000 руб.';
       default:
         return 'документ';
     }
@@ -169,6 +171,9 @@ const buildSecondQueueRequiredMessage = (
     ? `Сначала нужно загрузить подписанные документы второй очереди за ${monthKey}: ${documentsLabel}.`
     : `Сначала нужно загрузить подписанные документы второй очереди: ${documentsLabel}.`;
 };
+
+const buildPendingReceiptRequiredMessage = (monthKey?: string | null) =>
+  `Сначала загрузи чек за ${monthKey ?? 'период'}: счет уже загружен, без чека следующий пакет документов недоступен.`;
 
 const isActivePaymentUpload = (upload: Pick<PaymentDocumentUpload, 'status'>) =>
   upload.status !== PaymentDocumentStatus.REJECTED;
@@ -732,7 +737,32 @@ export class DocumentWorkflowService {
     });
   }
 
+  async findPendingReceiptInvoiceForCreator(creatorUserId: string) {
+    return this.workflowRepository.findPendingReceiptInvoiceForCreator(creatorUserId);
+  }
+
+  async hasReceiptForCreatorMonth(creatorUserId: string, monthKey: string) {
+    return this.workflowRepository.hasReceiptForCreatorMonth(creatorUserId, monthKey);
+  }
+
+  async assertNoPendingReceiptBeforeDocumentGeneration(creatorUserId: string) {
+    const pendingInvoice = await this.findPendingReceiptInvoiceForCreator(creatorUserId);
+
+    if (pendingInvoice) {
+      throw new Error(buildPendingReceiptRequiredMessage(pendingInvoice.monthKey));
+    }
+  }
+
   async canGenerateSecondQueue(creatorUserId: string, campaignId: string) {
+    const pendingInvoice = await this.findPendingReceiptInvoiceForCreator(creatorUserId);
+
+    if (pendingInvoice) {
+      return {
+        allowed: false as const,
+        reason: buildPendingReceiptRequiredMessage(pendingInvoice.monthKey)
+      };
+    }
+
     const state = await this.workflowRepository.findState(campaignId, creatorUserId);
 
     if (!state) {

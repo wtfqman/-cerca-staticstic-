@@ -14,14 +14,7 @@ export const getDocumentWorkflowMonthKey = () => {
     return config.documents.workflowMonthKey;
   }
 
-  const now = getNow();
-
-  // During the monthly close window, documents and invoices still belong to the previous month.
-  if (now.date() <= config.limits.maxMonthlyVideoEditDay) {
-    return toMonthKey(now.subtract(1, 'month'));
-  }
-
-  return toMonthKey(now);
+  return toMonthKey(getNow().subtract(1, 'month'));
 };
 
 export const getActiveRosterContractDate = (monthKey = getDocumentWorkflowMonthKey()) =>
@@ -47,7 +40,7 @@ export const getNoContractPaymentPeriodMonths = (monthKey = getDocumentWorkflowM
 
 export const getCreatorInvoiceMonthKey = () => getDocumentWorkflowMonthKey();
 
-export const RECEIPT_REMINDER_DELAY_HOURS = 36;
+export const RECEIPT_REMINDER_DELAY_HOURS = 0;
 
 export const FIRST_QUEUE_DOCUMENT_TYPES = [
   DocumentType.CONTRACT,
@@ -56,7 +49,8 @@ export const FIRST_QUEUE_DOCUMENT_TYPES = [
 
 export const SECOND_QUEUE_DOCUMENT_TYPES = [
   DocumentType.ASSIGNMENT,
-  DocumentType.ACT
+  DocumentType.ACT,
+  DocumentType.ACT_1000
 ] as const;
 
 export const getDefaultDocumentWorkflowQueue = (type: DocumentType) => {

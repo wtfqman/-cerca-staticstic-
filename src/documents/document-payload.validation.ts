@@ -215,12 +215,14 @@ const MONTH_NUMBER_BY_GENITIVE_NAME: Record<string, string> = {
 const DOCUMENT_DATE_FIELD_BY_TYPE: Partial<Record<DocumentType, string>> = {
   [DocumentType.ASSIGNMENT]: 'assignmentDate',
   [DocumentType.ACT]: 'actDate',
+  [DocumentType.ACT_1000]: 'actDate',
   [DocumentType.RIGHTS_TRANSFER]: 'rightsTransferDate'
 };
 
 const MONTHLY_DOCUMENT_TYPES = new Set<DocumentType>([
   DocumentType.ASSIGNMENT,
   DocumentType.ACT,
+  DocumentType.ACT_1000,
   DocumentType.RIGHTS_TRANSFER
 ]);
 
@@ -228,6 +230,7 @@ const DOCUMENT_TYPES_REQUIRING_CONTRACT_REFERENCE = new Set<DocumentType>([
   DocumentType.CONTRACT,
   DocumentType.ASSIGNMENT,
   DocumentType.ACT,
+  DocumentType.ACT_1000,
   DocumentType.RIGHTS_TRANSFER
 ]);
 
@@ -586,7 +589,7 @@ export const assertDocumentPayloadValidForRender = (input: {
     }
   }
 
-  if (type === DocumentType.ACT) {
+  if (type === DocumentType.ACT || type === DocumentType.ACT_1000) {
     const actDate = requireDatePayloadField(issues, payload, 'actDate', 'дата акта');
     const { periodEnd } = assertPeriodDates(issues, payload);
     assertDateFieldsMatch(
@@ -726,7 +729,7 @@ export const assertRenderedDocumentTextValid = (input: {
     );
   }
 
-  if (input.type === DocumentType.ACT) {
+  if (input.type === DocumentType.ACT || input.type === DocumentType.ACT_1000) {
     assertRenderedTextContainsDate(
       issues,
       text,
@@ -735,7 +738,11 @@ export const assertRenderedDocumentTextValid = (input: {
     );
   }
 
-  if (input.type === DocumentType.ACT || input.type === DocumentType.RIGHTS_TRANSFER) {
+  if (
+    input.type === DocumentType.ACT ||
+    input.type === DocumentType.ACT_1000 ||
+    input.type === DocumentType.RIGHTS_TRANSFER
+  ) {
     assertRenderedTextContainsDate(
       issues,
       text,

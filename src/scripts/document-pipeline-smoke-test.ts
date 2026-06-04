@@ -113,6 +113,41 @@ const validRenderCases: Array<{
     mustNotInclude: ['05.05.2025', '05 мая 2025', '___________________/___________________/']
   },
   {
+    type: DocumentType.ACT_1000,
+    payload: {
+      ...commonPayload,
+      monthKey: '2026-05',
+      documentDate: '31.05.2026',
+      companySignDate: '31.05.2026',
+      creatorSignDate: '31.05.2026',
+      actDate: '31.05.2026',
+      payment: {
+        ...payment,
+        targetVideoCount: 1,
+        baseSalary: 1000,
+        fixedRatePerVideo: 1000,
+        fixedSalaryCap: 1000,
+        actualVideoCount: 1,
+        fixedSalaryPart: 1000,
+        rawViews: 0,
+        roundedViews: 0,
+        viewSteps: 0,
+        appliedRate: 0,
+        variablePart: 0,
+        totalPayment: 1000
+      },
+      rawViewsFormatted: '0',
+      variablePartFormatted: '0',
+      fixedSalaryPartFormatted: '1 000',
+      totalPaymentFormatted: '1 000',
+      fixedSalaryWords: 'одна тысяча рублей 00 копеек',
+      variablePartWords: 'ноль рублей 00 копеек',
+      totalPaymentWords: 'одна тысяча рублей 00 копеек'
+    },
+    mustInclude: ['БТР-01.03.2026', 'марта 2026', 'мая 2026', '1 000'],
+    mustNotInclude: ['05.05.2025', '05 мая 2025', '41 000']
+  },
+  {
     type: DocumentType.RIGHTS_TRANSFER,
     payload: {
       ...commonPayload,
