@@ -400,7 +400,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
     }
 
     await safeAnswerCbQuery(ctx, 'Формирую вторую очередь...');
-    await ctx.reply('Принял. Формирую задание, акт и акт на 1000 руб. Это может занять 1-2 минуты.');
+    await ctx.reply('Принял. Формирую задание, акт и акт передачи прав на 1000 руб. Это может занять 1-2 минуты.');
 
     void (async () => {
       try {
@@ -417,7 +417,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
 
         await ctx.reply(
           [
-            'Отправил вторую очередь документов: задание, акт и акт на 1000 руб.',
+            'Отправил вторую очередь документов: задание, акт и акт передачи прав на 1000 руб.',
             'Подпиши PDF и отправь подписанные файлы обратно в бот.'
           ].join('\n'),
           creatorSecondQueueActionsKeyboard({
@@ -431,7 +431,10 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
           userId: ctx.state.currentUser?.id
         });
         await ctx.reply(
-          'Вторая очередь не отправлена. Сначала первая очередь должна быть подписана, а шаблоны и данные должны пройти проверку.'
+          formatUserError(
+            error,
+            'Вторая очередь не отправлена. Проверь, что первая очередь подписана, статистика закрыта, а шаблоны и данные проходят проверку.'
+          )
         );
       } finally {
         finishDocumentGenerationAction(sendKey);

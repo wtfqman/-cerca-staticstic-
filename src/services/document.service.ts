@@ -565,7 +565,6 @@ export class DocumentService {
     }
 
     const creator = await this.payloadBuilder.assertCreatorProfileCompleted(creatorUserId);
-    await this.documentWorkflowService.assertNoPendingReceiptBeforeDocumentGeneration(creatorUserId);
     const legalType = creator.creatorProfile!.legalType!;
 
     const state = await this.documentWorkflowService.prepareActiveRosterResigningWorkflow(creatorUserId);
@@ -576,6 +575,16 @@ export class DocumentService {
     }
 
     const periodMonths = normalizeCampaignPeriodMonths(state.campaign.periodMonths);
+    const currentSummary = await this.documentWorkflowService.getActiveRosterSecondQueueSummary(creatorUserId);
+    const signedSecondQueueDocumentKeys = new Set(
+      currentSummary.documents
+        .filter(
+          (document) =>
+            document.status === DocumentStatus.SIGNED_UPLOADED ||
+            document.status === DocumentStatus.FORWARDED_TO_CHAT
+        )
+        .map((document) => `${document.type}:${document.monthKey}`)
+    );
     const contractReference = await this.resolveCreatorContractReference(
       creatorUserId,
       state.campaign.contractDate ?? getActiveRosterContractDate()
@@ -587,6 +596,10 @@ export class DocumentService {
       const monthRange = getMonthRange(monthKey);
 
       for (const type of SECOND_QUEUE_DOCUMENT_TYPES) {
+        if (signedSecondQueueDocumentKeys.has(`${type}:${monthKey}`)) {
+          continue;
+        }
+
         const documentDate = type === DocumentType.ASSIGNMENT
           ? toDateOnly(monthRange.dateFrom)
           : toDateOnly(monthRange.dateTo);

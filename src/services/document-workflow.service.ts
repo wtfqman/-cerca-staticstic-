@@ -562,9 +562,25 @@ export class DocumentWorkflowService {
   async getActiveRosterSecondQueueSummary(creatorUserId: string): Promise<ActiveRosterSecondQueueSummary> {
     const campaignKey = getActiveRosterResigningCampaignKey();
     const campaign = await this.workflowRepository.findCampaignByKey(campaignKey);
-    const state = campaign
+    let state = campaign
       ? await this.workflowRepository.findState(campaign.id, creatorUserId)
       : null;
+
+    if (!state) {
+      const reusableDocuments = await this.documentRepository.listOneOffByCreatorAndTypes(
+        creatorUserId,
+        [...PERMANENT_SIGNATURE_DOCUMENT_TYPES]
+      );
+
+      if (PERMANENT_SIGNATURE_DOCUMENT_TYPES.some((type) =>
+        pickBestWorkflowDocument(reusableDocuments.filter((document) => document.type === type))
+      )) {
+        state = await this.prepareActiveRosterResigningWorkflow(creatorUserId);
+      }
+    } else {
+      await this.linkReusablePermanentFirstQueueDocuments(state.id, creatorUserId);
+    }
+
     const refreshedState = state ? await this.refreshWorkflowState(state.id) : null;
     const periodMonths = normalizeCampaignPeriodMonths(
       refreshedState?.campaign.periodMonths ?? campaign?.periodMonths ?? getActiveRosterResigningPeriodMonths()
@@ -754,15 +770,6 @@ export class DocumentWorkflowService {
   }
 
   async canGenerateSecondQueue(creatorUserId: string, campaignId: string) {
-    const pendingInvoice = await this.findPendingReceiptInvoiceForCreator(creatorUserId);
-
-    if (pendingInvoice) {
-      return {
-        allowed: false as const,
-        reason: buildPendingReceiptRequiredMessage(pendingInvoice.monthKey)
-      };
-    }
-
     const state = await this.workflowRepository.findState(campaignId, creatorUserId);
 
     if (!state) {
