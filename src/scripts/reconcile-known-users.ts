@@ -233,7 +233,7 @@ const buildKnownUserPlans = () => {
       ...normalized,
       baseRole: UserRole.CREATOR,
       isActive: input.isActive ?? true,
-      requiresCreatorProfile: true,
+      requiresCreatorProfile: input.requiresCreatorProfile ?? true,
       requiresTeamLeadProfile: false,
       removeTeamLeadProfile: input.removeTeamLeadProfile ?? false,
       deactivateTeamLeadLinks: input.deactivateTeamLeadLinks ?? false

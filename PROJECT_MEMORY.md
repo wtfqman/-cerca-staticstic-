@@ -57,7 +57,7 @@ pm2 save --force
 
 Known admin Telegram IDs:
 
-- `1731711996`
+- `193310707` / `@elenakolyhalova` (primary/default admin)
 - `8471141711`
 
 Known team leads from the last role correction:
@@ -66,10 +66,11 @@ Known team leads from the last role correction:
 - `7025455607` / `@danila1255`
 - `1652747843` / `@alexndrSAVIN`
 - `709509558` / `@Maxximlead`
-- `193310707` / `@elenakolyhalova`
+- `193310707` / `@elenakolyhalova` (also admin)
 
 Known removed/replaced team lead:
 
+- `1731711996` / `@ssssv_a` (S.O.) is deactivated and removed from team lead access by `npm run reconcile:known-users`.
 - `748641314` / `@D1nen` was removed from team lead role and returned to creator during the last correction.
 
 When changing roles manually:

@@ -2,7 +2,7 @@ import { UserRole } from '@prisma/client';
 
 import { prisma } from '../lib/prisma';
 
-const DEFAULT_ADMIN_TELEGRAM_ID = '1731711996';
+const DEFAULT_ADMIN_TELEGRAM_ID = '193310707';
 const TELEGRAM_ID_PATTERN = /^-?\d+$/;
 
 const getTelegramId = () => {

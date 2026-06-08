@@ -13,15 +13,16 @@ export interface KnownTeamLeadInput extends KnownUserInput {
 export interface KnownAdminInput extends KnownUserInput {}
 
 export interface KnownCreatorInput extends KnownUserInput {
+  requiresCreatorProfile?: boolean;
   removeTeamLeadProfile?: boolean;
   deactivateTeamLeadLinks?: boolean;
 }
 
 export const KNOWN_ADMINS: KnownAdminInput[] = [
   {
-    telegramId: '1731711996',
-    username: 'ssssv_a',
-    firstName: 'S.O.',
+    telegramId: '193310707',
+    username: 'elenakolyhalova',
+    firstName: 'Elena',
     lastName: null
   },
   {
@@ -33,13 +34,6 @@ export const KNOWN_ADMINS: KnownAdminInput[] = [
 ];
 
 export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
-  {
-    telegramId: '1731711996',
-    username: 'ssssv_a',
-    firstName: 'S.O.',
-    lastName: null,
-    displayName: 'S.O. (@ssssv_a)'
-  },
   {
     telegramId: '846359286',
     username: 'klbrdnv_V',
@@ -78,6 +72,16 @@ export const KNOWN_TEAM_LEADS: KnownTeamLeadInput[] = [
 ];
 
 export const KNOWN_CREATORS: KnownCreatorInput[] = [
+  {
+    telegramId: '1731711996',
+    username: 'ssssv_a',
+    firstName: 'S.O.',
+    lastName: null,
+    isActive: false,
+    requiresCreatorProfile: false,
+    removeTeamLeadProfile: true,
+    deactivateTeamLeadLinks: true
+  },
   {
     telegramId: '748641314',
     username: 'D1nen',
