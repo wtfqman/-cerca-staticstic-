@@ -20,6 +20,9 @@ export interface KnownCreatorInput extends KnownUserInput {
 
 export const KNOWN_ADMINS: KnownAdminInput[] = [
   {
+    telegramId: '406397522'
+  },
+  {
     telegramId: '193310707',
     username: 'elenakolyhalova',
     firstName: 'Elena',

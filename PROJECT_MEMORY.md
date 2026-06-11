@@ -57,7 +57,8 @@ pm2 save --force
 
 Known admin Telegram IDs:
 
-- `193310707` / `@elenakolyhalova` (primary/default admin)
+- `406397522` (primary/default admin)
+- `193310707` / `@elenakolyhalova`
 - `8471141711`
 
 Known team leads from the last role correction:
