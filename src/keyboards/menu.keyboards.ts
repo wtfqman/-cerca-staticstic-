@@ -2,6 +2,7 @@ import { Markup } from 'telegraf';
 
 import { ADMIN_MENU, CREATOR_MENU, TEAMLEAD_MENU } from './menu-labels';
 import {
+  canUseAdminAndCreatorScenarios,
   canUseAdminAndTeamLeadScenarios,
   canUseAdminScenario,
   canUseCreatorAndTeamLeadScenarios,
@@ -87,6 +88,44 @@ export const adminTeamLeadMenuKeyboard = () =>
     [TEAMLEAD_MENU.attention, ADMIN_MENU.help]
   ]).resize();
 
+export const adminCreatorMenuKeyboard = (user?: AccessUser | null) =>
+  Markup.keyboard([
+    [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
+    ...creatorStatisticsRows(user),
+    [CREATOR_MENU.reports, CREATOR_MENU.documents],
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
+    [ADMIN_MENU.creators, ADMIN_MENU.teamLeads],
+    [ADMIN_MENU.groups, ADMIN_MENU.socialLinks],
+    [ADMIN_MENU.stats],
+    [ADMIN_MENU.payments, ADMIN_MENU.documents],
+    [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
+    [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
+    [ADMIN_MENU.attention, CREATOR_MENU.help]
+  ]).resize();
+
+export const adminCreatorTeamLeadMenuKeyboard = (user?: AccessUser | null) =>
+  Markup.keyboard([
+    [CREATOR_MENU.profile, CREATOR_MENU.stats],
+    [CREATOR_MENU.dailyPublication],
+    ...creatorStatisticsRows(user),
+    [CREATOR_MENU.reports, CREATOR_MENU.documents],
+    [CREATOR_MENU.uploadSigned, CREATOR_MENU.socialLinks],
+    [ADMIN_MENU.creators, ADMIN_MENU.teamLeads],
+    [ADMIN_MENU.groups, ADMIN_MENU.socialLinks],
+    [ADMIN_MENU.stats],
+    [ADMIN_MENU.payments, ADMIN_MENU.documents],
+    [ADMIN_MENU.googleSheets, ADMIN_MENU.bulkActions],
+    [ADMIN_MENU.service, ADMIN_MENU.creatorTest],
+    [ADMIN_MENU.attention],
+    [TEAMLEAD_MENU.group, TEAMLEAD_MENU.groupReport],
+    [TEAMLEAD_MENU.weeklyReach, TEAMLEAD_MENU.creatorReport],
+    [TEAMLEAD_MENU.closeCreator],
+    [TEAMLEAD_MENU.missedChecks],
+    [TEAMLEAD_MENU.missingStats, TEAMLEAD_MENU.missingDocuments],
+    [TEAMLEAD_MENU.attention, CREATOR_MENU.help]
+  ]).resize();
+
 export const documentOperationsMenuKeyboard = () =>
   Markup.keyboard([
     [ADMIN_MENU.documents, ADMIN_MENU.bulkActions],
@@ -115,8 +154,16 @@ export const adminCreatorTestMenuKeyboard = (user?: AccessUser | null) =>
   ]).resize();
 
 export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {
+  if (canUseAdminAndCreatorScenarios(user) && canUseTeamLeadScenario(user)) {
+    return adminCreatorTeamLeadMenuKeyboard(user);
+  }
+
   if (canUseAdminAndTeamLeadScenarios(user)) {
     return adminTeamLeadMenuKeyboard();
+  }
+
+  if (canUseAdminAndCreatorScenarios(user)) {
+    return adminCreatorMenuKeyboard(user);
   }
 
   if (canUseAdminScenario(user)) {
@@ -147,6 +194,14 @@ export const mainMenuKeyboardForUser = (user?: AccessUser | null) => {
 };
 
 export const mainMenuTextForUser = (user?: AccessUser | null) => {
+  if (canUseAdminAndCreatorScenarios(user) && canUseTeamLeadScenario(user)) {
+    return [
+      'Главное меню: креатор, администратор и тимлид.',
+      'Сверху - личные разделы креатора.',
+      'Ниже - разделы администратора и тимлида.'
+    ].join('\n');
+  }
+
   if (canUseAdminAndTeamLeadScenarios(user)) {
     return [
       'Главное меню: администратор и тимлид.',
@@ -157,6 +212,14 @@ export const mainMenuTextForUser = (user?: AccessUser | null) => {
 
   if (canUseAdminScenario(user)) {
     return 'Главное меню администратора.';
+  }
+
+  if (canUseAdminAndCreatorScenarios(user)) {
+    return [
+      'Главное меню: креатор и администратор.',
+      'Сверху - личные разделы креатора.',
+      'Ниже - разделы администратора.'
+    ].join('\n');
   }
 
   if (canUseDocumentOperationsScenario(user) && canUseCreatorScenario(user)) {

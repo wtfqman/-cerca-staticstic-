@@ -67,7 +67,7 @@ Known team leads from the last role correction:
 - `7025455607` / `@danila1255`
 - `1652747843` / `@alexndrSAVIN`
 - `709509558` / `@Maxximlead`
-- `193310707` / `@elenakolyhalova` (also admin)
+- `193310707` / `@elenakolyhalova` (also admin and creator)
 
 Known removed/replaced team lead:
 
