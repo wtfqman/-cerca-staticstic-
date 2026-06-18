@@ -1,61 +1,126 @@
-import { UserRole } from '@prisma/client';
+import 'dotenv/config';
 
-import { prisma } from '../lib/prisma';
+import { PrismaClient, UserRole } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const TELEGRAM_ID_PATTERN = /^-?\d+$/;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{5,32}$/;
 
-const getTelegramId = () => {
-  const telegramId = process.argv[2]?.trim();
+type TargetLocator =
+  | {
+      kind: 'telegramId';
+      value: string;
+      label: string;
+    }
+  | {
+      kind: 'username';
+      value: string;
+      label: string;
+    };
 
-  if (!telegramId) {
-    throw new Error('Usage: npm run reset:test-creator -- <telegramId>');
+const getTargetLocator = (): TargetLocator => {
+  const rawTarget = process.argv[2]?.trim();
+
+  if (!rawTarget) {
+    throw new Error('Usage: npm run reset:test-creator -- <telegramId|@username>');
   }
 
-  if (!TELEGRAM_ID_PATTERN.test(telegramId)) {
-    throw new Error(`Invalid Telegram ID: ${telegramId}`);
+  if (TELEGRAM_ID_PATTERN.test(rawTarget)) {
+    return {
+      kind: 'telegramId',
+      value: rawTarget,
+      label: rawTarget
+    };
   }
 
-  return telegramId;
+  const username = rawTarget.replace(/^@/, '').trim();
+
+  if (!USERNAME_PATTERN.test(username)) {
+    throw new Error(`Invalid target: ${rawTarget}. Use numeric Telegram ID or @username.`);
+  }
+
+  return {
+    kind: 'username',
+    value: username,
+    label: `@${username}`
+  };
 };
 
 const run = async () => {
-  const telegramId = getTelegramId();
+  const locator = getTargetLocator();
 
   const result = await prisma.$transaction(async (tx) => {
-    const existingUser = await tx.user.findUnique({
-      where: { telegramId },
-      select: {
-        id: true,
-        role: true,
-        isActive: true
-      }
-    });
+    const matchedUsers =
+      locator.kind === 'telegramId'
+        ? await tx.user.findMany({
+            where: { telegramId: locator.value },
+            select: {
+              id: true,
+              telegramId: true,
+              role: true,
+              isActive: true
+            }
+          })
+        : await tx.user.findMany({
+            where: {
+              username: {
+                equals: locator.value,
+                mode: 'insensitive'
+              }
+            },
+            select: {
+              id: true,
+              telegramId: true,
+              role: true,
+              isActive: true
+            }
+          });
+
+    if (matchedUsers.length > 1) {
+      throw new Error(`Target ${locator.label} matched ${matchedUsers.length} users. Use Telegram ID instead.`);
+    }
+
+    const existingUser = matchedUsers[0];
+
+    if (!existingUser && locator.kind === 'username') {
+      throw new Error(`User ${locator.label} was not found. Ask them to press /start or use Telegram ID.`);
+    }
 
     const roleAfterReset = existingUser?.role === UserRole.ADMIN ? UserRole.ADMIN : UserRole.CREATOR;
 
-    const user = await tx.user.upsert({
-      where: { telegramId },
-      create: {
-        telegramId,
-        role: UserRole.CREATOR,
-        isActive: true
-      },
-      update: {
-        role: roleAfterReset,
-        isActive: true
-      },
-      select: {
-        id: true,
-        telegramId: true,
-        role: true,
-        isActive: true
-      }
-    });
+    const user = existingUser
+      ? await tx.user.update({
+          where: { id: existingUser.id },
+          data: {
+            role: roleAfterReset,
+            isActive: true
+          },
+          select: {
+            id: true,
+            telegramId: true,
+            role: true,
+            isActive: true
+          }
+        })
+      : await tx.user.create({
+          data: {
+            telegramId: locator.value,
+            role: UserRole.CREATOR,
+            isActive: true
+          },
+          select: {
+            id: true,
+            telegramId: true,
+            role: true,
+            isActive: true
+          }
+        });
 
     const botSessions = await tx.botSession.deleteMany({
       where: {
         key: {
-          startsWith: `${telegramId}:`
+          startsWith: `${user.telegramId}:`
         }
       }
     });
@@ -121,6 +186,12 @@ const run = async () => {
     const documentRequests = await tx.documentRequest.deleteMany({
       where: {
         creatorUserId: user.id
+      }
+    });
+
+    const notificationLogs = await tx.notificationLog.deleteMany({
+      where: {
+        userId: user.id
       }
     });
 
@@ -195,6 +266,19 @@ const run = async () => {
       }
     });
 
+    const creatorProfileChangeRequests = await tx.creatorProfileChangeRequest.deleteMany({
+      where: {
+        OR: [
+          {
+            creatorUserId: user.id
+          },
+          {
+            teamLeadUserId: user.id
+          }
+        ]
+      }
+    });
+
     const creatorProfiles = await tx.creatorProfile.deleteMany({
       where: {
         userId: user.id
@@ -209,6 +293,7 @@ const run = async () => {
 
     return {
       user,
+      locator,
       previousRole: existingUser?.role ?? null,
       previousIsActive: existingUser?.isActive ?? null,
       createdUser: !existingUser,
@@ -223,6 +308,7 @@ const run = async () => {
         monthlyPaymentSnapshots: monthlyPaymentSnapshots.count,
         dailyPublicationChecks: dailyPublicationChecks.count,
         documentRequests: documentRequests.count,
+        notificationLogs: notificationLogs.count,
         paymentUploads: paymentUploads.count,
         workflowLinks: workflowLinks.count,
         workflowStates: workflowStates.count,
@@ -230,13 +316,16 @@ const run = async () => {
         documents: documents.count,
         creatorSocialAccounts: creatorSocialAccounts.count,
         creatorProfileChangeLogs: creatorProfileChangeLogs.count,
+        creatorProfileChangeRequests: creatorProfileChangeRequests.count,
         creatorProfiles: creatorProfiles.count,
         teamLeadProfiles: teamLeadProfiles.count
       }
     };
   });
 
-  console.log(`Test creator reset completed: telegramId=${result.user.telegramId}, userId=${result.user.id}`);
+  console.log(
+    `Test creator reset completed: target=${result.locator.label}, telegramId=${result.user.telegramId}, userId=${result.user.id}`
+  );
   console.log(
     result.createdUser
       ? 'User was created as CREATOR.'

@@ -101,6 +101,7 @@ type PendingSocialsRow = {
   platform: SocialPlatform;
   socialLink: string;
   creatorName: string;
+  creatorTelegramUsername: string;
   teamLeadName: string;
   monthKey: string;
   weeks: SocialsSheetWeekInput[];
@@ -186,6 +187,7 @@ export class SocialsSheetSyncService {
       );
       const firstReport = sortedReports[0];
       const creatorName = formatCreatorDisplayName(firstReport.creator);
+      const creatorTelegramUsername = firstReport.creator.username ? `@${firstReport.creator.username}` : '';
       const teamLeadName = formatAssignedTeamLeadName(firstReport.creator);
 
       for (const platform of PLATFORM_ORDER) {
@@ -235,6 +237,7 @@ export class SocialsSheetSyncService {
             platform,
             socialLink: socialLinks.get(`${firstReport.creatorUserId}:${platform}`) ?? '',
             creatorName,
+            creatorTelegramUsername,
             teamLeadName,
             monthKey: firstReport.monthKey,
             weeks,
@@ -295,6 +298,7 @@ export class SocialsSheetSyncService {
           platform: firstRow.platform,
           socialLink: '',
           creatorName: 'Итог',
+          creatorTelegramUsername: '',
           teamLeadName: '',
           monthKey: firstRow.monthKey,
           weeks: totalWeeks,
@@ -314,6 +318,7 @@ export class SocialsSheetSyncService {
       platform: row.platform,
       socialLink: row.socialLink,
       creatorName: row.creatorName,
+      creatorTelegramUsername: row.creatorTelegramUsername,
       teamLeadName: row.teamLeadName,
       monthKey: row.monthKey,
       weeks: row.weeks,

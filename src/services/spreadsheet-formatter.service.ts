@@ -40,6 +40,7 @@ export interface SocialsSheetRowInput {
   platform: string;
   socialLink: string;
   creatorName: string;
+  creatorTelegramUsername: string;
   teamLeadName: string;
   monthKey: string;
   weeks: SocialsSheetWeekInput[];
@@ -126,7 +127,7 @@ const labelOrValue = (map: Record<string, string>, value: string) => map[value] 
 
 const SOCIALS_WEEK_SLOT_COUNT = 6;
 const SOCIALS_WEEK_METRICS = ['Неделя', 'Охват', 'Лайки', 'Комментарии', 'Сохранения', 'Репосты'];
-const SOCIALS_BASE_COLUMN_COUNT = 7;
+const SOCIALS_BASE_COLUMN_COUNT = 8;
 
 const buildSocialsHeaders = () => [
   'Ключ синхронизации',
@@ -134,6 +135,7 @@ const buildSocialsHeaders = () => [
   'Соцсеть',
   'Ссылка',
   'Креатор',
+  'Tg username',
   'Тимлид',
   'Месяц',
   ...Array.from({ length: SOCIALS_WEEK_SLOT_COUNT }).flatMap((_, weekIndex) =>
@@ -174,8 +176,9 @@ const buildSocialsColumnWidths = () => {
     2: 105,
     3: 210,
     4: 210,
-    5: 170,
-    6: 90
+    5: 130,
+    6: 170,
+    7: 90
   };
 
   for (let weekIndex = 0; weekIndex < SOCIALS_WEEK_SLOT_COUNT; weekIndex += 1) {
@@ -260,7 +263,7 @@ export class SpreadsheetFormatterService {
       headers: buildSocialsHeaders(),
       hiddenColumnIndexes: [0, 1],
       integerColumnIndexes: buildSocialsIntegerColumnIndexes(),
-      wrapColumnIndexes: [3, 4, 5],
+      wrapColumnIndexes: [3, 4, 5, 6],
       columnWidths: buildSocialsColumnWidths()
     };
   }
@@ -393,6 +396,7 @@ export class SpreadsheetFormatterService {
         labelOrValue(platformLabelMap, input.platform),
         input.socialLink,
         input.creatorName,
+        input.creatorTelegramUsername,
         input.teamLeadName,
         input.monthKey,
         ...weekValues,
