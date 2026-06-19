@@ -205,16 +205,35 @@ const chunkForTelegramMediaGroup = <T>(items: T[]) => {
 const isCurrentWorkflowDocument = (document: { scopeKey?: string | null; type?: DocumentType | null }) =>
   isCurrentOrPermanentSignatureDocument(document);
 
-const getReusableOneOffDocumentRank = (document: Pick<OneOffDocument, 'status' | 'payloadJson' | 'type'>) => {
+const documentFileExists = (filePath?: string | null) => {
+  if (!filePath) {
+    return false;
+  }
+
+  try {
+    const stats = fsSync.statSync(filePath);
+    return stats.isFile() && stats.size > 0;
+  } catch {
+    return false;
+  }
+};
+
+const getReusableOneOffDocumentRank = (
+  document: Pick<OneOffDocument, 'status' | 'payloadJson' | 'type' | 'filePath'>
+) => {
   if (SIGNED_STATUSES.has(document.status)) {
     return 30;
   }
 
-  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+  if (
+    isPermanentSignatureDocumentType(document.type) &&
+    document.status !== DocumentStatus.FAILED &&
+    documentFileExists(document.filePath)
+  ) {
     return 20;
   }
 
-  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type)) {
+  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type) && documentFileExists(document.filePath)) {
     return 10;
   }
 
@@ -312,17 +331,21 @@ const getVisibleWorkflowDocumentKey = (document: Pick<VisibleWorkflowDocument, '
   `${document.type}:${document.monthKey ?? 'one-off'}`;
 
 const getVisibleWorkflowDocumentRank = (
-  document: Pick<VisibleWorkflowDocument, 'status' | 'payloadJson' | 'type'>
+  document: Pick<VisibleWorkflowDocument, 'status' | 'payloadJson' | 'type'> & { filePath?: string | null }
 ) => {
   if (SIGNED_STATUSES.has(document.status)) {
     return 30;
   }
 
-  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+  if (
+    isPermanentSignatureDocumentType(document.type) &&
+    document.status !== DocumentStatus.FAILED &&
+    documentFileExists(document.filePath)
+  ) {
     return 20;
   }
 
-  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type)) {
+  if (isApprovedTemplateDocumentPayload(document.payloadJson, document.type) && documentFileExists(document.filePath)) {
     return 10;
   }
 

@@ -1,3 +1,5 @@
+import fsSync from 'node:fs';
+
 import {
   CreatorDocumentWorkflowStatus,
   DocumentStatus,
@@ -49,21 +51,45 @@ const isCurrentTemplateDocument = (document: Pick<Document, 'payloadJson' | 'typ
 const isSignedDocument = (document: Pick<Document, 'status'>) =>
   SIGNED_DOCUMENT_STATUSES.has(document.status);
 
-const isUsableWorkflowDocument = (document: Pick<Document, 'status' | 'payloadJson' | 'type'>) =>
-  isSignedDocument(document) ||
-  isCurrentTemplateDocument(document) ||
-  (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED);
+const documentFileExists = (filePath?: string | null) => {
+  if (!filePath) {
+    return false;
+  }
 
-const getWorkflowDocumentRank = (document: Pick<Document, 'status' | 'payloadJson' | 'type'>) => {
+  try {
+    const stats = fsSync.statSync(filePath);
+    return stats.isFile() && stats.size > 0;
+  } catch {
+    return false;
+  }
+};
+
+const isUsableWorkflowDocument = (
+  document: Pick<Document, 'status' | 'payloadJson' | 'type' | 'filePath'>
+) =>
+  isSignedDocument(document) ||
+  (
+    documentFileExists(document.filePath) &&
+    (
+      isCurrentTemplateDocument(document) ||
+      (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED)
+    )
+  );
+
+const getWorkflowDocumentRank = (document: Pick<Document, 'status' | 'payloadJson' | 'type' | 'filePath'>) => {
   if (isSignedDocument(document)) {
     return 30;
   }
 
-  if (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED) {
+  if (
+    isPermanentSignatureDocumentType(document.type) &&
+    document.status !== DocumentStatus.FAILED &&
+    documentFileExists(document.filePath)
+  ) {
     return 20;
   }
 
-  if (isCurrentTemplateDocument(document)) {
+  if (isCurrentTemplateDocument(document) && documentFileExists(document.filePath)) {
     return 10;
   }
 
@@ -80,7 +106,7 @@ const getWorkflowDocumentTimestamp = (
 
 const pickBestWorkflowDocument = <T extends Pick<
   Document,
-  'status' | 'payloadJson' | 'type' | 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'
+  'status' | 'payloadJson' | 'type' | 'filePath' | 'generatedAt' | 'sentAt' | 'signedUploadedAt' | 'forwardedAt'
 >>(documents: T[]) =>
   [...documents]
     .filter(isUsableWorkflowDocument)
