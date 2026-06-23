@@ -53,6 +53,16 @@ pm2 save --force
 - For safe document export testing, set `TEST_DOCUMENTS_CHAT_ID` and switch `DOCUMENTS_CHAT_TARGET=test`; return to `DOCUMENTS_CHAT_TARGET=production` for the working chat.
 - Google Sheets target spreadsheet was configured through `.env`; do not hardcode credentials in code.
 
+### 2026-06-23 Server Incident Note
+
+- The server should have three bot processes, not four:
+  - `cerca-ai-creator-bot`
+  - `cerca-statistics-bot`
+  - `cerca-trova-booking-bot`
+- `cerca-trova-bot` is an accidental/extra PM2 process if it appears on this server. Delete only that process with `pm2 delete cerca-trova-bot`.
+- Do not clone or deploy this statistics repo into `/opt/cerca-trova-bot`. If it happened, move that wrong clone aside, restore the newest `/opt/cerca-trova-bot.old-*` backup back to `/opt/cerca-trova-bot`, then deploy statistics from `/opt/cerca-statistics-bot`.
+- For this repo, `npm run build` and `npm run prisma:deploy` exist. If they are missing on the server, you are in the wrong directory or the wrong project.
+
 ## Roles And Access
 
 Known admin Telegram IDs:

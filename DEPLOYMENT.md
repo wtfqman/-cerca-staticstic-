@@ -8,6 +8,7 @@ This project is a Telegram bot with PostgreSQL, Prisma, Google Sheets sync and D
 - Never run the same `BOT_TOKEN` in two places at the same time. Stop the local bot before starting the server bot.
 - `storage/` must be persistent on the server. Do not keep it only inside a temporary deploy directory.
 - LibreOffice must be installed on the server, otherwise DOCX -> PDF generation will fail.
+- Production has several PM2 bots on the same server. This statistics bot is deployed from `/opt/cerca-statistics-bot` and must run as `cerca-statistics-bot`. Do not deploy it into `/opt/cerca-trova-bot`; that directory belongs to the booking bot.
 
 ## Server Packages
 
@@ -68,9 +69,9 @@ DATABASE_URL=postgresql://cerca_bot:CHANGE_ME_STRONG_PASSWORD@localhost:5432/cer
 ## Project Directory
 
 ```bash
-mkdir -p /opt/cerca-trova-bot
+mkdir -p /opt/cerca-statistics-bot
 mkdir -p /var/cerca-trova-bot/storage
-cd /opt/cerca-trova-bot
+cd /opt/cerca-statistics-bot
 ```
 
 Clone the repo:
@@ -161,22 +162,56 @@ Check Google Sheets connection from admin menu after bot starts:
 ## Start With PM2
 
 ```bash
-pm2 start dist/index.js --name cerca-trova-bot --time
+pm2 start dist/index.js --name cerca-statistics-bot --time
 pm2 save
 pm2 startup
-pm2 logs cerca-trova-bot
+pm2 logs cerca-statistics-bot
 ```
 
 Restart after future deploys:
 
 ```bash
-cd /opt/cerca-trova-bot
-git pull
+cd /opt/cerca-statistics-bot
+git pull --ff-only origin main
 npm ci
 npm run prisma:deploy
 npm run build
-pm2 restart cerca-trova-bot --update-env
-pm2 logs cerca-trova-bot
+pm2 restart cerca-statistics-bot --update-env
+pm2 logs cerca-statistics-bot
+```
+
+## Emergency Cleanup If Statistics Was Deployed Into Booking Directory
+
+If an accidental PM2 process named `cerca-trova-bot` appears, remove only that wrong process and restore the booking directory from the timestamped backup before deploying statistics from its real directory:
+
+```bash
+pm2 delete cerca-trova-bot || true
+
+cd /opt
+WRONG_DIR="/opt/cerca-trova-bot"
+BOOKING_BACKUP="$(ls -dt /opt/cerca-trova-bot.old-* 2>/dev/null | head -n1)"
+
+if [ -d "$WRONG_DIR/.git" ] && grep -q -- "-cerca-staticstic-" "$WRONG_DIR/.git/config"; then
+  mv "$WRONG_DIR" "/opt/cerca-trova-bot.wrong-statistics-$(date +%Y%m%d-%H%M)"
+fi
+
+if [ ! -d "$WRONG_DIR" ]; then
+  if [ -z "$BOOKING_BACKUP" ]; then
+    echo "No booking backup found; stop and inspect /opt manually"
+    exit 1
+  fi
+  mv "$BOOKING_BACKUP" "$WRONG_DIR"
+fi
+
+cd /opt/cerca-statistics-bot
+git pull --ff-only origin main
+npm ci
+npm run prisma:generate
+npm run build
+npm run prisma:deploy
+pm2 restart cerca-statistics-bot --update-env
+pm2 save --force
+pm2 status
 ```
 
 ## First Bot Check
