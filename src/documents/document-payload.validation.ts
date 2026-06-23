@@ -3,6 +3,7 @@ import { DocumentType, LegalType } from '@prisma/client';
 type CreatorDocumentProfile = {
   legalType: LegalType | null;
   fullName: string | null;
+  contractStartDate: Date | string | null;
   contractDeadlineDate: Date | string | null;
   phone: string | null;
   email: string | null;
@@ -154,6 +155,7 @@ const assertEmail = (value: string | null | undefined) => {
 
 export const assertCreatorDocumentProfileValid = (profile: CreatorDocumentProfile) => {
   assertHumanName(profile.fullName);
+  assertDate(profile.contractStartDate, 'Дата договора');
   assertDate(profile.contractDeadlineDate, 'Срок выполнения договора');
   assertPhone(profile.phone);
   assertEmail(profile.email);

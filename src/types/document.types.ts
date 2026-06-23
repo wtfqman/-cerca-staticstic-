@@ -16,6 +16,7 @@ export interface CreatorDocumentBasePayload {
   legalType: LegalType;
   personGender: DocumentPersonGender;
   personGrammar: DocumentPersonGrammar;
+  contractStartDate: string;
   contractDeadlineDate: string;
   phone: string;
   email: string;

@@ -46,6 +46,7 @@ const payment = {
 
 const commonPayload = {
   creator: baseCreator,
+  contractStartDate: '01.03.2026',
   contractNumber: 'БТР-01.03.2026',
   contractDate: '01.03.2026',
   companySignDate: '01.03.2026',

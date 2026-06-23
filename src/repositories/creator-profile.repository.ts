@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 export interface CreatorProfileUpsertInput {
   legalType?: LegalType | null;
   fullName?: string;
+  contractStartDate?: Date;
   contractDeadlineDate?: Date;
   phone?: string;
   email?: string;

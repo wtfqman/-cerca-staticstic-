@@ -234,6 +234,7 @@ export const approvalInlineKeyboard = (confirmData: string, cancelData = 'action
 const profileEditLabels: Record<CreatorProfileEditableField, string> = {
   legalType: 'Юр. тип',
   fullName: 'ФИО',
+  contractStartDate: 'Дата договора',
   contractDeadlineDate: 'Срок договора',
   registrationAddress: 'Адрес регистрации',
   inn: 'ИНН',

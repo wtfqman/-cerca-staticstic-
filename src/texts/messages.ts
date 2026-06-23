@@ -1,3 +1,9 @@
+export const CONTRACT_START_DATE_REGISTRATION_PROMPT =
+  'Укажи дату договора / дату начала сотрудничества в формате ДД.ММ.ГГГГ. Например: 01.03.2026.';
+
+export const CONTRACT_START_DATE_EDIT_PROMPT =
+  'Введи новую дату договора / дату начала сотрудничества в формате ДД.ММ.ГГГГ. Например: 01.03.2026.';
+
 export const CONTRACT_DEADLINE_REGISTRATION_PROMPT =
   'Укажи срок, к которому должен быть выполнен договор (договор на 6 месяцев), в формате ДД.ММ.ГГГГ.';
 

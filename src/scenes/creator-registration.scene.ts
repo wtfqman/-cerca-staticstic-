@@ -29,12 +29,13 @@ import { formatRussianDate } from '../utils/formatters';
 import type { CreatorProfileUpsertInput } from '../repositories/creator-profile.repository';
 import { formatUserError, formatValidationError, logUserError } from '../utils/user-errors';
 import { startCreatorDocumentsAfterRegistration } from '../creators/creator-documents.flow';
-import { CONTRACT_DEADLINE_REGISTRATION_PROMPT } from '../texts/messages';
+import { CONTRACT_DEADLINE_REGISTRATION_PROMPT, CONTRACT_START_DATE_REGISTRATION_PROMPT } from '../texts/messages';
 import { NO_CONTRACT_REGISTRATION_VALUE, isNoContractLegalType } from '../utils/creator-registration-mode';
 import { safeAnswerCbQuery } from '../utils/telegram-callback';
 
 type RegistrationField =
   | 'fullName'
+  | 'contractStartDate'
   | 'contractDeadlineDate'
   | 'passportSeries'
   | 'passportNumber'
@@ -71,6 +72,11 @@ const fieldConfigs: Record<RegistrationField, FieldConfig> = {
     key: 'fullName',
     prompt: 'Укажи ФИО полностью.',
     parse: (value) => fullNameSchema.parse(value)
+  },
+  contractStartDate: {
+    key: 'contractStartDate',
+    prompt: CONTRACT_START_DATE_REGISTRATION_PROMPT,
+    parse: parseRuDateToDate
   },
   contractDeadlineDate: {
     key: 'contractDeadlineDate',
@@ -151,6 +157,7 @@ const fieldConfigs: Record<RegistrationField, FieldConfig> = {
 
 const selfEmployedFields: RegistrationField[] = [
   'fullName',
+  'contractStartDate',
   'contractDeadlineDate',
   'passportSeries',
   'passportNumber',
@@ -169,6 +176,7 @@ const selfEmployedFields: RegistrationField[] = [
 
 const ipFields: RegistrationField[] = [
   'fullName',
+  'contractStartDate',
   'contractDeadlineDate',
   'registrationAddress',
   'inn',
@@ -190,6 +198,7 @@ const noContractFields: RegistrationField[] = [
 const CHANGE_LEGAL_TYPE_CALLBACK = 'register_change_legal_type';
 
 const legalTypeChangeFields = new Set<RegistrationField>([
+  'contractStartDate',
   'contractDeadlineDate',
   'passportSeries',
   'registrationAddress',
@@ -276,6 +285,7 @@ const buildDraftFromProfile = (
   return {
     legalType: profile.legalType,
     fullName: profile.fullName ?? undefined,
+    contractStartDate: profile.contractStartDate ?? undefined,
     contractDeadlineDate: profile.contractDeadlineDate ?? undefined,
     passportSeries: profile.passportSeries ?? undefined,
     passportNumber: profile.passportNumber ?? undefined,
@@ -332,6 +342,9 @@ const showReview = async (ctx: BotContext) => {
       '',
       `Тип: ${legalType}`,
       `ФИО: ${draft.fullName ?? '—'}`,
+      isNoContractLegalType(draft.legalType)
+        ? null
+        : `Дата договора: ${formatDraftDate(draft.contractStartDate)}`,
       isNoContractLegalType(draft.legalType)
         ? null
         : `Срок выполнения договора: ${formatDraftDate(draft.contractDeadlineDate)}`,

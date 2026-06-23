@@ -12,6 +12,7 @@ import { isNoContractLegalType } from '../utils/creator-registration-mode';
 export type CreatorProfileEditableField =
   | 'legalType'
   | 'fullName'
+  | 'contractStartDate'
   | 'contractDeadlineDate'
   | 'passportSeries'
   | 'passportNumber'
@@ -31,6 +32,7 @@ export type CreatorProfileEditableField =
 export const creatorProfileFieldLabels: Record<CreatorProfileEditableField, string> = {
   legalType: 'Юридический тип',
   fullName: 'ФИО',
+  contractStartDate: 'Дата договора',
   contractDeadlineDate: 'Срок выполнения договора',
   passportSeries: 'Серия паспорта',
   passportNumber: 'Номер паспорта',
@@ -50,6 +52,7 @@ export const creatorProfileFieldLabels: Record<CreatorProfileEditableField, stri
 
 const selfEmployedEditableFields: CreatorProfileEditableField[] = [
   'fullName',
+  'contractStartDate',
   'contractDeadlineDate',
   'passportSeries',
   'passportNumber',
@@ -68,6 +71,7 @@ const selfEmployedEditableFields: CreatorProfileEditableField[] = [
 
 const ipEditableFields: CreatorProfileEditableField[] = [
   'fullName',
+  'contractStartDate',
   'contractDeadlineDate',
   'registrationAddress',
   'inn',
@@ -110,7 +114,7 @@ export const getCreatorProfileEditableFields = (legalType?: LegalType | null): C
 };
 
 const isDateField = (field: CreatorProfileEditableField) =>
-  field === 'contractDeadlineDate' || field === 'passportIssuedAt';
+  field === 'contractStartDate' || field === 'contractDeadlineDate' || field === 'passportIssuedAt';
 
 const hasValue = (value: unknown) => {
   if (value instanceof Date) {
@@ -257,6 +261,9 @@ export class CreatorProfileService {
     return [
       `Тип: ${legalTypeLabel}`,
       `ФИО: ${profile.fullName ?? '—'}`,
+      isNoContractLegalType(profile.legalType)
+        ? null
+        : `Дата договора: ${formatRussianDate(profile.contractStartDate)}`,
       isNoContractLegalType(profile.legalType)
         ? null
         : `Срок выполнения договора: ${formatRussianDate(profile.contractDeadlineDate)}`,

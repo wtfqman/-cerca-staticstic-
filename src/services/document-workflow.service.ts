@@ -51,6 +51,48 @@ const isCurrentTemplateDocument = (document: Pick<Document, 'payloadJson' | 'typ
 const isSignedDocument = (document: Pick<Document, 'status'>) =>
   SIGNED_DOCUMENT_STATUSES.has(document.status);
 
+const parsePayloadDateKey = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const russianDate = value.trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+
+  if (russianDate) {
+    const [, day, month, year] = russianDate;
+    return `${year}-${month}-${day}`;
+  }
+
+  const isoDate = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  return isoDate ? value.trim() : null;
+};
+
+const getDateOnlyKey = (value?: Date | null) => value?.toISOString().slice(0, 10) ?? null;
+
+const getPayloadContractDateKey = (payloadJson: unknown) => {
+  const payload = typeof payloadJson === 'object' && payloadJson !== null
+    ? payloadJson as Record<string, unknown>
+    : {};
+
+  return parsePayloadDateKey(payload.contractDate) ??
+    parsePayloadDateKey(payload.documentDate) ??
+    parsePayloadDateKey(payload.generatedDate);
+};
+
+const documentMatchesExpectedContractDate = (
+  state: DocumentWorkflowStateWithRelations,
+  document: Pick<Document, 'payloadJson'>
+) => {
+  const expectedContractDate = state.creator.creatorProfile?.contractStartDate;
+
+  if (!expectedContractDate) {
+    return true;
+  }
+
+  return getPayloadContractDateKey(document.payloadJson) === getDateOnlyKey(expectedContractDate);
+};
+
 const documentFileExists = (filePath?: string | null) => {
   if (!filePath) {
     return false;
@@ -141,6 +183,7 @@ const hasRequiredSignedWorkflowDocument = (
       link.queue === queue &&
       link.document.type === type &&
       (link.document.monthKey ?? null) === monthKey &&
+      documentMatchesExpectedContractDate(state, link.document) &&
       isSignedDocument(link.document)
   );
 
@@ -559,7 +602,8 @@ export class DocumentWorkflowService {
               (link) =>
                 link.queue === DocumentWorkflowQueue.FIRST_QUEUE &&
                 link.document.type === expectedDocument.type &&
-                (link.document.monthKey ?? null) === expectedDocument.monthKey
+                (link.document.monthKey ?? null) === expectedDocument.monthKey &&
+                documentMatchesExpectedContractDate(refreshedState, link.document)
             )
             .map((link) => link.document) ?? []
         );
@@ -622,10 +666,11 @@ export class DocumentWorkflowService {
       const linkedDocument = pickBestWorkflowDocument(
         refreshedState?.documents
           .filter(
-            (link) =>
-              link.queue === DocumentWorkflowQueue.SECOND_QUEUE &&
-              link.document.type === expectedDocument.type &&
-              link.document.monthKey === expectedDocument.monthKey
+              (link) =>
+                link.queue === DocumentWorkflowQueue.SECOND_QUEUE &&
+                link.document.type === expectedDocument.type &&
+                link.document.monthKey === expectedDocument.monthKey &&
+                documentMatchesExpectedContractDate(refreshedState, link.document)
           )
           .map((link) => link.document) ?? []
       );

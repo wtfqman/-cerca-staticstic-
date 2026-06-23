@@ -150,8 +150,13 @@ export class DocumentPayloadBuilderService {
     const workflowContractDate = resolveWorkflowDate(options.workflow, 'contractDate');
     const workflowDocumentDate = resolveWorkflowDate(options.workflow, 'documentDate');
     const workflowContractNumber = resolveWorkflowString(options.workflow, 'contractNumber');
-    const documentDate = workflowDocumentDate ?? options.generatedDate ?? workflowContractDate ?? getDefaultOneOffDocumentDate();
-    const contractDate = workflowContractDate ?? documentDate;
+    const profileContractDate = creator.creatorProfile!.contractStartDate ?? null;
+    const documentDate = workflowDocumentDate ??
+      options.generatedDate ??
+      workflowContractDate ??
+      profileContractDate ??
+      getDefaultOneOffDocumentDate();
+    const contractDate = workflowContractDate ?? profileContractDate ?? documentDate;
     const companySignDate = resolveWorkflowSignDate(options.workflow, 'companySignDate', documentDate);
     const creatorSignDate = resolveWorkflowSignDate(options.workflow, 'creatorSignDate', documentDate);
 
@@ -276,6 +281,7 @@ export class DocumentPayloadBuilderService {
       personGender: personGrammar.gender,
       personGrammar,
       creatorLegalLabel: profile.legalType === LegalType.SELF_EMPLOYED ? personGrammar.selfEmployedLegalLabel : 'ИП',
+      contractStartDate: profile.contractStartDate ? formatRussianDate(profile.contractStartDate) : '',
       contractDeadlineDate: profile.contractDeadlineDate ? formatRussianDate(profile.contractDeadlineDate) : '',
       phone: profile.phone ?? '',
       email: profile.email ?? '',

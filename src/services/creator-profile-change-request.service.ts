@@ -13,6 +13,7 @@ import { canUseAdminScenario, canUseCreatorScenario, canUseTeamLeadScenario } fr
 import { formatCreatorDisplayName, formatRussianDateTime } from '../utils/formatters';
 
 const commonCreatorRequestedFields: CreatorProfileEditableField[] = [
+  'contractStartDate',
   'contractDeadlineDate',
   'registrationAddress',
   'inn',

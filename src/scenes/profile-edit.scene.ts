@@ -28,7 +28,11 @@ import {
   getCreatorProfileEditableFields,
   type CreatorProfileEditableField
 } from '../services/creator-profile.service';
-import { CONTRACT_DEADLINE_EDIT_PROMPT, CREATOR_SELF_EDIT_DISABLED_TEXT } from '../texts/messages';
+import {
+  CONTRACT_DEADLINE_EDIT_PROMPT,
+  CONTRACT_START_DATE_EDIT_PROMPT,
+  CREATOR_SELF_EDIT_DISABLED_TEXT
+} from '../texts/messages';
 import { getMessageText } from '../utils/telegram';
 import { formatCreatorDisplayName, formatRussianDate } from '../utils/formatters';
 import { formatUserError, formatValidationError, logUserError } from '../utils/user-errors';
@@ -42,7 +46,11 @@ type ProfileEditState = {
   newValueDisplay?: string;
 };
 
-const dateFields = new Set<CreatorProfileEditableField>(['contractDeadlineDate', 'passportIssuedAt']);
+const dateFields = new Set<CreatorProfileEditableField>([
+  'contractStartDate',
+  'contractDeadlineDate',
+  'passportIssuedAt'
+]);
 
 const parseDateInput = (value: string) => {
   const parsed = parseRuDateToDate(value);
@@ -56,6 +64,7 @@ const parseDateInput = (value: string) => {
 const fieldPrompts: Record<CreatorProfileEditableField, string> = {
   legalType: 'Выбери новый юридический тип для анкеты. После смены креатор дозаполнит договорные данные в профиле.',
   fullName: 'Введи новое ФИО полностью.',
+  contractStartDate: CONTRACT_START_DATE_EDIT_PROMPT,
   contractDeadlineDate: CONTRACT_DEADLINE_EDIT_PROMPT,
   registrationAddress: 'Введи новый адрес регистрации.',
   inn: 'Введи новый ИНН.',
