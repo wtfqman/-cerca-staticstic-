@@ -19,6 +19,7 @@ type CreatorDocumentProfile = {
   passportDepartmentCode: string | null;
   registrationAddress: string | null;
   ogrnip: string | null;
+  taxSystem: string | null;
 };
 
 const SUSPICIOUS_EMAIL_DOMAINS = new Set([
@@ -168,7 +169,7 @@ export const assertCreatorDocumentProfileValid = (profile: CreatorDocumentProfil
 
   if (profile.legalType === LegalType.IP) {
     assertDigitsLength(profile.ogrnip, 'ОГРНИП', 15);
-    return;
+    assertRequiredText(profile.taxSystem, 'Система налогообложения');
   }
 
   assertDigitsLength(profile.passportSeries, 'Серия паспорта', 4);
@@ -707,6 +708,17 @@ export const assertRenderedDocumentTextValid = (input: {
 
   if (text.includes('{{') || text.includes('}}')) {
     addIssue(issues, 'unresolved_template_placeholder', 'после рендера в DOCX остался незамененный placeholder');
+  }
+
+  const creatorPayload = getPayloadRecord(input.payload, 'creator');
+  const legalType = input.payload.legalType ?? creatorPayload.legalType;
+
+  if (legalType === LegalType.IP && /налог[а]? на профессиональный доход|самозанят/i.test(text)) {
+    addIssue(
+      issues,
+      'ip_rendered_text_contains_self_employed_tax',
+      'после рендера в IP-документе осталась формулировка про самозанятость или НПД'
+    );
   }
 
   if (DOCUMENT_TYPES_REQUIRING_CONTRACT_REFERENCE.has(input.type)) {

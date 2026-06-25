@@ -249,7 +249,8 @@ const profileEditLabels: Record<CreatorProfileEditableField, string> = {
   passportIssuedAt: 'Дата выдачи паспорта',
   passportIssuedByInstrumental: 'Кем выдан паспорт',
   passportDepartmentCode: 'Код подразделения',
-  ogrnip: 'ОГРНИП'
+  ogrnip: 'ОГРНИП',
+  taxSystem: 'Налоги'
 };
 
 export const profileEditFieldKeyboard = (fields: CreatorProfileEditableField[]) =>

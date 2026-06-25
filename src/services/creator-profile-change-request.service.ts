@@ -43,7 +43,13 @@ const selfEmployedCreatorRequestedFields: CreatorProfileEditableField[] = [
 
 const ipCreatorRequestedFields: CreatorProfileEditableField[] = [
   ...commonCreatorRequestedFields,
-  'ogrnip'
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedAt',
+  'passportIssuedByInstrumental',
+  'passportDepartmentCode',
+  'ogrnip',
+  'taxSystem'
 ];
 
 export const getCreatorProfileChangeRequestFields = (

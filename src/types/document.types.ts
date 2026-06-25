@@ -37,6 +37,7 @@ export interface CreatorDocumentBasePayload {
   passportDepartmentCode?: string | null;
   registrationAddress?: string | null;
   ogrnip?: string | null;
+  taxSystem?: string | null;
 }
 
 export interface MonthlyDocumentPayload extends CreatorDocumentBasePayload {

@@ -43,6 +43,7 @@ type ReplacementFields = {
   bankAccount: string;
   bankBik: string;
   bankCorrAccount: string;
+  taxSystem: string;
   contractNumber: string;
   contractDate: string;
   documentDate: string;
@@ -1136,6 +1137,7 @@ export class DocxTemplateRenderService {
       bankAccount: asString(source.bankAccount) || EMPTY_FIELD,
       bankBik: asString(source.bankBik) || EMPTY_FIELD,
       bankCorrAccount: asString(source.bankCorrAccount) || EMPTY_FIELD,
+      taxSystem: asString(source.taxSystem) || EMPTY_FIELD,
       contractNumber: asString(payload.contractNumber) || EMPTY_FIELD,
       contractDate,
       documentDate,
@@ -1204,6 +1206,7 @@ export class DocxTemplateRenderService {
 
     result = this.replaceKnownPersonNames(result, fields);
     result = this.replacePersonGrammar(result, fields);
+    result = this.replaceIpTaxClauses(result, fields);
     result = replaceTextInParagraph(result, /(ДОГОВОР №\s*)_+/gi, `$1${fields.contractNumber}`);
     result = replaceTextInParagraph(result, /(Договор[^№\n]{0,120}№)\s*_+/g, `$1 ${fields.contractNumber}`);
     result = replaceTextInParagraph(result, /(Задание заказчика №)\s*_+/g, `$1 ${fields.contractNumber}`);
@@ -1324,6 +1327,43 @@ export class DocxTemplateRenderService {
     result = replaceTextInParagraph(result, 'именуемая', personGrammar.referredAs);
     result = replaceTextInParagraph(result, 'являющийся', personGrammar.selfEmployedTaxpayerParticiple);
     result = replaceTextInParagraph(result, 'являющаяся', personGrammar.selfEmployedTaxpayerParticiple);
+
+    return result;
+  }
+
+  private replaceIpTaxClauses(text: string, fields: ReplacementFields) {
+    if (fields.legalType !== LegalType.IP) {
+      return text;
+    }
+
+    let result = text;
+    const taxSystem = fields.taxSystem || EMPTY_FIELD;
+
+    result = replaceTextInParagraph(
+      result,
+      /,\s*паспортные данные,\s*являющ[а-яё]+ плательщиком налога на профессиональный доход,/gi,
+      ','
+    );
+    result = replaceTextInParagraph(
+      result,
+      /Исполнитель является самозанятым лицом и применяет специальный налоговый режим «Налог на профессиональный доход» в соответствии с действующим законодательством Российской Федерации\./g,
+      `Исполнитель применяет систему налогообложения: ${taxSystem}. Исполнитель самостоятельно исполняет обязанности налогоплательщика в соответствии с действующим законодательством Российской Федерации.`
+    );
+    result = replaceTextInParagraph(
+      result,
+      /После оказания услуги выдать Заказчику чек в установленном настоящим Договором и законом порядке;/g,
+      'После оказания услуг предоставить Заказчику документы, предусмотренные применяемой системой налогообложения и законодательством;'
+    );
+    result = replaceTextInParagraph(
+      result,
+      /Самостоятельно уплачивать налог на профессиональный доход и другие налоги, установленные действующим законодательством Российской Федерации;/g,
+      `Самостоятельно исчислять и уплачивать налоги и обязательные платежи в соответствии с применяемой системой налогообложения (${taxSystem}) и действующим законодательством Российской Федерации;`
+    );
+    result = replaceTextInParagraph(
+      result,
+      /В случае прекращения применения специального налогового режима «Налог на профессиональный доход» уведомить об этом Заказчика в срок не позднее 2 \(двух\) календарных дней с момента прекращения\./g,
+      'В случае изменения применяемой системы налогообложения уведомить об этом Заказчика в срок не позднее 2 (двух) календарных дней с момента изменения.'
+    );
 
     return result;
   }

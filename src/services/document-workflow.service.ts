@@ -114,7 +114,11 @@ const isUsableWorkflowDocument = (
     documentFileExists(document.filePath) &&
     (
       isCurrentTemplateDocument(document) ||
-      (isPermanentSignatureDocumentType(document.type) && document.status !== DocumentStatus.FAILED)
+      (
+        isPermanentSignatureDocumentType(document.type) &&
+        document.status !== DocumentStatus.FAILED &&
+        isCurrentTemplateDocument(document)
+      )
     )
   );
 
@@ -126,7 +130,8 @@ const getWorkflowDocumentRank = (document: Pick<Document, 'status' | 'payloadJso
   if (
     isPermanentSignatureDocumentType(document.type) &&
     document.status !== DocumentStatus.FAILED &&
-    documentFileExists(document.filePath)
+    documentFileExists(document.filePath) &&
+    isCurrentTemplateDocument(document)
   ) {
     return 20;
   }

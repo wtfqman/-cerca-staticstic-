@@ -17,6 +17,7 @@ export interface CreatorProfileUpsertInput {
   passportDepartmentCode?: string;
   registrationAddress?: string;
   ogrnip?: string;
+  taxSystem?: string;
   bankAccount?: string;
   bankBik?: string;
   bankCorrAccount?: string;

@@ -21,7 +21,8 @@ import {
   passportNumberSchema,
   passportSeriesSchema,
   phoneSchema,
-  registrationAddressSchema
+  registrationAddressSchema,
+  taxSystemSchema
 } from '../validators/profile.schemas';
 import {
   creatorProfileFieldLabels,
@@ -79,7 +80,8 @@ const fieldPrompts: Record<CreatorProfileEditableField, string> = {
   passportIssuedAt: 'Введи новую дату выдачи паспорта в формате ДД.ММ.ГГГГ.',
   passportIssuedByInstrumental: 'Введи, кем выдан паспорт, в творительном падеже.',
   passportDepartmentCode: 'Введи новый код подразделения паспорта. Можно 770001 или 770-001.',
-  ogrnip: 'Введи новый ОГРНИП.'
+  ogrnip: 'Введи новый ОГРНИП.',
+  taxSystem: 'Введи систему налогообложения. Например: УСН, плательщик НДС.'
 };
 
 const parseFieldValue = (field: CreatorProfileEditableField, input: string) => {
@@ -117,7 +119,8 @@ const parseFieldValue = (field: CreatorProfileEditableField, input: string) => {
     passportNumber: passportNumberSchema,
     passportIssuedByInstrumental: passportIssuedByInstrumentalSchema,
     passportDepartmentCode: passportDepartmentCodeSchema,
-    ogrnip: ogrnipSchema
+    ogrnip: ogrnipSchema,
+    taxSystem: taxSystemSchema
   };
 
   const value = schemaMap[field]?.parse(input);

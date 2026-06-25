@@ -172,6 +172,7 @@ model CreatorProfile {
   passportDepartmentCode       String?
   registrationAddress          String?
   ogrnip                       String?
+  taxSystem                    String?
   bankAccount                  String?
   bankBik                      String?
   bankCorrAccount              String?

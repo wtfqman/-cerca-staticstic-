@@ -290,6 +290,7 @@ export class DocumentPayloadBuilderService {
       bankAccount: profile.bankAccount ?? '',
       bankBik: profile.bankBik ?? '',
       bankCorrAccount: profile.bankCorrAccount ?? '',
+      taxSystem: profile.taxSystem ?? null,
       passportSeries: profile.passportSeries,
       passportNumber: profile.passportNumber,
       passportIssuedAt: profile.passportIssuedAt ? formatRussianDate(profile.passportIssuedAt) : null,

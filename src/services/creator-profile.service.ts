@@ -22,6 +22,7 @@ export type CreatorProfileEditableField =
   | 'registrationAddress'
   | 'inn'
   | 'ogrnip'
+  | 'taxSystem'
   | 'bankAccount'
   | 'bankName'
   | 'bankBik'
@@ -42,6 +43,7 @@ export const creatorProfileFieldLabels: Record<CreatorProfileEditableField, stri
   registrationAddress: 'Адрес регистрации',
   inn: 'ИНН',
   ogrnip: 'ОГРНИП',
+  taxSystem: 'Система налогообложения',
   bankAccount: 'Расчетный счет',
   bankName: 'Название банка',
   bankBik: 'БИК',
@@ -73,9 +75,15 @@ const ipEditableFields: CreatorProfileEditableField[] = [
   'fullName',
   'contractStartDate',
   'contractDeadlineDate',
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedAt',
+  'passportIssuedByInstrumental',
+  'passportDepartmentCode',
   'registrationAddress',
   'inn',
   'ogrnip',
+  'taxSystem',
   'bankAccount',
   'bankName',
   'bankBik',
@@ -108,6 +116,22 @@ export const getCreatorProfileEditableFields = (legalType?: LegalType | null): C
 
   if (legalType === LegalType.IP) {
     return ipEditableFields;
+  }
+
+  return [];
+};
+
+export const getCreatorProfileRequiredFields = (legalType?: LegalType | null): CreatorProfileEditableField[] => {
+  if (isNoContractLegalType(legalType)) {
+    return noContractRequiredFields;
+  }
+
+  if (legalType === LegalType.IP) {
+    return ipEditableFields;
+  }
+
+  if (legalType === LegalType.SELF_EMPLOYED) {
+    return selfEmployedEditableFields;
   }
 
   return [];
@@ -267,21 +291,22 @@ export class CreatorProfileService {
       isNoContractLegalType(profile.legalType)
         ? null
         : `Срок выполнения договора: ${formatRussianDate(profile.contractDeadlineDate)}`,
-      profile.legalType === LegalType.SELF_EMPLOYED
+      profile.legalType === LegalType.SELF_EMPLOYED || profile.legalType === LegalType.IP
         ? `Паспорт: ${passport}`
         : null,
-      profile.legalType === LegalType.SELF_EMPLOYED
+      profile.legalType === LegalType.SELF_EMPLOYED || profile.legalType === LegalType.IP
         ? `Дата выдачи паспорта: ${formatRussianDate(profile.passportIssuedAt)}`
         : null,
-      profile.legalType === LegalType.SELF_EMPLOYED
+      profile.legalType === LegalType.SELF_EMPLOYED || profile.legalType === LegalType.IP
         ? `Кем выдан паспорт: ${profile.passportIssuedByInstrumental ?? '—'}`
         : null,
-      profile.legalType === LegalType.SELF_EMPLOYED
+      profile.legalType === LegalType.SELF_EMPLOYED || profile.legalType === LegalType.IP
         ? `Код подразделения: ${profile.passportDepartmentCode ?? '—'}`
         : null,
       isNoContractLegalType(profile.legalType) ? null : `Адрес регистрации: ${profile.registrationAddress ?? '—'}`,
       isNoContractLegalType(profile.legalType) ? null : `ИНН: ${profile.inn ?? '—'}`,
       profile.legalType === LegalType.IP ? `ОГРНИП: ${profile.ogrnip ?? '—'}` : null,
+      profile.legalType === LegalType.IP ? `Система налогообложения: ${profile.taxSystem ?? '—'}` : null,
       isNoContractLegalType(profile.legalType) ? null : `Расчетный счет: ${profile.bankAccount ?? '—'}`,
       isNoContractLegalType(profile.legalType) ? null : `Банк: ${profile.bankName ?? '—'}`,
       isNoContractLegalType(profile.legalType) ? null : `БИК: ${profile.bankBik ?? '—'}`,
@@ -318,11 +343,7 @@ export class CreatorProfileService {
       throw new Error('Выбери тип регистрации.');
     }
 
-    const requiredFields = isNoContractLegalType(input.legalType)
-      ? noContractRequiredFields
-      : input.legalType === LegalType.IP
-        ? ipEditableFields
-        : selfEmployedEditableFields;
+    const requiredFields = getCreatorProfileRequiredFields(input.legalType);
     const missingField = requiredFields.find((field) => !hasValue(input[field]));
 
     if (missingField) {

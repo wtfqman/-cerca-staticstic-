@@ -1,5 +1,5 @@
 import { container } from '../container';
-import { DocumentStatus, LegalType } from '@prisma/client';
+import { DocumentStatus } from '@prisma/client';
 import {
   creatorFirstQueueActionsKeyboard,
   noContractCreatorPaymentKeyboard,
@@ -20,15 +20,43 @@ import { logUserError } from '../utils/user-errors';
 import { canUseCreatorScenario } from '../utils/access';
 import { safeAnswerCbQuery } from '../utils/telegram-callback';
 import { isNoContractCreatorProfile } from '../utils/creator-registration-mode';
+import {
+  creatorProfileFieldLabels,
+  getCreatorProfileRequiredFields,
+  type CreatorProfileEditableField
+} from '../services/creator-profile.service';
 
 export const CREATOR_PROFILE_REQUIRED_FOR_DOCUMENTS_TEXT =
   'Сначала нужно заполнить анкету. После этого я смогу сформировать документы.';
-const CREATOR_PASSPORT_DEPARTMENT_CODE_REQUIRED_TEXT =
-  'В анкете не заполнен код подразделения паспорта. Без него договор сформировать нельзя. Давай дозаполним анкету.';
 
-const needsPassportDepartmentCode = (profile: Awaited<ReturnType<typeof container.services.creatorProfileService.getProfile>>) =>
-  profile?.legalType === LegalType.SELF_EMPLOYED &&
-  (!profile.passportDepartmentCode || profile.passportDepartmentCode.trim().length === 0);
+type CreatorProfileForDocuments = Awaited<ReturnType<typeof container.services.creatorProfileService.getProfile>>;
+
+const hasProfileValue = (value: unknown) => {
+  if (value instanceof Date) {
+    return !Number.isNaN(value.getTime());
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+
+  return value !== null && value !== undefined;
+};
+
+const getMissingDocumentProfileFields = (profile: CreatorProfileForDocuments): CreatorProfileEditableField[] => {
+  if (!profile) {
+    return [];
+  }
+
+  return getCreatorProfileRequiredFields(profile.legalType).filter((field) => !hasProfileValue(profile[field]));
+};
+
+const formatMissingProfileFieldsText = (fields: readonly CreatorProfileEditableField[]) =>
+  [
+    'В анкете не хватает данных для договора.',
+    `Не заполнено: ${fields.map((field) => creatorProfileFieldLabels[field]).join(', ')}.`,
+    'Давай дозаполним анкету.'
+  ].join('\n');
 
 const FIRST_QUEUE_ALREADY_SENT_TEXT = [
   'Документы уже отправлены.',
@@ -143,17 +171,19 @@ export const ensureCreatorProfileCompletedForDocuments = async (ctx: BotContext)
 
   const profile = await container.services.creatorProfileService.getProfile(currentUser.id);
 
-  if (profile?.profileCompleted && !needsPassportDepartmentCode(profile)) {
+  const missingFields = getMissingDocumentProfileFields(profile);
+
+  if (profile?.profileCompleted && missingFields.length === 0) {
     return true;
   }
 
   if (ctx.callbackQuery) {
-    await safeAnswerCbQuery(ctx, needsPassportDepartmentCode(profile) ? 'Нужен код подразделения' : 'Сначала анкета');
+    await safeAnswerCbQuery(ctx, missingFields.length ? 'Нужно дозаполнить анкету' : 'Сначала анкета');
   }
 
   await ctx.reply(
-    needsPassportDepartmentCode(profile)
-      ? CREATOR_PASSPORT_DEPARTMENT_CODE_REQUIRED_TEXT
+    missingFields.length
+      ? formatMissingProfileFieldsText(missingFields)
       : CREATOR_PROFILE_REQUIRED_FOR_DOCUMENTS_TEXT
   );
 

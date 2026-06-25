@@ -228,7 +228,8 @@ const getReusableOneOffDocumentRank = (
   if (
     isPermanentSignatureDocumentType(document.type) &&
     document.status !== DocumentStatus.FAILED &&
-    documentFileExists(document.filePath)
+    documentFileExists(document.filePath) &&
+    isApprovedTemplateDocumentPayload(document.payloadJson, document.type)
   ) {
     return 20;
   }
@@ -388,7 +389,8 @@ const getVisibleWorkflowDocumentRank = (
   if (
     isPermanentSignatureDocumentType(document.type) &&
     document.status !== DocumentStatus.FAILED &&
-    documentFileExists(document.filePath)
+    documentFileExists(document.filePath) &&
+    isApprovedTemplateDocumentPayload(document.payloadJson, document.type)
   ) {
     return 20;
   }
@@ -431,6 +433,10 @@ const compactVisibleWorkflowDocuments = <T extends VisibleWorkflowDocument>(docu
   const selected = new Map<string, T>();
 
   for (const document of documents) {
+    if (getVisibleWorkflowDocumentRank(document) <= 0) {
+      continue;
+    }
+
     const key = getVisibleWorkflowDocumentKey(document);
     const existing = selected.get(key);
 

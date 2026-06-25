@@ -22,7 +22,8 @@ import {
   passportNumberSchema,
   passportSeriesSchema,
   phoneSchema,
-  registrationAddressSchema
+  registrationAddressSchema,
+  taxSystemSchema
 } from '../validators/profile.schemas';
 import { getMessageText } from '../utils/telegram';
 import { formatRussianDate } from '../utils/formatters';
@@ -45,6 +46,7 @@ type RegistrationField =
   | 'registrationAddress'
   | 'inn'
   | 'ogrnip'
+  | 'taxSystem'
   | 'bankAccount'
   | 'bankName'
   | 'bankBik'
@@ -123,6 +125,11 @@ const fieldConfigs: Record<RegistrationField, FieldConfig> = {
     prompt: 'Введи ОГРНИП.',
     parse: (value) => ogrnipSchema.parse(value)
   },
+  taxSystem: {
+    key: 'taxSystem',
+    prompt: 'Укажи систему налогообложения. Например: УСН, плательщик НДС.',
+    parse: (value) => taxSystemSchema.parse(value)
+  },
   bankAccount: {
     key: 'bankAccount',
     prompt: 'Введи расчетный счет.',
@@ -178,9 +185,15 @@ const ipFields: RegistrationField[] = [
   'fullName',
   'contractStartDate',
   'contractDeadlineDate',
+  'passportSeries',
+  'passportNumber',
+  'passportIssuedAt',
+  'passportIssuedByInstrumental',
+  'passportDepartmentCode',
   'registrationAddress',
   'inn',
   'ogrnip',
+  'taxSystem',
   'bankAccount',
   'bankName',
   'bankBik',
@@ -295,6 +308,7 @@ const buildDraftFromProfile = (
     registrationAddress: profile.registrationAddress ?? undefined,
     inn: profile.inn ?? undefined,
     ogrnip: profile.ogrnip ?? undefined,
+    taxSystem: profile.taxSystem ?? undefined,
     bankAccount: profile.bankAccount ?? undefined,
     bankName: profile.bankName ?? undefined,
     bankBik: profile.bankBik ?? undefined,
@@ -349,24 +363,25 @@ const showReview = async (ctx: BotContext) => {
         ? null
         : `Срок выполнения договора: ${formatDraftDate(draft.contractDeadlineDate)}`,
       '',
-      draft.legalType === LegalType.SELF_EMPLOYED ? 'Паспортные данные:' : null,
-      draft.legalType === LegalType.SELF_EMPLOYED
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP ? 'Паспортные данные:' : null,
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP
         ? `Паспорт: ${draft.passportSeries ?? '—'} ${draft.passportNumber ?? ''}`.trim()
         : null,
-      draft.legalType === LegalType.SELF_EMPLOYED
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP
         ? `Дата выдачи: ${formatDraftDate(draft.passportIssuedAt)}`
         : null,
-      draft.legalType === LegalType.SELF_EMPLOYED
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP
         ? `Кем выдан: ${draft.passportIssuedByInstrumental ?? '—'}`
         : null,
-      draft.legalType === LegalType.SELF_EMPLOYED
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP
         ? `Код подразделения: ${draft.passportDepartmentCode ?? '—'}`
         : null,
-      draft.legalType === LegalType.SELF_EMPLOYED ? '' : null,
+      draft.legalType === LegalType.SELF_EMPLOYED || draft.legalType === LegalType.IP ? '' : null,
       isNoContractLegalType(draft.legalType) ? null : 'Реквизиты:',
       isNoContractLegalType(draft.legalType) ? null : `Адрес регистрации: ${draft.registrationAddress ?? '—'}`,
       isNoContractLegalType(draft.legalType) ? null : `ИНН: ${draft.inn ?? '—'}`,
       draft.legalType === LegalType.IP ? `ОГРНИП: ${draft.ogrnip ?? '—'}` : null,
+      draft.legalType === LegalType.IP ? `Система налогообложения: ${draft.taxSystem ?? '—'}` : null,
       isNoContractLegalType(draft.legalType) ? null : `Расчетный счет: ${draft.bankAccount ?? '—'}`,
       isNoContractLegalType(draft.legalType) ? null : `Банк: ${draft.bankName ?? '—'}`,
       isNoContractLegalType(draft.legalType) ? null : `БИК: ${draft.bankBik ?? '—'}`,

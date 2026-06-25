@@ -104,6 +104,11 @@ export const ogrnipSchema = z
   .regex(/^\d+$/, 'Нужно ввести только цифры')
   .regex(/^\d{15}$/, 'ОГРНИП должен содержать 15 цифр');
 
+export const taxSystemSchema = requiredText('Укажите систему налогообложения', 200).min(
+  2,
+  'Укажите систему налогообложения'
+);
+
 export const bankAccountSchema = requiredDigits('Укажите расчетный счет').length(
   20,
   'Расчетный счет должен содержать 20 цифр'

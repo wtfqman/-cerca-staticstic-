@@ -1,6 +1,7 @@
 import { DocumentType } from '@prisma/client';
 
 const CURRENT_LAYOUT_REVISIONS: Partial<Record<DocumentType, number>> = {
+  [DocumentType.CONTRACT]: 1,
   [DocumentType.NDA]: 2,
   [DocumentType.ASSIGNMENT]: 2,
   [DocumentType.ACT]: 2,
