@@ -24,6 +24,7 @@ import {
 } from '../utils/temporary-creator-invite';
 import { getRequiredSecondQueueStatisticsStatus } from '../creators/creator-statistics-requirements';
 import {
+  ensureCreatorProfileCompleted,
   ensureCreatorProfileCompletedForDocuments
 } from '../creators/creator-documents.flow';
 import { replyCreatorPostStatisticsNextStep } from '../creators/creator-statistics-next-step';
@@ -132,7 +133,7 @@ export const handleStart = async (ctx: BotContext) => {
   }
 
   if (canUseCreatorScenario(user) && !canUseAdminScenario(user) && !canUseTeamLeadScenario(user)) {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -187,7 +188,7 @@ export const handleProfile = async (ctx: BotContext) => {
   const profile = await container.services.creatorProfileService.getProfile(currentUser.id);
 
   if (!profile?.profileCompleted) {
-    await ensureCreatorProfileCompletedForDocuments(ctx);
+    await ensureCreatorProfileCompleted(ctx);
     return;
   }
 

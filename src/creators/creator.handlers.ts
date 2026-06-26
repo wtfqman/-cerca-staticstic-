@@ -16,6 +16,7 @@ import { getCurrentMonthKey, getPreviousMonthKey } from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
 import { formatUserError, logUserError } from '../utils/user-errors';
 import {
+  ensureCreatorProfileCompleted,
   ensureCreatorProfileCompletedForDocuments,
   openCreatorFirstQueueEntryFlow,
   openCreatorDocumentsFlow
@@ -144,7 +145,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
       return next();
     }
 
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -189,7 +190,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.weeklyStats, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -198,7 +199,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action('creator_weekly_stats_start', roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -207,7 +208,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.monthlyVideos, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -226,7 +227,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.monthlyVideosMarchApril, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -239,7 +240,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.monthlyReachMarchApril, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -252,7 +253,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.hears(CREATOR_MENU.reports, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -298,7 +299,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action(/^creator_month_report:(.+)$/, roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -309,7 +310,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   bot.action('creator_week_report', roleGuard(UserRole.CREATOR), async (ctx) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 
@@ -443,7 +444,7 @@ export const registerCreatorHandlers = (bot: Telegraf<BotContext>) => {
   });
 
   const openProfileChangeRequest = async (ctx: BotContext) => {
-    if (!(await ensureCreatorProfileCompletedForDocuments(ctx))) {
+    if (!(await ensureCreatorProfileCompleted(ctx))) {
       return;
     }
 

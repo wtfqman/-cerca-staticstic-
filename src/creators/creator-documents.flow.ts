@@ -162,6 +162,38 @@ const formatFirstQueueGenerationFailureText = (error: unknown) => {
   return FIRST_QUEUE_GENERATION_FAILED_TEXT;
 };
 
+export const ensureCreatorProfileCompleted = async (ctx: BotContext) => {
+  const currentUser = ctx.state.currentUser;
+
+  if (!currentUser || !canUseCreatorScenario(currentUser)) {
+    return true;
+  }
+
+  const profile = await container.services.creatorProfileService.getProfile(currentUser.id);
+
+  if (profile?.profileCompleted) {
+    return true;
+  }
+
+  if (ctx.callbackQuery) {
+    await safeAnswerCbQuery(ctx, 'Сначала анкета');
+  }
+
+  await ctx.reply(CREATOR_PROFILE_REQUIRED_FOR_DOCUMENTS_TEXT);
+
+  if (ctx.scene.current?.id === SCENE_IDS.creatorRegistration) {
+    await ctx.reply('Продолжаем регистрацию. Если нужно остановиться, используй /cancel.');
+    return false;
+  }
+
+  if (ctx.scene.current) {
+    await ctx.scene.leave();
+  }
+
+  await ctx.scene.enter(SCENE_IDS.creatorRegistration);
+  return false;
+};
+
 export const ensureCreatorProfileCompletedForDocuments = async (ctx: BotContext) => {
   const currentUser = ctx.state.currentUser;
 
