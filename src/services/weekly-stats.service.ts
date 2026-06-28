@@ -1,7 +1,13 @@
 import { SocialPlatform, WeeklyReportStatus } from '@prisma/client';
 
 import type { WeeklyReportReviewSummary, WeeklyStatSummary } from '../types/report.types';
-import { getMonthRange, getWeeklyReportPeriod, toDateOnly, toDateKey } from '../utils/periods';
+import {
+  getMonthRange,
+  getWeeklyReportPeriodCandidates,
+  toDateOnly,
+  toDateKey,
+  type WeeklyReportPeriod
+} from '../utils/periods';
 import { formatTeamLeadDisplayName } from '../utils/formatters';
 import { kpiViewsSchema, nonNegativeIntSchema, videoCountSchema } from '../validators/stats.schemas';
 import { WeeklyStatsRepository } from '../repositories/weekly-stats.repository';
@@ -32,6 +38,10 @@ const buildTotals = (
 });
 
 const REVIEWABLE_WEEKLY_STATUSES = new Set<string>([
+  WeeklyReportStatus.SUBMITTED,
+  WeeklyReportStatus.CONFIRMED
+]);
+const COMPLETED_WEEKLY_STATUSES = new Set<WeeklyReportStatus>([
   WeeklyReportStatus.SUBMITTED,
   WeeklyReportStatus.CONFIRMED
 ]);
@@ -80,13 +90,32 @@ export class WeeklyStatsService {
   ) {}
 
   async getOrCreateCurrentReport(creatorUserId: string) {
-    const period = getWeeklyReportPeriod();
+    const period = await this.resolveCurrentPeriodForCreator(creatorUserId);
+
     return this.repository.findOrCreateReport(
       creatorUserId,
       period.monthKey,
       toDateOnly(period.weekStart),
       toDateOnly(period.weekEnd)
     );
+  }
+
+  private async resolveCurrentPeriodForCreator(creatorUserId: string): Promise<WeeklyReportPeriod> {
+    const periods = getWeeklyReportPeriodCandidates();
+
+    for (const period of periods) {
+      const report = await this.repository.getReportForPeriod(
+        creatorUserId,
+        toDateOnly(period.weekStart),
+        toDateOnly(period.weekEnd)
+      );
+
+      if (!report || !COMPLETED_WEEKLY_STATUSES.has(report.status)) {
+        return period;
+      }
+    }
+
+    return periods[periods.length - 1];
   }
 
   async getEditableReport(reportId: string, creatorUserId: string) {

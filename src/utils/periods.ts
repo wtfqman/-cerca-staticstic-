@@ -2,6 +2,12 @@ import type { Dayjs } from 'dayjs';
 
 import { dayjs } from '../lib/dayjs';
 
+export interface WeeklyReportPeriod {
+  weekStart: string;
+  weekEnd: string;
+  monthKey: string;
+}
+
 export const getNow = (): Dayjs => dayjs().tz();
 
 export const toDateOnly = (value: Dayjs | Date | string): Date => {
@@ -60,44 +66,72 @@ export const getLastSevenDaysRange = (): { dateFrom: string; dateTo: string } =>
   dateTo: getNow().format('YYYY-MM-DD')
 });
 
-export const getWeeklyReportPeriod = (
-  referenceDate: Dayjs = getNow()
-): { weekStart: string; weekEnd: string; monthKey: string } => {
-  const weekEnd = referenceDate.startOf('isoWeek').subtract(1, 'day');
-  const weekStart = weekEnd.subtract(6, 'day');
-  const rawWeekStart = weekStart.format('YYYY-MM-DD');
-  const rawWeekEnd = weekEnd.format('YYYY-MM-DD');
+const minDayjs = (left: Dayjs, right: Dayjs) => left.isBefore(right) ? left : right;
 
-  if (rawWeekStart === '2026-04-27' && rawWeekEnd === '2026-05-03') {
-    return {
-      weekStart: '2026-05-01',
-      weekEnd: rawWeekEnd,
-      monthKey: toMonthKey(weekEnd)
-    };
+const splitPeriodByMonth = (weekStart: Dayjs, weekEnd: Dayjs): WeeklyReportPeriod[] => {
+  const periods: WeeklyReportPeriod[] = [];
+  let cursor = weekStart.startOf('day');
+  const end = weekEnd.startOf('day');
+
+  while (!cursor.isAfter(end)) {
+    const segmentEnd = minDayjs(cursor.endOf('month').startOf('day'), end);
+
+    periods.push({
+      weekStart: cursor.format('YYYY-MM-DD'),
+      weekEnd: segmentEnd.format('YYYY-MM-DD'),
+      monthKey: cursor.format('YYYY-MM')
+    });
+
+    cursor = segmentEnd.add(1, 'day').startOf('day');
   }
 
-  return {
-    weekStart: rawWeekStart,
-    weekEnd: rawWeekEnd,
-    monthKey: toMonthKey(weekEnd)
-  };
+  return periods;
 };
 
-export const getWeeklyReportPeriodsForMonth = (
-  monthKey: string
-): Array<{ weekStart: string; weekEnd: string; monthKey: string }> => {
+const uniquePeriods = (periods: WeeklyReportPeriod[]) => {
+  const seen = new Set<string>();
+
+  return periods.filter((period) => {
+    const key = `${period.weekStart}:${period.weekEnd}`;
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+};
+
+export const getWeeklyReportPeriodCandidates = (referenceDate: Dayjs = getNow()): WeeklyReportPeriod[] => {
+  const currentWeekStart = referenceDate.startOf('isoWeek');
+  const currentMonthStart = referenceDate.startOf('month');
+  const weekEnd = referenceDate.startOf('isoWeek').subtract(1, 'day');
+  const weekStart = weekEnd.subtract(6, 'day');
+  const previousWeekPeriods = splitPeriodByMonth(weekStart, weekEnd);
+  const currentWeekPreviousMonthTail = currentWeekStart.isBefore(currentMonthStart)
+    ? splitPeriodByMonth(currentWeekStart, currentMonthStart.subtract(1, 'day'))
+    : [];
+
+  return uniquePeriods([...previousWeekPeriods, ...currentWeekPreviousMonthTail]);
+};
+
+export const getWeeklyReportPeriod = (referenceDate: Dayjs = getNow()): WeeklyReportPeriod => {
+  const periods = getWeeklyReportPeriodCandidates(referenceDate);
+
+  return periods[periods.length - 1];
+};
+
+export const getWeeklyReportPeriodsForMonth = (monthKey: string): WeeklyReportPeriod[] => {
   const monthStart = dayjs.tz(`${monthKey}-01`).startOf('month');
-  let cursor = monthStart.startOf('isoWeek').endOf('isoWeek');
+  const monthEnd = monthStart.endOf('month').startOf('day');
+  let cursor = monthStart.startOf('isoWeek');
+  const periods: WeeklyReportPeriod[] = [];
 
-  if (cursor.format('YYYY-MM') < monthKey) {
-    cursor = cursor.add(1, 'week');
-  }
-
-  const periods: Array<{ weekStart: string; weekEnd: string; monthKey: string }> = [];
-
-  while (cursor.format('YYYY-MM') === monthKey) {
-    const weekEnd = cursor.startOf('day');
-    const weekStart = weekEnd.subtract(6, 'day');
+  while (!cursor.isAfter(monthEnd)) {
+    const rawWeekEnd = cursor.endOf('isoWeek').startOf('day');
+    const weekStart = cursor.isBefore(monthStart) ? monthStart : cursor;
+    const weekEnd = rawWeekEnd.isAfter(monthEnd) ? monthEnd : rawWeekEnd;
 
     periods.push({
       weekStart: weekStart.format('YYYY-MM-DD'),
@@ -105,7 +139,7 @@ export const getWeeklyReportPeriodsForMonth = (
       monthKey
     });
 
-    cursor = cursor.add(1, 'week');
+    cursor = cursor.add(1, 'week').startOf('isoWeek');
   }
 
   return periods;

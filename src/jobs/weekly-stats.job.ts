@@ -172,13 +172,17 @@ export const runWeeklyStatsReminderJob = async (
     return;
   }
 
-  const period = getWeeklyReportPeriod();
-  const periodLabel = formatPeriodLabel(period.weekStart, period.weekEnd);
   const creators = (await container.services.userService.listCreators()).filter(shouldReceiveWeeklyStatsReminders);
 
   for (const creator of creators) {
+    let reportPeriod: { weekStart?: string; weekEnd?: string } = {};
+
     try {
       const report = await container.services.weeklyStatsService.getOrCreateCurrentReport(creator.id);
+      const weekStart = report.weekStart.toISOString().slice(0, 10);
+      const weekEnd = report.weekEnd.toISOString().slice(0, 10);
+      const periodLabel = formatPeriodLabel(weekStart, weekEnd);
+      reportPeriod = { weekStart, weekEnd };
 
       if (SUBMITTED_WEEKLY_STATUSES.has(report.status)) {
         continue;
@@ -190,8 +194,8 @@ export const runWeeklyStatsReminderJob = async (
         NotificationType.WEEKLY_STATS_REMINDER,
         {
           creatorUserId: creator.id,
-          weekStart: period.weekStart,
-          weekEnd: period.weekEnd,
+          weekStart,
+          weekEnd,
           slot
         }
       );
@@ -203,8 +207,7 @@ export const runWeeklyStatsReminderJob = async (
             creatorUserId: creator.id,
             telegramId: creator.telegramId,
             slot,
-            weekStart: period.weekStart,
-            weekEnd: period.weekEnd
+            ...reportPeriod
           },
           'Weekly stats reminder skipped: Telegram direct message unavailable'
         );
@@ -216,9 +219,7 @@ export const runWeeklyStatsReminderJob = async (
           error: normalizeErrorForLog(error),
           creatorUserId: creator.id,
           telegramId: creator.telegramId,
-          slot,
-          weekStart: period.weekStart,
-          weekEnd: period.weekEnd
+          slot
         },
         'Weekly stats reminder failed for creator'
       );
