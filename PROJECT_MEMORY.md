@@ -13,6 +13,7 @@ There are multiple bots on the same server. Do not mix them up.
 - Purpose: Telegram bot `creator statistics` for creator profiles, weekly stats, monthly video counts, documents, invoices, receipts, team leads, admin reports, and Google Sheets sync.
 - Server path: `/opt/cerca-statistics-bot`
 - PM2 process: `cerca-statistics-bot`
+- SSH: `ssh root@5.129.250.193`
 - GitHub repo: `https://github.com/wtfqman/-cerca-staticstic-.git`
 - Local workspace used by Codex on Windows: `c:\Users\PC\OneDrive\Desktop\cerca trova bot 2`
 - Main deploy command sequence:

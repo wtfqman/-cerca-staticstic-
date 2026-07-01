@@ -284,6 +284,17 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
           originalFileName: ctx.message.document.file_name ?? `invoice_${monthKey}.pdf`,
           mimeType: ctx.message.document.mime_type
         });
+
+        getState(ctx).type = 'RECEIPT';
+
+        await ctx.reply(
+          [
+            `Счет за ${monthKey} получен и сохранен.`,
+            'Теперь отправь чек за этот же период: PDF, JPG/PNG-файл или просто фото.',
+            'Пока чек не загружен, бот не передаст счет и документы дальше. Если нужно выйти без загрузки, нажми /cancel.'
+          ].join('\n')
+        );
+        return;
       } else {
         const receiptFile = getReceiptUploadFile(ctx, monthKey);
 
@@ -304,16 +315,10 @@ export const paymentDocumentUploadScene = new Scenes.WizardScene<BotContext>(
       }
 
       await ctx.reply(
-            uploadType === 'INVOICE'
-                ? [
-                    `Счет за ${monthKey} получен и сохранен.`,
-                    'Теперь сразу загрузи чек за этот же период.',
-                    'Пока чек не загружен, бот не передаст счет и документы дальше.'
-                ].join('\n')
-                : [
-                    `Чек за ${monthKey} получен и сохранен.`,
-              'Ожидание чека по этому периоду закрыто.'
-            ].join('\n'),
+        [
+          `Чек за ${monthKey} получен и сохранен.`,
+          'Ожидание чека по этому периоду закрыто.'
+        ].join('\n'),
         mainMenuKeyboardForUser(ctx.state.currentUser)
       );
       await ctx.scene.leave();
